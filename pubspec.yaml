@@ -1,0 +1,39 @@
+name: bos_panglong_app
+description: "A new Flutter project."
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.10.4 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # File & Media
+  file_picker: ^8.0.0 # Untuk pilih file backup/restore
+  image_picker: ^1.1.2 # Versi lebih baru
+  csv: ^6.0.0 # Untuk baca/tulis excel
+
+  # Izin & Utilitas Sistem
+  permission_handler: ^11.3.1 # WAJIB UPDATE KE VERSI INI (Fix error Registrar)
+  path_provider: ^2.1.3 # Versi lebih baru
+  share_plus: ^9.0.0 # Versi lebih baru untuk fitur share
+
+  # Database
+  sqflite: ^2.3.3 # Database utama
+  # sqflite_common_ffi: ^2.3.3 # (Opsional: Hapus tanda pagar jika coding di Windows/Mac juga. Untuk Android tidak wajib)
+  path: ^1.9.0
+
+  # UI & Format
+  cupertino_icons: ^1.0.8
+  google_fonts: ^6.2.1
+  intl: ^0.19.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
