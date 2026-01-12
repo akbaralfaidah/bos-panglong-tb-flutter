@@ -114,7 +114,8 @@ class DatabaseHelper {
       'transactions', 
       where: 'transaction_date BETWEEN ? AND ?', 
       whereArgs: [start, end],
-      orderBy: 'id DESC'
+      // REVISI: Urutkan berdasarkan TANGGAL, bukan ID. Biar data 'masa lalu' tampil di bawah.
+      orderBy: 'transaction_date DESC' 
     );
   }
 
@@ -170,7 +171,7 @@ class DatabaseHelper {
       FROM transaction_items i 
       JOIN transactions t ON i.transaction_id = t.id 
       WHERE t.transaction_date BETWEEN ? AND ? 
-      ORDER BY t.id DESC
+      ORDER BY t.transaction_date DESC
     ''', [start, end]);
   }
 
@@ -184,19 +185,17 @@ class DatabaseHelper {
       FROM stock_logs s 
       LEFT JOIN products p ON s.product_id = p.id 
       WHERE s.date BETWEEN ? AND ? AND s.quantity_added > 0
-      ORDER BY s.id DESC
+      ORDER BY s.date DESC
     ''', [start, end]);
   }
 
-  // --- QUERY KHUSUS LAPORAN EXCEL & ANALISA (BARU) ---
+  // --- QUERY KHUSUS LAPORAN EXCEL & ANALISA ---
 
-  // 1. Ambil Data Gabungan (Transaksi + Item) untuk Export Excel
   Future<List<Map<String, dynamic>>> getCompleteReportData({required String startDate, required String endDate}) async {
     final db = await instance.database;
     String start = "$startDate 00:00:00";
     String end = "$endDate 23:59:59";
 
-    // Kita join tabel Transaksi dan Item biar lengkap
     return await db.rawQuery('''
       SELECT 
         t.transaction_date, 
@@ -211,11 +210,10 @@ class DatabaseHelper {
       FROM transactions t
       JOIN transaction_items i ON t.id = i.transaction_id
       WHERE t.transaction_date BETWEEN ? AND ?
-      ORDER BY t.transaction_date ASC
+      ORDER BY t.transaction_date DESC
     ''', [start, end]);
   }
 
-  // 2. Analisa Barang Terlaris (Top 5)
   Future<List<Map<String, dynamic>>> getTopProducts({required String startDate, required String endDate}) async {
     final db = await instance.database;
     String start = "$startDate 00:00:00";
@@ -235,17 +233,16 @@ class DatabaseHelper {
     ''', [start, end]);
   }
 
-  // ----------------------------------------------------
-
   // --- FUNGSI TRANSAKSI CORE ---
 
   Future<int> createTransaction({
     required int totalPrice, required int operational_cost, required String customerName, 
     required String paymentMethod, required String paymentStatus, required int queueNumber, 
-    required List<dynamic> items
+    required List<dynamic> items,
+    String? transaction_date // REVISI: Tambah parameter opsional biar bisa inject tanggal masa lalu
   }) async {
     final db = await instance.database;
-    String dateNow = DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now());
+    String dateNow = transaction_date ?? DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now());
     
     try {
       return await db.transaction((txn) async {

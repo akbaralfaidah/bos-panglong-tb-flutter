@@ -6,6 +6,7 @@ import 'product_list_screen.dart';
 import 'cashier_screen.dart';
 import 'settings_screen.dart';
 import 'history_screen.dart';
+import 'report_screen.dart'; 
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -37,31 +38,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   void _openHistory(HistoryType type, String title) async {
+    // Saat klik detail, kita buka halaman History.
+    // Di sana nanti Bos bisa lihat semua data (bukan cuma hari ini).
     await Navigator.push(context, MaterialPageRoute(builder: (_) => HistoryScreen(type: type, title: title)));
     _refreshStats(); 
   }
 
-  // --- LOGIKA PEMBULATAN BARU (Anti-Kriting Level Dewa) ---
   int _roundClean(double value) {
-    // REVISI: Dibulatkan ke 1.000 Rupiah terdekat.
-    // Contoh: 3.999.900 -> 4.000.000
-    // Contoh: 150.400 -> 150.000
-    // Angka di dashboard jadi jauh lebih rapi & enak dilihat.
     return (value / 1000).round() * 1000;
   }
 
   Future<void> _refreshStats() async {
     final db = DatabaseHelper.instance;
     final dbInstance = await db.database;
-    String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
     
+    // KUNCI: Filter Tanggal HARI INI SAJA
+    String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
     String startOfDay = "$today 00:00:00";
     String endOfDay = "$today 23:59:59";
 
-    // 1. AMBIL TRANSAKSI HARI INI
+    // 1. AMBIL TRANSAKSI (HANYA HARI INI)
     final transactions = await db.getTransactionHistory(startDate: today, endDate: today);
 
-    // 2. AMBIL TOTAL PIUTANG SEMUA WAKTU
+    // 2. AMBIL TOTAL PIUTANG (SEMUA WAKTU - Agar tidak lupa tagih hutang lama)
     int totalOutstandingDebt = await db.getTotalPiutangAllTime();
 
     double omsetReal = 0; 
@@ -74,12 +73,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
       double opCost = (t['operational_cost'] as num).toDouble();
       String status = t['payment_status']; 
       
-      // HANYA HITUNG JIKA LUNAS
+      // Hitung Omset & Profit HARI INI (Hanya yang LUNAS)
       if (status == 'Lunas') {
         bensin += opCost; 
         omsetReal += (totalBelanja - opCost); 
 
-        // Hitung Profit
+        // Hitung Profit Detail
         final items = await dbInstance.query('transaction_items', where: 'transaction_id = ?', whereArgs: [tId]);
         for (var item in items) {
           double qty = (item['quantity'] as num).toDouble();
@@ -93,7 +92,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     
     double netProfit = totalMarginLaba - bensin;
 
-    // 3. BARANG TERJUAL
+    // 3. BARANG TERJUAL (HANYA HARI INI)
     int kCount = 0;
     int bCount = 0;
     final resItems = await dbInstance.rawQuery(
@@ -106,7 +105,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if(type == 'KAYU' || type == 'RENG') kCount += q; else bCount += q;
     }
 
-    // 4. BELI STOK
+    // 4. BELI STOK (HANYA HARI INI)
     final resStok = await dbInstance.rawQuery(
       '''SELECT quantity_added, capital_price FROM stock_logs WHERE date BETWEEN ? AND ? AND quantity_added > 0''',
       [startOfDay, endOfDay]
@@ -120,11 +119,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     if (!mounted) return;
     setState(() {
-      // TERAPKAN PEMBULATAN 1000 DI SINI
       _omsetKotor = _roundClean(omsetReal);
       _profitBersih = _roundClean(netProfit);
       _uangBensin = _roundClean(bensin);
-      _totalPiutang = _roundClean(totalOutstandingDebt.toDouble());
+      _totalPiutang = _roundClean(totalOutstandingDebt.toDouble()); // Ini tetap Total
       _totalBeliStok = _roundClean(beliStokTotal);
       
       _kayuTerjual = kCount;
@@ -156,7 +154,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: 20),
-              // KARTU PROFIT
+              // KARTU PROFIT (HARI INI)
               InkWell(
                 onTap: () => _openHistory(HistoryType.transactions, "Detail Profit & Transaksi"),
                 borderRadius: BorderRadius.circular(25),
@@ -164,10 +162,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(25), boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: const Offset(0, 5))]),
                   child: Column(children: [
-                    Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.monetization_on, color: Colors.amber[700]), const SizedBox(width: 8), Text("PROFIT BERSIH HARI INI", style: TextStyle(color: Colors.grey[600], fontWeight: FontWeight.bold))]),
+                    Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.monetization_on, color: Colors.amber[700]), const SizedBox(width: 8), Text("PROFIT BERSIH (HARI INI)", style: TextStyle(color: Colors.grey[600], fontWeight: FontWeight.bold))]),
                     const Divider(indent: 40, endIndent: 40),
                     FittedBox(child: Text(_formatRp(_profitBersih), style: TextStyle(fontSize: 48, fontWeight: FontWeight.w900, color: _profitBersih >= 0 ? const Color(0xFF007A33) : Colors.red[800]))),
-                    const Text("(Klik untuk detail)", style: TextStyle(fontSize: 10, color: Colors.grey))
+                    const Text("(Klik untuk detail lengkap)", style: TextStyle(fontSize: 10, color: Colors.grey))
                   ]),
                 ),
               ),
@@ -178,19 +176,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 crossAxisCount: 2, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
                 crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: gridRatio,
                 children: [
-                  _statCard("Piutang (Total)", _totalPiutang, Icons.book, Colors.red[700]!, () => _openHistory(HistoryType.piutang, "Daftar Piutang")),
-                  _statCard("Omset (Tunai)", _omsetKotor, Icons.storefront, Colors.blue[800]!, () => _openHistory(HistoryType.transactions, "Riwayat Transaksi")),
-                  _statCard("Duit Bensin", _uangBensin, Icons.local_gas_station, Colors.orange[800]!, () => _openHistory(HistoryType.bensin, "Pengeluaran Bensin")),
-                  _statCard("Belanja Stok", _totalBeliStok, Icons.shopping_cart, Colors.purple[800]!, () => _openHistory(HistoryType.stock, "Riwayat Stok Masuk")),
+                  // PIUTANG TETAP TOTAL (Agar tidak lupa nagih)
+                  _statCard("Sisa Piutang (Total)", _totalPiutang, Icons.book, Colors.red[700]!, () => _openHistory(HistoryType.piutang, "Daftar Piutang")),
+                  // YANG LAIN HARI INI
+                  _statCard("Omset (Hari Ini)", _omsetKotor, Icons.storefront, Colors.blue[800]!, () => _openHistory(HistoryType.transactions, "Riwayat Transaksi")),
+                  _statCard("Bensin (Hari Ini)", _uangBensin, Icons.local_gas_station, Colors.orange[800]!, () => _openHistory(HistoryType.bensin, "Pengeluaran Bensin")),
+                  _statCard("Stok Masuk (Hari Ini)", _totalBeliStok, Icons.shopping_cart, Colors.purple[800]!, () => _openHistory(HistoryType.stock, "Riwayat Stok Masuk")),
                 ],
               ),
               const SizedBox(height: 20),
               
-              // BARANG TERJUAL
+              // BARANG TERJUAL (HARI INI)
               Row(children: [
-                Expanded(child: _itemCard("Kayu & Reng", "$_kayuTerjual Btg", Icons.forest, const Color(0xFF795548), () => _openHistory(HistoryType.soldItems, "Rincian Barang Keluar"))),
+                Expanded(child: _itemCard("Kayu Hari Ini", "$_kayuTerjual Btg", Icons.forest, const Color(0xFF795548), () => _openHistory(HistoryType.soldItems, "Rincian Barang Keluar"))),
                 const SizedBox(width: 12),
-                Expanded(child: _itemCard("Bangunan", "$_bangunanTerjual Pcs", Icons.home_work, const Color(0xFF546E7A), () => _openHistory(HistoryType.soldItems, "Rincian Barang Keluar"))),
+                Expanded(child: _itemCard("Bangunan Hari Ini", "$_bangunanTerjual Pcs", Icons.home_work, const Color(0xFF546E7A), () => _openHistory(HistoryType.soldItems, "Rincian Barang Keluar"))),
               ]),
               const SizedBox(height: 30),
               
@@ -200,6 +200,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 const SizedBox(width: 12),
                 Expanded(child: _menuBtn("KASIR", Icons.point_of_sale, [const Color(0xFF00C6FF), const Color(0xFF0072FF)], () => _nav(const CashierScreen()))),
               ]),
+              
+              // MENU LAPORAN (Untuk Cek Data Masa Lalu/Keseluruhan)
+              const SizedBox(height: 12),
+              _menuBtn("LAPORAN & EXPORT", Icons.analytics, [const Color.fromARGB(255, 45, 221, 32), const Color.fromARGB(255, 29, 170, 4)], () => _nav(const ReportScreen())),
+
               const SizedBox(height: 50),
             ],
           ),
