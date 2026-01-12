@@ -14,6 +14,7 @@ dependencies:
   file_picker: ^8.0.0 # Untuk pilih file backup/restore
   image_picker: ^1.1.2 # Versi lebih baru
   csv: ^6.0.0 # Untuk baca/tulis excel
+  blue_thermal_printer: ^1.2.3
 
   # Izin & Utilitas Sistem
   permission_handler: ^11.3.1 # WAJIB UPDATE KE VERSI INI (Fix error Registrar)

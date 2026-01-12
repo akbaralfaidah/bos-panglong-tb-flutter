@@ -1,6 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'dart:io'; 
+import 'dart:ui' as ui; 
+import 'dart:typed_data'; // WAJIB ADA
+import 'package:flutter/rendering.dart'; 
+import 'package:path_provider/path_provider.dart'; 
+import 'package:share_plus/share_plus.dart'; 
 import '../helpers/database_helper.dart';
+import '../helpers/printer_helper.dart'; // <--- IMPORT HELPER PRINTER
 
 class TransactionDetailScreen extends StatefulWidget {
   final Map<String, dynamic> transaction;
@@ -14,202 +21,319 @@ class TransactionDetailScreen extends StatefulWidget {
 class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
   final Color _bgStart = const Color(0xFF0052D4);
   final Color _bgEnd = const Color(0xFF4364F7);
-
+  
   List<Map<String, dynamic>> _items = [];
   bool _isLoading = true;
-  late String _currentStatus; 
-  late String _currentDate;
+
+  // Identitas Toko
+  String _storeName = "Bos Panglong & TB";
+  String _storeAddress = "Jl. Raya Sukses No. 1";
+  String? _logoPath;
+
+  // Key untuk Screenshot
+  final GlobalKey _printKey = GlobalKey();
+  final PrinterHelper _printerHelper = PrinterHelper(); // Instance Printer
 
   @override
   void initState() {
     super.initState();
-    _currentStatus = widget.transaction['payment_status'];
-    _currentDate = widget.transaction['transaction_date'];
-    _loadItems();
+    _loadData();
   }
 
-  Future<void> _loadItems() async {
-    final data = await DatabaseHelper.instance.getTransactionItems(widget.transaction['id']);
+  Future<void> _loadData() async {
+    final dbHelper = DatabaseHelper.instance;
+    final db = await dbHelper.database;
+
+    // 1. Ambil Barang Transaksi + JOIN ke Produk untuk dapat DIMENSI/UKURAN
+    // Kita pakai rawQuery manual agar bisa ambil kolom 'dimensions' dari tabel products
+    final items = await db.rawQuery('''
+      SELECT ti.*, p.dimensions 
+      FROM transaction_items ti 
+      LEFT JOIN products p ON ti.product_id = p.id 
+      WHERE ti.transaction_id = ?
+    ''', [widget.transaction['id']]);
+    
+    // 2. Ambil Identitas Toko
+    String? name = await dbHelper.getSetting('store_name');
+    String? address = await dbHelper.getSetting('store_address');
+    String? logo = await dbHelper.getSetting('store_logo');
+
     if (mounted) {
       setState(() {
-        _items = data;
+        _items = items;
+        if (name != null && name.isNotEmpty) _storeName = name;
+        if (address != null && address.isNotEmpty) _storeAddress = address;
+        _logoPath = logo;
         _isLoading = false;
       });
     }
   }
 
-  Future<void> _markAsPaid() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text("Lunasi Hutang?"),
-        content: const Text("Status akan berubah menjadi LUNAS dan tercatat sebagai pemasukan (Omset) HARI INI."),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Batal")),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text("YA, LUNAS", style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
+  // --- FUNGSI SHARE DENGAN NAMA FILE & CAPTION CUSTOM ---
+  Future<void> _captureAndSharePng() async {
+    try {
+      RenderRepaintBoundary boundary = _printKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
+      ui.Image image = await boundary.toImage(pixelRatio: 3.0); 
+      ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      Uint8List pngBytes = byteData!.buffer.asUint8List();
 
-    if (confirm == true) {
-      // Update Database (Status & Tanggal jadi hari ini)
-      await DatabaseHelper.instance.updateTransactionStatus(widget.transaction['id'], 'Lunas');
+      final directory = await getTemporaryDirectory();
       
-      // Update UI lokal
-      setState(() {
-        _currentStatus = 'Lunas';
-        _currentDate = DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now());
-      });
+      // Ambil Data untuk Nama File & Caption
+      String id = widget.transaction['id'].toString();
+      String queue = widget.transaction['queue_number'].toString();
+      String rawName = widget.transaction['customer_name'];
+      String cleanName = rawName.replaceAll(RegExp(r'[^\w\s]+'), ''); // Bersihkan simbol aneh
+      
+      // 1. Buat File
+      final File imgFile = File('${directory.path}/Struk Transaksi - $id - $queue - $cleanName.png');
+      await imgFile.writeAsBytes(pngBytes);
 
-      if(mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Hutang Lunas! Omset & Bensin masuk laporan hari ini."), backgroundColor: Colors.green));
-      }
+      // 2. Buat Caption WhatsApp
+      String caption = "Struk Transaksi - #$id - Antrian $queue - $rawName";
+
+      // 3. Share
+      await Share.shareXFiles([XFile(imgFile.path)], text: caption);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal Share: $e")));
     }
   }
 
+  // --- FUNGSI PRINT (INTEGRASI PRINTER HELPER) ---
+  Future<void> _captureAndPrint() async {
+    try {
+      RenderRepaintBoundary boundary = _printKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
+      ui.Image image = await boundary.toImage(pixelRatio: 3.0); 
+      ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      Uint8List pngBytes = byteData!.buffer.asUint8List();
+
+      // Panggil Helper Print
+      await _printerHelper.printReceiptImage(context, pngBytes);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal Print: $e")));
+    }
+  }
+
+  String _formatRp(dynamic number) => NumberFormat.currency(locale: 'id', symbol: 'Rp ', decimalDigits: 0).format(number);
+  String _formatRpNoSymbol(dynamic number) => NumberFormat.currency(locale: 'id', symbol: '', decimalDigits: 0).format(number);
+
   @override
   Widget build(BuildContext context) {
-    int tId = widget.transaction['id'];
-    int queueNo = widget.transaction['queue_number'] ?? 0; // Ambil No Antrian
-    String customer = widget.transaction['customer_name'];
-    int total = widget.transaction['total_price'];
-    int bensin = widget.transaction['operational_cost'];
-    
-    bool isLunas = _currentStatus == 'Lunas';
+    bool isLunas = widget.transaction['payment_status'] == 'Lunas';
+    String dateStr = DateFormat('dd MMM yyyy • HH:mm', 'id_ID').format(DateTime.parse(widget.transaction['transaction_date']));
+    int antrian = widget.transaction['queue_number'] ?? 0;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text("Detail Transaksi"),
         flexibleSpace: Container(decoration: BoxDecoration(gradient: LinearGradient(colors: [_bgStart, _bgEnd]))),
         foregroundColor: Colors.white,
+        elevation: 0,
       ),
       body: _isLoading 
         ? const Center(child: CircularProgressIndicator())
-        : Column(
-            children: [
-              // 1. HEADER NOTA
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 5, offset: const Offset(0, 3))]
+        : SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              children: [
+                // --- WRAPPER UNTUK SCREENSHOT ---
+                RepaintBoundary(
+                  key: _printKey,
+                  child: Container(
+                    width: double.infinity,
+                    constraints: const BoxConstraints(
+                      minHeight: 500, // Minimal panjang kertas
+                      maxWidth: 400   // Maksimal lebar visual
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 20),
+                    decoration: BoxDecoration(
+                      color: Colors.white, 
+                      borderRadius: BorderRadius.circular(5),
+                      boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 15, offset: Offset(0, 5))]
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        
+                        // 1. HEADER TOKO (LOGO FULL)
+                        if (_logoPath != null && File(_logoPath!).existsSync())
+                          Container(
+                            margin: const EdgeInsets.only(bottom: 10),
+                            height: 100, // Tinggi maksimal logo
+                            width: double.infinity,
+                            child: Image.file(
+                              File(_logoPath!), 
+                              fit: BoxFit.contain // Agar Full tidak terpotong
+                            ),
+                          )
+                        else
+                          const Icon(Icons.store, size: 50, color: Colors.black54),
+                        
+                        Text(_storeName.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16), textAlign: TextAlign.center),
+                        if(_storeAddress.isNotEmpty) Text(_storeAddress, style: const TextStyle(color: Colors.grey, fontSize: 11), textAlign: TextAlign.center),
+                        
+                        const Divider(thickness: 1.5, height: 20),
+
+                        // 2. INFO TRANSAKSI
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text("INV-#${widget.transaction['id']} (Antrian: $antrian)", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                            Text(dateStr, style: const TextStyle(fontSize: 12)),
+                          ],
+                        ),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text("Pelanggan:", style: TextStyle(fontSize: 12)),
+                            Text(widget.transaction['customer_name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                          ],
+                        ),
+                        const SizedBox(height: 15),
+                        
+                        // 3. TABEL BELANJA (FORMAT BARU - 5 KOLOM)
+                        const Divider(color: Colors.black),
+                        Table(
+                          columnWidths: const {
+                            0: FlexColumnWidth(2),   // Item
+                            1: FlexColumnWidth(1.2), // Ukuran
+                            2: FlexColumnWidth(1.2), // Harga
+                            3: FlexColumnWidth(0.6), // Qty
+                            4: FlexColumnWidth(1.5), // Total
+                          },
+                          children: const [
+                            TableRow(children: [
+                              Text("Item", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10)),
+                              Text("Ukuran", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10)),
+                              Text("Harga", textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10)),
+                              Text("Qty", textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10)),
+                              Text("Total", textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10)),
+                            ])
+                          ],
+                        ),
+                        const Divider(color: Colors.black),
+
+                        // ISI TABEL
+                        Table(
+                          columnWidths: const {
+                            0: FlexColumnWidth(2),   
+                            1: FlexColumnWidth(1.2), 
+                            2: FlexColumnWidth(1.2), 
+                            3: FlexColumnWidth(0.6), 
+                            4: FlexColumnWidth(1.5), 
+                          },
+                          children: _items.map((item) {
+                            double qty = (item['quantity'] as num).toDouble();
+                            double sell = (item['sell_price'] as num).toDouble();
+                            double subtotal = qty * sell;
+                            
+                            // Logika Ukuran: Ambil dari 'dimensions' (hasil JOIN)
+                            // Jika null, tampilkan "-"
+                            String ukuran = (item['dimensions'] as String?) ?? "-";
+                            
+                            return TableRow(
+                              children: [
+                                Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Text(item['product_name'], style: const TextStyle(fontSize: 10))),
+                                Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Text(ukuran, style: const TextStyle(fontSize: 10))),
+                                Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Text(_formatRpNoSymbol(sell), textAlign: TextAlign.right, style: const TextStyle(fontSize: 10))),
+                                Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Text(qty % 1 == 0 ? qty.toInt().toString() : qty.toString(), textAlign: TextAlign.center, style: const TextStyle(fontSize: 10))),
+                                Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Text(_formatRp(subtotal), textAlign: TextAlign.right, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold))),
+                              ]
+                            );
+                          }).toList(),
+                        ),
+                        const Divider(color: Colors.black),
+
+                        // BENSIN (Jika ada)
+                        if(widget.transaction['operational_cost'] > 0) ...[
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween, 
+                            children: [
+                              const Text("Bensin"), 
+                              Text(_formatRp(widget.transaction['operational_cost']), style: const TextStyle(fontWeight: FontWeight.bold))
+                            ]
+                          ),
+                          const SizedBox(height: 5),
+                        ],
+
+                        // 4. TOTAL & STATUS
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text("TOTAL", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                            Text(_formatRp(widget.transaction['total_price']), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                          ],
+                        ),
+                        const SizedBox(height: 5),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text("Status"),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: isLunas ? Colors.green[50] : Colors.red[50],
+                                borderRadius: BorderRadius.circular(5),
+                                border: Border.all(color: isLunas ? Colors.green : Colors.red)
+                              ),
+                              child: Text(widget.transaction['payment_status'].toUpperCase(), 
+                                style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isLunas ? Colors.green : Colors.red)
+                              ),
+                            )
+                          ],
+                        ),
+
+                        const SizedBox(height: 50), 
+                        const Text("Terima Kasih", style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey)),
+                        Text("$_storeName", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+                      ],
+                    ),
+                  ),
                 ),
-                child: Column(
+                
+                const SizedBox(height: 30),
+                
+                // --- TOMBOL AKSI ---
+                Row(
                   children: [
-                    Text("Total Pembayaran", style: TextStyle(color: Colors.grey[600], fontSize: 12)),
-                    const SizedBox(height: 5),
-                    Text(_formatRp(total), style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: _bgStart)),
-                    const SizedBox(height: 10),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: isLunas ? Colors.green[100] : Colors.red[100],
-                        borderRadius: BorderRadius.circular(20)
-                      ),
-                      child: Text(
-                        isLunas ? "LUNAS" : "BELUM LUNAS",
-                        style: TextStyle(color: isLunas ? Colors.green[800] : Colors.red[800], fontWeight: FontWeight.bold, fontSize: 14),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        icon: const Icon(Icons.share, color: Colors.white, size: 18),
+                        label: const Text("Bagikan", style: TextStyle(color: Colors.white)),
+                        style: ElevatedButton.styleFrom(backgroundColor: Colors.green), // HIJAU
+                        onPressed: _captureAndSharePng, 
                       ),
                     ),
-                    const SizedBox(height: 20),
-                    // TAMPILKAN ID DAN ANTRIAN
-                    _infoRow("No. Nota (ID)", "#$tId"),
-                    _infoRow("No. Antrian Harian", queueNo > 0 ? "#$queueNo" : "-"),
-                    _infoRow("Tanggal", DateFormat('dd MMM yyyy, HH:mm').format(DateTime.parse(_currentDate))),
-                    _infoRow("Pelanggan", customer),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        icon: const Icon(Icons.print, color: Colors.black, size: 18),
+                        label: const Text("Cetak", style: TextStyle(color: Colors.black)),
+                        style: ElevatedButton.styleFrom(backgroundColor: Colors.amber), // KUNING
+                        onPressed: _captureAndPrint, // INTEGRASI PRINTER
+                      ),
+                    ),
                   ],
                 ),
-              ),
-              
-              // 2. LIST BARANG (EXPANDED AGAR BISA SCROLL)
-              Expanded(
-                child: Container(
-                  color: Colors.grey[50],
-                  child: ListView.separated(
-                    padding: const EdgeInsets.all(20),
-                    itemCount: _items.length + (bensin > 0 ? 1 : 0), 
-                    separatorBuilder: (c, i) => const Divider(),
-                    itemBuilder: (ctx, i) {
-                      // Baris Khusus Bensin (Selalu paling bawah)
-                      if (i == _items.length) {
-                         return ListTile(
-                           contentPadding: EdgeInsets.zero,
-                           leading: const Icon(Icons.local_gas_station, size: 20, color: Colors.orange),
-                           title: const Text("Ongkos Bensin", style: TextStyle(fontWeight: FontWeight.bold)),
-                           trailing: Text(_formatRp(bensin), style: const TextStyle(fontWeight: FontWeight.bold)),
-                         );
-                      }
+                
+                const SizedBox(height: 10),
 
-                      final item = _items[i];
-                      int subtotal = item['sell_price'] * item['quantity'];
-
-                      return ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: Text(item['product_name'], style: const TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: Text("${item['quantity']} ${item['unit_type']} x ${_formatRp(item['sell_price'])}"),
-                        trailing: Text(_formatRp(subtotal), style: const TextStyle(fontWeight: FontWeight.bold)),
-                      );
-                    },
+                // TOMBOL KEMBALI
+                SizedBox(
+                  width: double.infinity,
+                  height: 45,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(backgroundColor: _bgStart), 
+                    onPressed: () => Navigator.pop(context), 
+                    child: const Text("KEMBALI", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))
                   ),
                 ),
-              ),
-
-              // 3. TOMBOL AKSI (SAFE AREA AGAR TIDAK NABRAK NAVIGASI HP)
-              SafeArea(
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: const BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, -5))]),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          icon: const Icon(Icons.print),
-                          label: const Text("Cetak Nota"),
-                          style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 15)),
-                          onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Fitur Printer belum disambungkan")));
-                          },
-                        ),
-                      ),
-                      
-                      // JIKA BELUM LUNAS, TAMPILKAN TOMBOL LUNASI
-                      if (!isLunas) ...[
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            icon: const Icon(Icons.check_circle),
-                            label: const Text("LUNASI"),
-                            style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 15)),
-                            onPressed: _markAsPaid,
-                          ),
-                        ),
-                      ]
-                    ],
-                  ),
-                ),
-              )
-            ],
+                
+                const SizedBox(height: 20),
+              ],
+            ),
           ),
     );
   }
-
-  Widget _infoRow(String label, String val) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: const TextStyle(color: Colors.grey)),
-          Text(val, style: const TextStyle(fontWeight: FontWeight.bold)),
-        ],
-      ),
-    );
-  }
-
-  String _formatRp(dynamic number) => NumberFormat.currency(locale: 'id', symbol: 'Rp ', decimalDigits: 0).format(number);
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart'; 
+import 'dart:io'; // Wajib untuk menampilkan Logo dari File
 import '../helpers/database_helper.dart';
 import 'product_list_screen.dart';
 import 'cashier_screen.dart';
@@ -18,6 +19,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final Color _bgStart = const Color(0xFF0052D4); 
   final Color _bgEnd = const Color(0xFF4364F7);   
 
+  // Data Statistik
   int _profitBersih = 0;   
   int _omsetKotor = 0;
   int _uangBensin = 0;
@@ -26,20 +28,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int _kayuTerjual = 0; 
   int _bangunanTerjual = 0;
 
+  // Identitas Toko
+  String _storeName = "Bos Panglong & TB"; // Default
+  String? _logoPath;
+
   @override
   void initState() { 
     super.initState(); 
-    initializeDateFormatting('id_ID', null).then((_) => _refreshStats()); 
+    initializeDateFormatting('id_ID', null).then((_) {
+      _refreshStats(); 
+      _loadStoreIdentity(); // Load nama toko saat buka
+    }); 
   }
 
   void _nav(Widget page) async { 
     await Navigator.push(context, MaterialPageRoute(builder: (_) => page));
     _refreshStats(); 
+    _loadStoreIdentity(); // Refresh nama toko kalau pulang dari setting
   }
 
   void _openHistory(HistoryType type, String title) async {
-    // Saat klik detail, kita buka halaman History.
-    // Di sana nanti Bos bisa lihat semua data (bukan cuma hari ini).
     await Navigator.push(context, MaterialPageRoute(builder: (_) => HistoryScreen(type: type, title: title)));
     _refreshStats(); 
   }
@@ -48,11 +56,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return (value / 1000).round() * 1000;
   }
 
+  // --- AMBIL IDENTITAS TOKO DARI DB ---
+  Future<void> _loadStoreIdentity() async {
+    final db = DatabaseHelper.instance;
+    String? name = await db.getSetting('store_name');
+    String? logo = await db.getSetting('store_logo');
+    
+    if (mounted) {
+      setState(() {
+        if (name != null && name.isNotEmpty) _storeName = name;
+        _logoPath = logo;
+      });
+    }
+  }
+
   Future<void> _refreshStats() async {
     final db = DatabaseHelper.instance;
     final dbInstance = await db.database;
     
-    // KUNCI: Filter Tanggal HARI INI SAJA
     String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
     String startOfDay = "$today 00:00:00";
     String endOfDay = "$today 23:59:59";
@@ -60,7 +81,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     // 1. AMBIL TRANSAKSI (HANYA HARI INI)
     final transactions = await db.getTransactionHistory(startDate: today, endDate: today);
 
-    // 2. AMBIL TOTAL PIUTANG (SEMUA WAKTU - Agar tidak lupa tagih hutang lama)
+    // 2. AMBIL TOTAL PIUTANG (SEMUA WAKTU)
     int totalOutstandingDebt = await db.getTotalPiutangAllTime();
 
     double omsetReal = 0; 
@@ -73,12 +94,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
       double opCost = (t['operational_cost'] as num).toDouble();
       String status = t['payment_status']; 
       
-      // Hitung Omset & Profit HARI INI (Hanya yang LUNAS)
       if (status == 'Lunas') {
         bensin += opCost; 
         omsetReal += (totalBelanja - opCost); 
 
-        // Hitung Profit Detail
         final items = await dbInstance.query('transaction_items', where: 'transaction_id = ?', whereArgs: [tId]);
         for (var item in items) {
           double qty = (item['quantity'] as num).toDouble();
@@ -92,7 +111,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     
     double netProfit = totalMarginLaba - bensin;
 
-    // 3. BARANG TERJUAL (HANYA HARI INI)
+    // 3. BARANG TERJUAL (HARI INI)
     int kCount = 0;
     int bCount = 0;
     final resItems = await dbInstance.rawQuery(
@@ -105,7 +124,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if(type == 'KAYU' || type == 'RENG') kCount += q; else bCount += q;
     }
 
-    // 4. BELI STOK (HANYA HARI INI)
+    // 4. BELI STOK (HARI INI)
     final resStok = await dbInstance.rawQuery(
       '''SELECT quantity_added, capital_price FROM stock_logs WHERE date BETWEEN ? AND ? AND quantity_added > 0''',
       [startOfDay, endOfDay]
@@ -122,9 +141,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _omsetKotor = _roundClean(omsetReal);
       _profitBersih = _roundClean(netProfit);
       _uangBensin = _roundClean(bensin);
-      _totalPiutang = _roundClean(totalOutstandingDebt.toDouble()); // Ini tetap Total
+      _totalPiutang = _roundClean(totalOutstandingDebt.toDouble()); 
       _totalBeliStok = _roundClean(beliStokTotal);
-      
       _kayuTerjual = kCount;
       _bangunanTerjual = bCount;
     });
@@ -140,12 +158,48 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Scaffold(
         backgroundColor: Colors.transparent,
         appBar: AppBar(
-          title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text("Bos Panglong & TB", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: Colors.white)),
-            Text(DateFormat('EEEE, d MMMM yyyy', 'id_ID').format(DateTime.now()), style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.8))),
-          ]),
+          toolbarHeight: 70, // Sedikit lebih tinggi biar muat logo
+          title: Row(
+            children: [
+              // LOGO TOKO (Kiri)
+              if (_logoPath != null && File(_logoPath!).existsSync()) 
+                Container(
+                  margin: const EdgeInsets.only(right: 12),
+                  padding: const EdgeInsets.all(2),
+                  decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                  child: CircleAvatar(
+                    backgroundImage: FileImage(File(_logoPath!)),
+                    radius: 22,
+                    backgroundColor: Colors.white,
+                  ),
+                )
+              else 
+                Container(
+                  margin: const EdgeInsets.only(right: 12),
+                  child: const CircleAvatar(
+                    backgroundColor: Colors.white24,
+                    radius: 22,
+                    child: Icon(Icons.store, color: Colors.white),
+                  ),
+                ),
+              
+              // NAMA TOKO & TANGGAL (Kanan)
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start, 
+                  children: [
+                    Text(_storeName.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white), overflow: TextOverflow.ellipsis),
+                    Text(DateFormat('EEEE, d MMMM yyyy', 'id_ID').format(DateTime.now()), style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.8))),
+                  ]
+                ),
+              ),
+            ],
+          ),
           backgroundColor: Colors.transparent, foregroundColor: Colors.white, elevation: 0,
-          actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _refreshStats), IconButton(icon: const Icon(Icons.settings), onPressed: () => _nav(const SettingsScreen()))],
+          actions: [
+            IconButton(icon: const Icon(Icons.refresh), onPressed: _refreshStats), 
+            IconButton(icon: const Icon(Icons.settings), onPressed: () => _nav(const SettingsScreen()))
+          ],
         ),
         body: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
@@ -154,7 +208,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: 20),
-              // KARTU PROFIT (HARI INI)
+              // KARTU PROFIT
               InkWell(
                 onTap: () => _openHistory(HistoryType.transactions, "Detail Profit & Transaksi"),
                 borderRadius: BorderRadius.circular(25),
@@ -176,9 +230,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 crossAxisCount: 2, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
                 crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: gridRatio,
                 children: [
-                  // PIUTANG TETAP TOTAL (Agar tidak lupa nagih)
-                  _statCard("Sisa Piutang (Total)", _totalPiutang, Icons.book, Colors.red[700]!, () => _openHistory(HistoryType.piutang, "Daftar Piutang")),
-                  // YANG LAIN HARI INI
+                  _statCard("Piutang (Total)", _totalPiutang, Icons.book, Colors.red[700]!, () => _openHistory(HistoryType.piutang, "Daftar Piutang")),
                   _statCard("Omset (Hari Ini)", _omsetKotor, Icons.storefront, Colors.blue[800]!, () => _openHistory(HistoryType.transactions, "Riwayat Transaksi")),
                   _statCard("Bensin (Hari Ini)", _uangBensin, Icons.local_gas_station, Colors.orange[800]!, () => _openHistory(HistoryType.bensin, "Pengeluaran Bensin")),
                   _statCard("Stok Masuk (Hari Ini)", _totalBeliStok, Icons.shopping_cart, Colors.purple[800]!, () => _openHistory(HistoryType.stock, "Riwayat Stok Masuk")),
@@ -186,7 +238,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               const SizedBox(height: 20),
               
-              // BARANG TERJUAL (HARI INI)
+              // BARANG TERJUAL
               Row(children: [
                 Expanded(child: _itemCard("Kayu Hari Ini", "$_kayuTerjual Btg", Icons.forest, const Color(0xFF795548), () => _openHistory(HistoryType.soldItems, "Rincian Barang Keluar"))),
                 const SizedBox(width: 12),
@@ -201,9 +253,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 Expanded(child: _menuBtn("KASIR", Icons.point_of_sale, [const Color(0xFF00C6FF), const Color(0xFF0072FF)], () => _nav(const CashierScreen()))),
               ]),
               
-              // MENU LAPORAN (Untuk Cek Data Masa Lalu/Keseluruhan)
+              // MENU LAPORAN
               const SizedBox(height: 12),
-              _menuBtn("LAPORAN & EXPORT", Icons.analytics, [const Color.fromARGB(255, 45, 221, 32), const Color.fromARGB(255, 29, 170, 4)], () => _nav(const ReportScreen())),
+              _menuBtn("LAPORAN & EXPORT", Icons.analytics, [const Color.fromARGB(255, 71, 208, 7), const Color.fromARGB(255, 71, 143, 3)], () => _nav(const ReportScreen())),
 
               const SizedBox(height: 50),
             ],
