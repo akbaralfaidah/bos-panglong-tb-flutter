@@ -32,7 +32,6 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
   
   late TabController _mainTabController;
   
-  // Custom State pengganti TabBar yang error
   bool _isInputKubik = false; 
   bool _isInputGrosirBangunan = true; 
 
@@ -60,8 +59,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
   String _infoKubikasi = "Vol: -"; 
   String _selectedUkuranReng = "2x3";   
   
-  // REVISI LOGIC TIPE KAYU: 0=Balok, 1=Reng, 2=Bulat
-  int _selectedWoodType = 0; 
+  int _selectedWoodType = 0; // 0=Balok, 1=Reng, 2=Bulat
 
   bool _userEditedTotalManual = false; 
   String _previewNamaKayu = "";
@@ -88,6 +86,28 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
     }
   }
 
+  // PENTING: Dispose untuk mencegah memory leak & tabrakan navigasi
+  @override
+  void dispose() {
+    _mainTabController.dispose();
+    _nameController.dispose();
+    _jenisKayuController.dispose();
+    _sourceController.dispose();
+    _stockController.dispose();
+    _tebalController.dispose();
+    _lebarController.dispose();
+    _panjangController.dispose();
+    _inputQtyMasukController.dispose();
+    _inputKubikController.dispose();
+    _inputIsiPerDusController.dispose();
+    _totalUangKeluarController.dispose();
+    _modalSatuanController.dispose();
+    _jualSatuanController.dispose();
+    _modalGrosirController.dispose();
+    _jualGrosirController.dispose();
+    super.dispose();
+  }
+
   void _registerListeners() {
     _tebalController.addListener(_recalculateWood);
     _lebarController.addListener(_recalculateWood);
@@ -104,7 +124,6 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
     _mainTabController.addListener(() {
       if (!_mainTabController.indexIsChanging) {
         setState(() { 
-          // Reset saat pindah tab utama
           if(_mainTabController.index == 0) {
              if (_selectedWoodType == 0) _nameController.text = "Kayu";
              else if (_selectedWoodType == 1) _nameController.text = "Reng";
@@ -188,7 +207,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
         int isi = int.tryParse(_inputIsiPerDusController.text.replaceAll('.', '')) ?? 1;
         inputVal = qty * isi; 
       } else {
-        // BULAT (Kayu Tunjang) - Hanya Satuan
+        // BULAT
         inputVal = int.tryParse(_inputQtyMasukController.text.replaceAll('.', '')) ?? 0;
       }
     } 
@@ -229,7 +248,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
         }
         totalEstimasi = qtyIkat * hargaIkat;
       } else {
-        // BULAT (Kayu Tunjang) - Hanya Eceran
+        // BULAT
         int qtyBatang = int.tryParse(_inputQtyMasukController.text.replaceAll('.', '')) ?? 0;
         int modalSatuan = _parseMoney(_modalSatuanController.text);
         totalEstimasi = qtyBatang * modalSatuan;
@@ -265,23 +284,19 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
 
     if (_mainTabController.index == 0) {
         if (_selectedWoodType == 0) {
-          // KAYU BALOK
           base = "Kayu $_selectedWoodClass";
           if (_jenisKayuController.text.isNotEmpty) {
             base += " (${_jenisKayuController.text})";
           }
           suffix = ""; 
         } else if (_selectedWoodType == 1) {
-          // RENG
           base = "Reng";
           suffix = " $_selectedUkuranReng";
         } else {
-          // BULAT
           base = "Kayu Tunjang";
           suffix = "";
         }
     } else {
-      // Bangunan
       suffix = " ($_selectedBangunanUnit)";
     }
     
@@ -302,9 +317,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
       int addedQty = stockBaru - stockLama;
       
       String cleanName = _nameController.text;
-      
       String finalName = "";
-      // Tentukan Tipe untuk DB: 'KAYU', 'RENG', 'BULAT', 'BANGUNAN'
       String type = 'BANGUNAN';
       if (_mainTabController.index == 0) {
         if (_selectedWoodType == 0) type = 'KAYU';
@@ -331,7 +344,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
       } else if (type == 'RENG') {
          dim = _selectedUkuranReng;
       } else if (type == 'BULAT') {
-         dim = "-"; // Bulat tidak ada input dimensi spesifik di form
+         dim = "-"; 
       } else {
          dim = _selectedBangunanUnit; 
       }
@@ -505,10 +518,11 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
                   ),
                 _field("Nama Barang", _nameController, hint: "Cth: Semen", readOnly: _mainTabController.index == 0),
                 
-                // INPUT JENIS KAYU (HANYA MUNCUL DI BALOK)
+                // INPUT JENIS KAYU (HANYA MUNCUL DI BALOK) - OPSIONAL
                 if (_selectedWoodType == 0 && _mainTabController.index == 0) ...[
                   const SizedBox(height: 10),
-                  _field("Jenis Kayu (Opsional)", _jenisKayuController, hint: "Cth: Meranti, Kamper"),
+                  // PERBAIKAN: isOptional: true agar tidak wajib diisi
+                  _field("Jenis Kayu (Opsional)", _jenisKayuController, hint: "Cth: Meranti, Kamper", isOptional: true),
                 ],
 
                 const SizedBox(height: 10),
@@ -519,7 +533,6 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
               if (_mainTabController.index == 0) ...[
                 const SizedBox(height: 20), _header("JENIS & UKURAN"),
                 _box(Column(children: [
-                  // RADIO 3 OPSI: BALOK, RENG, BULAT
                   Row(children: [
                     Expanded(child: RadioListTile<int>(title: const Text("Balok", style: TextStyle(fontSize: 12)), value: 0, groupValue: _selectedWoodType, contentPadding: EdgeInsets.zero, onChanged: (v)=>setState((){_selectedWoodType=v!; _generateName();}))), 
                     Expanded(child: RadioListTile<int>(title: const Text("Reng", style: TextStyle(fontSize: 12)), value: 1, groupValue: _selectedWoodType, contentPadding: EdgeInsets.zero, onChanged: (v)=>setState((){_selectedWoodType=v!; _generateName();}))),
@@ -546,7 +559,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
                     const SizedBox(height: 5),
                     DropdownButtonFormField<String>(value: _selectedUkuranReng, decoration: InputDecoration(border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12)), items: _listUkuranReng.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(), onChanged: (val) { if(val != null) _updateRengLogic(val); }),
                   ] else ...[
-                    // FORM BULAT (KOSONG, CUMA NAMA)
+                    // FORM BULAT
                     const Divider(),
                     const Text("Produk: Kayu Tunjang", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                   ]
@@ -564,7 +577,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
               _box(Column(children: [
                 if (_mainTabController.index == 0) ...[
                    if (_selectedWoodType == 0) ...[
-                     // BALOK (Ada Kubik)
+                     // BALOK
                      Row(children: [
                        _customTabButton(label: "Input Satuan (Btg)", isSelected: !_isInputKubik, onTap: () { setState(() { _isInputKubik = false; _calculateFinalStock(); _calculateMoneyExpense(); }); }),
                        const SizedBox(width: 10),
@@ -574,7 +587,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
                      if (!_isInputKubik) _field("Jumlah Batang", _inputQtyMasukController, isNum: true)
                      else _field("Jumlah Kubik (m³)", _inputKubikController, isNum: true, hint: "1.5"),
                    ] else if (_selectedWoodType == 1) ...[
-                     // RENG (Ada Ikat)
+                     // RENG
                      Row(children: [
                        _customTabButton(label: "Satuan", isSelected: !_isInputGrosirBangunan, onTap: () { setState(() { _isInputGrosirBangunan = false; _calculateFinalStock(); _calculateMoneyExpense(); }); }),
                        const SizedBox(width: 10),
@@ -586,7 +599,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
                        if (_isInputGrosirBangunan) ...[ const SizedBox(width: 15), Expanded(child: _field("Isi per Ikat", _inputIsiPerDusController, isNum: true)), ]
                      ])
                    ] else ...[
-                     // BULAT (Hanya Satuan)
+                     // BULAT
                      _field("Jumlah Batang (Bulat)", _inputQtyMasukController, isNum: true),
                    ]
                 ] else ...[
@@ -610,7 +623,6 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
                 // FORM HARGA
                 Row(children: [Expanded(child: _moneyField("Modal Eceran", _modalSatuanController)), const SizedBox(width: 15), Expanded(child: _moneyField("Jual Eceran", _jualSatuanController))]),
                 
-                // Jika BUKAN BULAT, tampilkan harga Grosir/Kubik
                 if (_selectedWoodType != 2 || _mainTabController.index == 1) ...[
                   const SizedBox(height: 15),
                   Row(children: [
@@ -635,6 +647,9 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
 
   Widget _header(String title) => Padding(padding: const EdgeInsets.only(bottom: 8, left: 4), child: Text(title, style: TextStyle(fontWeight: FontWeight.bold, color: _bgStart)));
   Widget _box(Widget child) => Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 5)]), child: child);
-  Widget _field(String label, TextEditingController c, {bool isNum = false, bool readOnly = false, String? hint, String? suffix}) => TextFormField(controller: c, readOnly: readOnly, keyboardType: isNum ? TextInputType.number : TextInputType.text, decoration: InputDecoration(labelText: label, hintText: hint, suffixText: suffix, filled: readOnly, fillColor: readOnly ? Colors.grey[100] : Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14)), validator: (v) => (v!.isEmpty && !readOnly) ? "Wajib" : null);
+  
+  // REVISI VALIDATOR: Tambahkan parameter isOptional
+  Widget _field(String label, TextEditingController c, {bool isNum = false, bool readOnly = false, String? hint, String? suffix, bool isOptional = false}) => TextFormField(controller: c, readOnly: readOnly, keyboardType: isNum ? TextInputType.number : TextInputType.text, decoration: InputDecoration(labelText: label, hintText: hint, suffixText: suffix, filled: readOnly, fillColor: readOnly ? Colors.grey[100] : Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14)), validator: (v) => (!isOptional && v!.isEmpty && !readOnly) ? "Wajib" : null);
+  
   Widget _moneyField(String label, TextEditingController c) => TextFormField(controller: c, keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly, CurrencyInputFormatter()], decoration: InputDecoration(labelText: label, prefixText: "Rp ", border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14)));
 }
