@@ -9,7 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart'; 
 import '../models/product.dart';
 import '../helpers/database_helper.dart';
-import '../helpers/printer_helper.dart'; // <--- IMPORT HELPER PRINTER
+import '../helpers/printer_helper.dart'; 
 
 class CartItem {
   final Product product;
@@ -41,6 +41,7 @@ class _CashierScreenState extends State<CashierScreen> {
   final TextEditingController _searchController = TextEditingController();
   final TextEditingController _customerController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController(); 
+  final TextEditingController _addressController = TextEditingController(); 
   final TextEditingController _bensinController = TextEditingController();
   
   List<Product> _allProducts = [];
@@ -56,7 +57,7 @@ class _CashierScreenState extends State<CashierScreen> {
   String? _logoPath;
   
   final GlobalKey _printKey = GlobalKey();
-  final PrinterHelper _printerHelper = PrinterHelper(); // Instance Printer Helper
+  final PrinterHelper _printerHelper = PrinterHelper(); 
 
   @override
   void initState() {
@@ -88,9 +89,10 @@ class _CashierScreenState extends State<CashierScreen> {
       if (query.isEmpty) {
         _filteredProducts = _allProducts;
       } else {
-        _filteredProducts = _allProducts.where((p) => 
-          p.name.toLowerCase().contains(query.toLowerCase())
-        ).toList();
+        _filteredProducts = _allProducts.where((p) {
+          return p.name.toLowerCase().contains(query.toLowerCase()) ||
+                 p.source.toLowerCase().contains(query.toLowerCase());
+        }).toList();
       }
     });
   }
@@ -99,7 +101,7 @@ class _CashierScreenState extends State<CashierScreen> {
     if (!isGrosir) return inputQty.ceil(); 
     if (p.type == 'KAYU') {
       if (p.packContent > 0) return (inputQty * p.packContent).ceil();
-      return 0;
+      return 0; 
     } else {
       return (inputQty * p.packContent).toInt();
     }
@@ -111,6 +113,7 @@ class _CashierScreenState extends State<CashierScreen> {
   Future<bool?> _showItemDialog({Product? p, int? cartIndex}) {
     bool isEditMode = cartIndex != null;
     Product product = isEditMode ? _cart[cartIndex].product : p!;
+    bool isBulat = product.type == 'BULAT'; // Cek Tipe Bulat
     
     String initQty = "1";
     String initTotal = "";
@@ -132,7 +135,7 @@ class _CashierScreenState extends State<CashierScreen> {
     String stockInfo = "";
 
     String getUnitLabel(bool grosir) {
-      if (product.type == 'KAYU') return grosir ? "Kubik" : "Batang";
+      if (product.type == 'KAYU' || product.type == 'BULAT') return grosir ? "Kubik" : "Batang";
       if (product.type == 'RENG') return grosir ? "Ikat" : "Batang";
       return grosir ? "Grosir/Dus" : "Satuan";
     }
@@ -196,32 +199,41 @@ class _CashierScreenState extends State<CashierScreen> {
                     Text(product.name, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
                     Text("Sisa Stok: ${product.stock}", style: TextStyle(fontSize: 12, color: product.stock <= 0 ? Colors.red : Colors.grey, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 20),
-                    Row(
-                      children: [
-                        Expanded(child: ChoiceChip(
-                          label: Text(product.type == 'KAYU' || product.type == 'RENG' ? "Satuan" : "Eceran"), 
-                          selected: !isGrosirMode, 
-                          onSelected: (v) { setDialogState(() { 
-                            isGrosirMode = false; 
-                            double q = double.tryParse(qtyCtrl.text.replaceAll(',', '.')) ?? 0;
-                            totalPriceCtrl.text = NumberFormat('#,###', 'id_ID').format((q * product.sellPriceUnit).round());
-                            updateCalculations(); 
-                          }); },
-                        )),
-                        const SizedBox(width: 10),
-                        Expanded(child: ChoiceChip(
-                          label: Text(getUnitLabel(true)), 
-                          selected: isGrosirMode, 
-                          onSelected: (v) { setDialogState(() { 
-                            isGrosirMode = true; 
-                            double q = double.tryParse(qtyCtrl.text.replaceAll(',', '.')) ?? 0;
-                            totalPriceCtrl.text = NumberFormat('#,###', 'id_ID').format((q * product.sellPriceCubic).round());
-                            updateCalculations(); 
-                          }); },
-                        )),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
+                    
+                    // REVISI: SEMBUNYIKAN PILIHAN GROSIR JIKA TIPE BULAT
+                    if (!isBulat) ...[
+                      Row(
+                        children: [
+                          Expanded(child: ChoiceChip(
+                            label: Text(product.type == 'KAYU' || product.type == 'RENG' ? "Satuan" : "Eceran"), 
+                            selected: !isGrosirMode, 
+                            onSelected: (v) { setDialogState(() { 
+                              isGrosirMode = false; 
+                              double q = double.tryParse(qtyCtrl.text.replaceAll(',', '.')) ?? 0;
+                              totalPriceCtrl.text = NumberFormat('#,###', 'id_ID').format((q * product.sellPriceUnit).round());
+                              updateCalculations(); 
+                            }); },
+                          )),
+                          const SizedBox(width: 10),
+                          Expanded(child: ChoiceChip(
+                            label: Text(getUnitLabel(true)), 
+                            selected: isGrosirMode, 
+                            onSelected: (v) { setDialogState(() { 
+                              isGrosirMode = true; 
+                              double q = double.tryParse(qtyCtrl.text.replaceAll(',', '.')) ?? 0;
+                              totalPriceCtrl.text = NumberFormat('#,###', 'id_ID').format((q * product.sellPriceCubic).round());
+                              updateCalculations(); 
+                            }); },
+                          )),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                    ] else ...[
+                      // Jika Bulat, Tampilkan Label Saja
+                      const Text("Jual Satuan (Batang)", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
+                      const SizedBox(height: 10),
+                    ],
+
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -256,7 +268,10 @@ class _CashierScreenState extends State<CashierScreen> {
                         }),
                       ],
                     ),
-                    Text(getUnitLabel(isGrosirMode), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+                    
+                    if (!isBulat)
+                      Text(getUnitLabel(isGrosirMode), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+                    
                     if (stockInfo.isNotEmpty) Text(stockInfo, style: const TextStyle(fontSize: 11, color: Colors.blueGrey)),
                     
                     const SizedBox(height: 20),
@@ -341,6 +356,10 @@ class _CashierScreenState extends State<CashierScreen> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Nama Pelanggan wajib diisi!")));
       return;
     }
+    if (_addressController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Alamat wajib diisi!")));
+      return;
+    }
     
     showDialog(
       context: context,
@@ -410,12 +429,24 @@ class _CashierScreenState extends State<CashierScreen> {
          realCapitalPerUnit = c.capitalPrice;
          realSellPricePerUnit = (c.qty > 0) ? (c.agreedPriceTotal / c.qty).round() : c.agreedPriceTotal;
       }
-      return CartItemModel(productId: c.product.id!, productName: c.product.name, productType: c.product.type, quantity: c.stockDeduction, unitType: c.unitName, capitalPrice: realCapitalPerUnit, sellPrice: realSellPricePerUnit);
+
+      String finalName = c.product.name;
+
+      return CartItemModel(
+        productId: c.product.id!, 
+        productName: finalName, 
+        productType: c.product.type, 
+        quantity: c.stockDeduction, 
+        unitType: c.unitName, 
+        capitalPrice: realCapitalPerUnit, 
+        sellPrice: realSellPricePerUnit
+      );
     }).toList();
 
     int queueNo = await DatabaseHelper.instance.getNextQueueNumber();
     String finalStatus = _selectedPaymentMethod == "HUTANG" ? "Belum Lunas" : "Lunas";
-    String finalCustomerName = _customerController.text + (_phoneController.text.isNotEmpty ? " (${_phoneController.text})" : "");
+    
+    String finalCustomerName = "${_customerController.text} (${_phoneController.text})\n${_addressController.text}";
 
     int tId = await DatabaseHelper.instance.createTransaction(totalPrice: grandTotal, operational_cost: bensinCost, customerName: finalCustomerName, paymentMethod: _selectedPaymentMethod, paymentStatus: finalStatus, queueNumber: queueNo, items: items);
     setState(() => _isLoading = false);
@@ -423,12 +454,11 @@ class _CashierScreenState extends State<CashierScreen> {
     if (tId != -1) {
       if(mounted) {
         await showDialog(context: context, builder: (ctx) { Future.delayed(const Duration(seconds: 1), () => Navigator.pop(ctx)); return const Dialog(child: Padding(padding: EdgeInsets.all(20), child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.check_circle, color: Colors.green, size: 60), SizedBox(height: 10), Text("Berhasil!")] ))); });
-        _showReceiptDialog(queueNo, grandTotal, bensinCost, _customerController.text, _phoneController.text, tId);
+        _showReceiptDialog(queueNo, grandTotal, bensinCost, _customerController.text, _phoneController.text, _addressController.text, tId);
       }
     }
   }
 
-  // --- FUNGSI CAPTURE & SHARE ---
   Future<void> _captureAndSharePng(int tId, int queue, String custName) async {
     try {
       RenderRepaintBoundary boundary = _printKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
@@ -437,17 +467,20 @@ class _CashierScreenState extends State<CashierScreen> {
       Uint8List pngBytes = byteData!.buffer.asUint8List();
 
       final directory = await getTemporaryDirectory();
-      String cleanName = custName.replaceAll(RegExp(r'[^\w\s]+'), ''); 
-      final File imgFile = File('${directory.path}/Struk Transaksi - $tId - $queue - $cleanName.png');
+      
+      String cleanName = custName.split('\n')[0].replaceAll(RegExp(r'[^\w\s]+'), '').trim(); 
+      String fileName = 'Struk Transaksi - $tId - $queue - $cleanName.png';
+      String caption = 'Struk Transaksi - $tId - $queue - $cleanName';
+
+      final File imgFile = File('${directory.path}/$fileName');
       
       await imgFile.writeAsBytes(pngBytes);
-      await Share.shareXFiles([XFile(imgFile.path)], text: 'Struk Transaksi - $_storeName');
+      await Share.shareXFiles([XFile(imgFile.path)], text: caption);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal Share: $e")));
     }
   }
 
-  // --- FUNGSI CAPTURE & PRINT (BARU) ---
   Future<void> _captureAndPrint() async {
     try {
       RenderRepaintBoundary boundary = _printKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
@@ -455,27 +488,25 @@ class _CashierScreenState extends State<CashierScreen> {
       ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
       Uint8List pngBytes = byteData!.buffer.asUint8List();
 
-      // Panggil Helper
       await _printerHelper.printReceiptImage(context, pngBytes);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal Print: $e")));
     }
   }
 
-  void _showReceiptDialog(int q, int total, int bensin, String cust, String phone, int tId) {
+  void _showReceiptDialog(int q, int total, int bensin, String cust, String phone, String addr, int tId) {
     showDialog(context: context, barrierDismissible: false, builder: (ctx) => Dialog(
       backgroundColor: Colors.transparent, 
-      insetPadding: const EdgeInsets.all(10),
+      insetPadding: const EdgeInsets.all(5), 
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // BAGIAN KERTAS STRUK
           Flexible(
             child: SingleChildScrollView(
               child: RepaintBoundary(
                 key: _printKey,
                 child: Container(
-                  constraints: const BoxConstraints(maxWidth: 400, minHeight: 500),
+                  constraints: const BoxConstraints(maxWidth: 450, minHeight: 500),
                   decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(5)),
                   padding: const EdgeInsets.all(15),
                   child: Column(
@@ -485,71 +516,74 @@ class _CashierScreenState extends State<CashierScreen> {
                         Container(margin: const EdgeInsets.only(bottom: 10), height: 100, width: double.infinity, child: Image.file(File(_logoPath!), fit: BoxFit.contain))
                       else const Icon(Icons.store, size: 50), 
 
-                      Text(_storeName.toUpperCase(), textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                      if(_storeAddress.isNotEmpty) Text(_storeAddress, textAlign: TextAlign.center, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                      Text(_storeName.toUpperCase(), textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 24)), 
+                      if(_storeAddress.isNotEmpty) Text(_storeAddress, textAlign: TextAlign.center, style: const TextStyle(fontSize: 14, color: Colors.grey)), 
 
-                      const Divider(thickness: 1.5, height: 20),
+                      const Divider(thickness: 2, height: 25),
                       
-                      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text("INV-#$tId (Antrian: $q)", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)), Text(DateFormat('dd/MM HH:mm').format(DateTime.now()), style: const TextStyle(fontSize: 12))]),
-                      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("Pelanggan:", style: TextStyle(fontSize: 12)), Text(cust, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12))]),
-                      if(phone.isNotEmpty) Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("No HP:", style: TextStyle(fontSize: 12)), Text(phone, style: const TextStyle(fontSize: 12))]),
-                      const SizedBox(height: 10),
+                      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text("INV-#$tId (Antrian: $q)", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)), Text(DateFormat('dd/MM HH:mm').format(DateTime.now()), style: const TextStyle(fontSize: 16))]),
+                      const SizedBox(height: 5),
+                      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("Pelanggan:", style: TextStyle(fontSize: 16)), Text(cust, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16))]),
+                      if(phone.isNotEmpty) Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("No HP:", style: TextStyle(fontSize: 16)), Text(phone, style: const TextStyle(fontSize: 16))]),
+                      if(addr.isNotEmpty) Row(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text("Alamat: ", style: TextStyle(fontSize: 16)), Expanded(child: Text(addr, style: const TextStyle(fontSize: 16), textAlign: TextAlign.right))]),
                       
-                      const Divider(color: Colors.black),
+                      const SizedBox(height: 15),
+                      
+                      const Divider(color: Colors.black, thickness: 1.5),
                       Table(
                         columnWidths: const {
-                          0: FlexColumnWidth(2),   // Item
-                          1: FlexColumnWidth(1.2), // Ukuran
-                          2: FlexColumnWidth(1.2), // Harga
-                          3: FlexColumnWidth(0.6), // Qty
-                          4: FlexColumnWidth(1.5), // Total
+                          0: FlexColumnWidth(2.5), 
+                          1: FlexColumnWidth(1.2), 
+                          2: FlexColumnWidth(1.3), 
+                          3: FlexColumnWidth(0.7), 
+                          4: FlexColumnWidth(1.5), 
                         },
                         children: const [
                           TableRow(children: [
-                            Text("Item", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10)),
-                            Text("Ukuran", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10)),
-                            Text("Harga", textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10)),
-                            Text("Qty", textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10)),
-                            Text("Total", textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10)),
+                            Text("Item", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                            Text("Ukuran", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                            Text("Harga", textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                            Text("Qty", textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                            Text("Total", textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                           ])
                         ],
                       ),
-                      const Divider(color: Colors.black),
+                      const Divider(color: Colors.black, thickness: 1.5),
 
                       Table(
                         columnWidths: const {
-                          0: FlexColumnWidth(2),   // Item
-                          1: FlexColumnWidth(1.2), // Ukuran
-                          2: FlexColumnWidth(1.2), // Harga
-                          3: FlexColumnWidth(0.6), // Qty
-                          4: FlexColumnWidth(1.5), // Total
+                          0: FlexColumnWidth(2.5), 
+                          1: FlexColumnWidth(1.2), 
+                          2: FlexColumnWidth(1.3), 
+                          3: FlexColumnWidth(0.7), 
+                          4: FlexColumnWidth(1.5), 
                         },
                         children: _cart.map((i) {
                           String ukuran = i.product.dimensions ?? "-";
                           
                           return TableRow(
                             children: [
-                              Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Text(i.product.name, style: const TextStyle(fontSize: 10))),
-                              Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Text(ukuran, style: const TextStyle(fontSize: 10))),
-                              Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Text(_formatRpNoSymbol(i.sellPrice), textAlign: TextAlign.right, style: const TextStyle(fontSize: 10))),
-                              Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Text(i.qty % 1 == 0 ? i.qty.toInt().toString() : i.qty.toString(), textAlign: TextAlign.center, style: const TextStyle(fontSize: 10))),
-                              Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Text(_formatRp(i.agreedPriceTotal), textAlign: TextAlign.right, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold))),
+                              Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Text(i.product.name, style: const TextStyle(fontSize: 14))),
+                              Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Text(ukuran, style: const TextStyle(fontSize: 14))),
+                              Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Text(_formatRpNoSymbol(i.sellPrice), textAlign: TextAlign.right, style: const TextStyle(fontSize: 14))),
+                              Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Text(i.qty % 1 == 0 ? i.qty.toInt().toString() : i.qty.toString(), textAlign: TextAlign.center, style: const TextStyle(fontSize: 14))),
+                              Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Text(_formatRp(i.agreedPriceTotal), textAlign: TextAlign.right, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
                             ]
                           );
                         }).toList(),
                       ),
                       
-                      const Divider(color: Colors.black),
+                      const Divider(color: Colors.black, thickness: 1.5),
 
                       if(bensin>0) ...[
-                        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("Bensin"), Text(_formatRp(bensin), style: const TextStyle(fontWeight: FontWeight.bold))]),
+                        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("Bensin", style: TextStyle(fontSize: 16)), Text(_formatRp(bensin), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16))]),
                         const SizedBox(height: 5),
                       ],
                       
-                      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("TOTAL", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)), Text(_formatRp(total), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18))]),
+                      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("TOTAL", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24)), Text(_formatRp(total), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 28))]), 
                       
                       const SizedBox(height: 50), 
-                      const Text("Terima Kasih", style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic)),
+                      const Text("Terima Kasih", style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic, fontSize: 16)),
                     ],
                   ),
                 ),
@@ -559,7 +593,6 @@ class _CashierScreenState extends State<CashierScreen> {
           
           const SizedBox(height: 10),
           
-          // TOMBOL AKSI
           Row(
             children: [
               Expanded(
@@ -576,7 +609,7 @@ class _CashierScreenState extends State<CashierScreen> {
                   icon: const Icon(Icons.print, color: Colors.black, size: 18),
                   label: const Text("Cetak", style: TextStyle(color: Colors.black)),
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.amber), 
-                  onPressed: _captureAndPrint, // <--- PANGGIL FUNGSI CETAK
+                  onPressed: _captureAndPrint, 
                 ),
               ),
             ],
@@ -630,7 +663,26 @@ class _CashierScreenState extends State<CashierScreen> {
                           child: ExpansionTile(
                             leading: CircleAvatar(backgroundColor: _bgStart, child: Icon((isKayu||isReng)?Icons.forest:Icons.home_work, color: Colors.white)),
                             title: Text(p.name, style: TextStyle(fontWeight: FontWeight.bold, color: _bgStart)),
-                            subtitle: Text("Stok: ${p.stock}"),
+                            
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    Text("Ukuran: ${p.dimensions ?? '-'}"),
+                                    const SizedBox(width: 10),
+                                    Text("| Stok: ${p.stock}"),
+                                  ],
+                                ),
+                                if(p.source.isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 2),
+                                    child: Text("Sumber: ${p.source}", style: const TextStyle(fontSize: 14, color: Colors.black87)),
+                                  ),
+                              ],
+                            ),
+                            
                             trailing: SizedBox(width: 80, child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [IconButton(icon: const Icon(Icons.add_circle, color: Colors.green, size: 30), onPressed: () => _openAddToCartDialog(p)), const Icon(Icons.keyboard_arrow_down, color: Colors.grey)])),
                             children: [
                               Padding(padding: const EdgeInsets.all(12), child: Column(children: [Row(children: [_priceBox("Modal Ecer", p.buyPriceUnit, Colors.red), const SizedBox(width: 8), _priceBox("Jual Ecer", p.sellPriceUnit, Colors.blue)]), const SizedBox(height: 8), Row(children: [_priceBox(lblGrosirModal, p.buyPriceCubic, Colors.red), const SizedBox(width: 8), _priceBox(lblGrosirJual, p.sellPriceCubic, Colors.blue)])]))
@@ -646,23 +698,28 @@ class _CashierScreenState extends State<CashierScreen> {
                   color: Colors.white,
                   child: SafeArea(
                     top: false,
-                    child: SingleChildScrollView(
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: const BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 5, offset: Offset(0, -3))]),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Autocomplete<String>(optionsBuilder: (v) => v.text==''?const Iterable<String>.empty():_savedCustomers.where((s)=>s.toLowerCase().contains(v.text.toLowerCase())), onSelected: (s)=>_customerController.text=s, fieldViewBuilder: (ctx, c, f, s) { if(_customerController.text.isEmpty && c.text.isNotEmpty) _customerController.text = c.text; return TextField(controller: c, focusNode: f, onChanged: (v)=>_customerController.text=v, decoration: const InputDecoration(labelText: "Nama Pelanggan", prefixIcon: Icon(Icons.person), border: OutlineInputBorder(), isDense: true)); }),
-                            const SizedBox(height: 10),
-                            TextField(controller: _phoneController, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: "Nomor Pelanggan", prefixIcon: Icon(Icons.phone), border: OutlineInputBorder(), isDense: true)),
-                            const SizedBox(height: 10),
-                            Row(children: [Expanded(child: DropdownButtonFormField<String>(value: _selectedPaymentMethod, items: ["TUNAI", "TRANSFER", "HUTANG"].map((e)=>DropdownMenuItem(value: e, child: Text(e))).toList(), onChanged: (v) => setState(() => _selectedPaymentMethod = v!), decoration: const InputDecoration(contentPadding: EdgeInsets.symmetric(horizontal: 10), border: OutlineInputBorder())))]),
-                            const SizedBox(height: 10),
-                            TextField(controller: _bensinController, keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly, CurrencyInputFormatter()], decoration: const InputDecoration(labelText: "Ongkos Bensin (Opsional)", prefixText: "Rp ", border: OutlineInputBorder(), isDense: true)),
-                            const SizedBox(height: 15),
-                            SizedBox(width: double.infinity, height: 50, child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: _bgStart), onPressed: _onPayPressed, child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text("Bayar (${_cart.length})", style: const TextStyle(color: Colors.white)), Text("Rp ${_formatRp(_cart.fold(0, (s, i) => s + i.agreedPriceTotal) + (int.tryParse(_bensinController.text.replaceAll('.', '')) ?? 0))}", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18))]))),
-                          ],
+                    child: SingleChildScrollView( 
+                      child: Padding( 
+                        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: const BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 5, offset: Offset(0, -3))]),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Autocomplete<String>(optionsBuilder: (v) => v.text==''?const Iterable<String>.empty():_savedCustomers.where((s)=>s.toLowerCase().contains(v.text.toLowerCase())), onSelected: (s)=>_customerController.text=s, fieldViewBuilder: (ctx, c, f, s) { if(_customerController.text.isEmpty && c.text.isNotEmpty) _customerController.text = c.text; return TextField(controller: c, focusNode: f, onChanged: (v)=>_customerController.text=v, decoration: const InputDecoration(labelText: "Nama Pelanggan", prefixIcon: Icon(Icons.person), border: OutlineInputBorder(), isDense: true)); }),
+                              const SizedBox(height: 10),
+                              TextField(controller: _phoneController, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: "Nomor Pelanggan", prefixIcon: Icon(Icons.phone), border: OutlineInputBorder(), isDense: true)),
+                              const SizedBox(height: 10),
+                              TextField(controller: _addressController, decoration: const InputDecoration(labelText: "Alamat Lengkap (Wajib)", prefixIcon: Icon(Icons.home), border: OutlineInputBorder(), isDense: true)),
+                              const SizedBox(height: 10),
+                              Row(children: [Expanded(child: DropdownButtonFormField<String>(value: _selectedPaymentMethod, items: ["TUNAI", "TRANSFER", "HUTANG"].map((e)=>DropdownMenuItem(value: e, child: Text(e))).toList(), onChanged: (v) => setState(() => _selectedPaymentMethod = v!), decoration: const InputDecoration(contentPadding: EdgeInsets.symmetric(horizontal: 10), border: OutlineInputBorder())))]),
+                              const SizedBox(height: 10),
+                              TextField(controller: _bensinController, keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly, CurrencyInputFormatter()], decoration: const InputDecoration(labelText: "Ongkos Bensin (Opsional)", prefixText: "Rp ", border: OutlineInputBorder(), isDense: true)),
+                              const SizedBox(height: 15),
+                              SizedBox(width: double.infinity, height: 50, child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: _bgStart), onPressed: _onPayPressed, child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text("Bayar (${_cart.length})", style: const TextStyle(color: Colors.white)), Text("Rp ${_formatRp(_cart.fold(0, (s, i) => s + i.agreedPriceTotal) + (int.tryParse(_bensinController.text.replaceAll('.', '')) ?? 0))}", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18))]))),
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -680,7 +737,7 @@ class _CashierScreenState extends State<CashierScreen> {
   }
 
   Widget _priceBox(String label, int val, Color color) => Expanded(child: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: color.withOpacity(0.05), borderRadius: BorderRadius.circular(8), border: Border.all(color: color.withOpacity(0.1))), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: TextStyle(fontSize: 10, color: color, fontWeight: FontWeight.bold)), Text(_formatRp(val), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold))])));
-  void _resetCart() { setState(() { _cart.clear(); _customerController.clear(); _phoneController.clear(); _bensinController.clear(); _selectedPaymentMethod = "TUNAI"; _loadData(); }); }
+  void _resetCart() { setState(() { _cart.clear(); _customerController.clear(); _phoneController.clear(); _addressController.clear(); _bensinController.clear(); _selectedPaymentMethod = "TUNAI"; _loadData(); }); }
   String _formatRp(dynamic number) => NumberFormat.currency(locale: 'id', symbol: '', decimalDigits: 0).format(number);
   String _formatRpNoSymbol(dynamic number) => NumberFormat.currency(locale: 'id', symbol: '', decimalDigits: 0).format(number);
 }

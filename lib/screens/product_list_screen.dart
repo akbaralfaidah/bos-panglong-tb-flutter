@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/product.dart';
 import '../helpers/database_helper.dart';
-import 'product_form_screen.dart'; // <--- SUDAH DIGANTI KE FILE BARU
+import 'product_form_screen.dart'; 
 
 class ProductListScreen extends StatefulWidget {
   const ProductListScreen({super.key});
@@ -46,7 +46,8 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
     }).toList();
 
     setState(() {
-      _kayuList = temp.where((p) => p.type == 'KAYU' || p.type == 'RENG').toList();
+      // LOGIC BARU: Tipe BULAT juga masuk ke Tab 1
+      _kayuList = temp.where((p) => p.type == 'KAYU' || p.type == 'RENG' || p.type == 'BULAT').toList();
       _bangunanList = temp.where((p) => p.type == 'BANGUNAN').toList();
     });
   }
@@ -73,7 +74,7 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
                 controller: _searchController,
                 autofocus: true,
                 style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(hintText: "Cari di gudang...", hintStyle: TextStyle(color: Colors.white70), border: InputBorder.none),
+                decoration: const InputDecoration(hintText: "Cari (Ex: Kayu)...", hintStyle: TextStyle(color: Colors.white70), border: InputBorder.none),
                 onChanged: (v) => setState(() { _searchQuery = v; _applyFilters(); }),
               )
             : const Text("Gudang Stok"),
@@ -99,11 +100,11 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
             unselectedLabelColor: Colors.white.withOpacity(0.6),
             tabs: [
               Tab(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                const Text("KAYU", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                const Text("KAYU & RENG", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                 Text("${_calculateTotalStock(_kayuList)} Pcs", style: const TextStyle(fontSize: 10)),
               ])),
               Tab(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                const Text("BANGUNAN", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                const Text("BANGUNAN", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                 Text("${_calculateTotalStock(_bangunanList)} Pcs", style: const TextStyle(fontSize: 10)),
               ])),
             ],
@@ -116,7 +117,6 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
         floatingActionButton: FloatingActionButton.extended(
           backgroundColor: Colors.white,
           onPressed: () async {
-            // PERBAIKAN 1: Panggil ProductFormScreen
             final res = await Navigator.push(context, MaterialPageRoute(builder: (_) => const ProductFormScreen()));
             if (res == true) _loadProducts();
           },
@@ -137,6 +137,7 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
         final p = products[i];
         bool isKayu = p.type == 'KAYU'; 
         bool isReng = p.type == 'RENG'; 
+        bool isBulat = p.type == 'BULAT'; // Tipe Baru
 
         String labelModalGrosir = "Modal Grosir";
         String labelJualGrosir = "Jual Grosir";
@@ -149,6 +150,8 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
           labelJualGrosir = "Jual per Ikat";
         }
 
+        String displayName = p.name; 
+        
         return Card(
           margin: const EdgeInsets.only(bottom: 12),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
@@ -156,28 +159,49 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
             tilePadding: const EdgeInsets.all(12),
             leading: CircleAvatar(
               backgroundColor: _bgStart.withOpacity(0.1),
-              child: Icon((isKayu || isReng) ? Icons.forest : Icons.home_work, color: _bgStart),
+              child: Icon((isKayu || isReng || isBulat) ? Icons.forest : Icons.home_work, color: _bgStart),
             ),
-            title: Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text("Stok: ${p.stock} | Sumber: ${p.source}"),
+            title: Text(displayName, style: const TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 4),
+                Text("Ukuran: ${p.dimensions ?? '-'} | Stok: ${p.stock}"),
+                if(p.source.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text("Sumber: ${p.source}"), 
+                  ),
+              ],
+            ),
             children: [
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Column(
                   children: [
+                    // BARIS 1: HARGA JUAL
                     Row(
                       children: [
                         _priceInfo("Jual Satuan", _formatRp(p.sellPriceUnit), Colors.blue),
                         const SizedBox(width: 8),
-                        _priceInfo(labelJualGrosir, _formatRp(p.sellPriceCubic), Colors.blue),
+                        // Jika Bulat, sembunyikan kolom grosir (biar rapi)
+                        if (!isBulat) 
+                          _priceInfo(labelJualGrosir, _formatRp(p.sellPriceCubic), Colors.blue)
+                        else 
+                          const Expanded(child: SizedBox()), // Spacer kosong
                       ],
                     ),
                     const SizedBox(height: 8),
+                    
+                    // BARIS 2: HARGA MODAL
                     Row(
                       children: [
                         _priceInfo("Modal Satuan", _formatRp(p.buyPriceUnit), Colors.red),
                         const SizedBox(width: 8),
-                        _priceInfo(labelModalGrosir, _formatRp(p.buyPriceCubic), Colors.red),
+                        if (!isBulat)
+                          _priceInfo(labelModalGrosir, _formatRp(p.buyPriceCubic), Colors.red)
+                        else 
+                          const Expanded(child: SizedBox()), // Spacer kosong
                       ],
                     ),
                     const Divider(),
@@ -186,7 +210,6 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
                       children: [
                         _actionButton(Icons.add_circle, "Tambah Stok", Colors.green, () => _showQuickAddStock(p)),
                         _actionButton(Icons.edit, "Edit", Colors.orange, () async {
-                          // PERBAIKAN 2: Panggil ProductFormScreen dengan parameter
                           final res = await Navigator.push(context, MaterialPageRoute(builder: (_) => ProductFormScreen(product: p)));
                           if (res == true) _loadProducts();
                         }),
@@ -227,11 +250,11 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
     );
   }
 
-  // --- LOGIKA TAMBAH STOK CEPAT ---
   void _showQuickAddStock(Product p) {
     final TextEditingController stockController = TextEditingController();
     final TextEditingController moneyController = TextEditingController();
     bool isGrosirMode = false; 
+    bool isBulat = p.type == 'BULAT';
 
     showDialog(
       context: context,
@@ -246,6 +269,8 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
           } else if (p.type == 'RENG') {
             inputLabel = isGrosirMode ? "Jumlah Ikat" : "Jumlah Batang";
             toggleLabel = "Ikat";
+          } else if (isBulat) {
+            inputLabel = "Jumlah Batang (Bulat)";
           } else {
             inputLabel = isGrosirMode ? "Jumlah Dus/Grosir" : "Jumlah Satuan";
             toggleLabel = "Grosir/Dus";
@@ -259,28 +284,19 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
                 Text("Stok Sekarang: ${p.stock}", style: const TextStyle(color: Colors.grey)),
                 const SizedBox(height: 15),
                 
-                Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  ChoiceChip(
-                    label: const Text("Satuan"), 
-                    selected: !isGrosirMode, 
-                    onSelected: (s) => setDialogState(() => isGrosirMode = false)
-                  ),
-                  const SizedBox(width: 8),
-                  ChoiceChip(
-                    label: Text(toggleLabel), 
-                    selected: isGrosirMode, 
-                    onSelected: (s) => setDialogState(() => isGrosirMode = true)
-                  ),
-                ]),
+                // HANYA TAMPILKAN TOGGLE JIKA BUKAN BULAT
+                if (!isBulat) 
+                  Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    ChoiceChip(label: const Text("Satuan"), selected: !isGrosirMode, onSelected: (s) => setDialogState(() => isGrosirMode = false)),
+                    const SizedBox(width: 8),
+                    ChoiceChip(label: Text(toggleLabel), selected: isGrosirMode, onSelected: (s) => setDialogState(() => isGrosirMode = true)),
+                  ]),
                 
                 const SizedBox(height: 15),
                 TextField(
                   controller: stockController,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: InputDecoration(
-                    labelText: inputLabel, 
-                    border: const OutlineInputBorder()
-                  ),
+                  decoration: InputDecoration(labelText: inputLabel, border: const OutlineInputBorder()),
                   onChanged: (v) {
                     double qty = double.tryParse(v.replaceAll(',', '.')) ?? 0;
                     double total = isGrosirMode ? (qty * p.buyPriceCubic) : (qty * p.buyPriceUnit);
@@ -302,28 +318,17 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
                 onPressed: () async {
                   double addedInput = double.tryParse(stockController.text.replaceAll(',', '.')) ?? 0;
                   int totalExpense = int.tryParse(moneyController.text) ?? 0;
-
                   if (addedInput > 0) {
                     double finalStockAdd = 0;
-                    
                     if (isGrosirMode) {
                       if (p.type == 'KAYU') {
-                        // Jika input Kubik, cukup kalikan dengan PackContent (Isi per Kubik)
-                        // Karena di form baru, packContent sudah dihitung otomatis
-                        if (p.packContent > 0) {
-                           finalStockAdd = addedInput * p.packContent;
-                        } else {
-                           // Fallback jika packContent 0
-                           finalStockAdd = addedInput; 
-                        }
+                        finalStockAdd = p.packContent > 0 ? addedInput * p.packContent : addedInput;
                       } else {
-                        // Reng (Ikat) & Bangunan (Dus) -> Kali Isi
                         finalStockAdd = addedInput * p.packContent;
                       }
                     } else {
                       finalStockAdd = addedInput;
                     }
-                    
                     await DatabaseHelper.instance.updateStockQuick(p.id!, p.stock + finalStockAdd, totalExpense);
                     if(mounted) Navigator.pop(ctx);
                     _loadProducts();

@@ -5,6 +5,9 @@ class Product {
   final String? dimensions; // Opsional: PxLxT (Ex: 400x2x3)
   final String source;      // Penanda: Supplier Agus / Stok Lama
   
+  // --- PROPERTY BARU: KELAS KAYU ---
+  final String? woodClass;  // Contoh: 'Kelas 1', 'Kelas 2', 'Kelas 3'
+
   final int stock;          
   
   // HARGA MODAL
@@ -15,7 +18,6 @@ class Product {
   final int sellPriceUnit;  // Jual Eceran
   final int sellPriceCubic; // Jual Kubik / Jual Grosir
 
-  // --- INI YANG BARU ---
   final int packContent;    // Isi per Dus (Misal: 1 Dus = 12 Pcs)
 
   Product({
@@ -24,12 +26,13 @@ class Product {
     required this.type,
     this.dimensions,
     this.source = '',
+    this.woodClass, // <--- Tambahkan di Constructor
     required this.stock,
     required this.buyPriceUnit,
     this.buyPriceCubic = 0,
     required this.sellPriceUnit,
     this.sellPriceCubic = 0,
-    this.packContent = 1, // Default 1 (kalau kayu atau barang eceran biasa)
+    this.packContent = 1, 
   });
 
   // Konversi dari Map Database ke Object Dart
@@ -39,12 +42,13 @@ class Product {
     type: json['type'],
     dimensions: json['dimensions'],
     source: json['source'] ?? '',
+    woodClass: json['wood_class'], // <--- Baca kolom baru dari DB
     stock: json['stock'],
     buyPriceUnit: json['buy_price_unit'],
     buyPriceCubic: json['buy_price_cubic'] ?? 0,
     sellPriceUnit: json['sell_price_unit'],
     sellPriceCubic: json['sell_price_cubic'] ?? 0,
-    packContent: json['pack_content'] ?? 1, // Baca dari DB
+    packContent: json['pack_content'] ?? 1, 
   );
 
   // Konversi dari Object Dart ke Map Database
@@ -54,15 +58,16 @@ class Product {
     'type': type,
     'dimensions': dimensions,
     'source': source,
+    'wood_class': woodClass, // <--- Simpan kolom baru ke DB
     'stock': stock,
     'buy_price_unit': buyPriceUnit,
     'buy_price_cubic': buyPriceCubic,
     'sell_price_unit': sellPriceUnit,
     'sell_price_cubic': sellPriceCubic,
-    'pack_content': packContent, // Simpan ke DB
+    'pack_content': packContent,
   };
-  
 }
+
 class CartItemModel {
   final int productId;
   final String productName;

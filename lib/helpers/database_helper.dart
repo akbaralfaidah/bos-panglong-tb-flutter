@@ -22,8 +22,9 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 1,
+      version: 2, // <--- NAIK VERSI BIAR UPDATE
       onCreate: _createDB,
+      onUpgrade: _onUpgrade, // <--- LOGIC UPDATE DATA LAMA
     );
   }
 
@@ -38,6 +39,7 @@ class DatabaseHelper {
     _database = null; 
   }
 
+  // LOGIC BIKIN DB BARU
   Future _createDB(Database db, int version) async {
     await db.execute('''
       CREATE TABLE products (
@@ -47,6 +49,7 @@ class DatabaseHelper {
         stock INTEGER NOT NULL,
         source TEXT,
         dimensions TEXT,
+        wood_class TEXT, -- <--- KOLOM BARU
         buy_price_unit INTEGER,
         buy_price_cubic INTEGER,
         sell_price_unit INTEGER,
@@ -94,7 +97,6 @@ class DatabaseHelper {
       )
     ''');
 
-    // TABEL BARU: CICILAN HUTANG
     await db.execute('''
       CREATE TABLE debt_payments (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -109,19 +111,23 @@ class DatabaseHelper {
     await db.execute('CREATE TABLE customers (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE)');
   }
 
+  // LOGIC UPDATE DB LAMA (MIGRASI)
+  Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      // Tambah kolom wood_class kalau user update dari versi 1
+      await db.execute('ALTER TABLE products ADD COLUMN wood_class TEXT');
+    }
+  }
+
   // ==========================================
-  // LOGIKA HUTANG & CICILAN (UPDATED FILTER)
+  // LOGIKA HUTANG & CICILAN
   // ==========================================
 
-  // 1. Ambil daftar transaksi yang masih hutang (Belum Lunas)
-  // [REVISI] Sekarang mendukung filter tanggal. Jika tanggal null, ambil semua.
   Future<List<Map<String, dynamic>>> getAllDebtHistory({String? startDate, String? endDate}) async {
     final db = await instance.database;
-    
     String whereClause = 'payment_status = ?';
     List<dynamic> args = ['Belum Lunas'];
 
-    // Jika filter tanggal diaktifkan (bukan "Semua")
     if (startDate != null && endDate != null) {
       whereClause += ' AND transaction_date BETWEEN ? AND ?';
       args.add("$startDate 00:00:00");
@@ -136,7 +142,6 @@ class DatabaseHelper {
     );
   }
 
-  // 2. Ambil Riwayat Cicilan
   Future<List<Map<String, dynamic>>> getDebtPayments(int transactionId) async {
     final db = await instance.database;
     return await db.query(
@@ -147,7 +152,6 @@ class DatabaseHelper {
     );
   }
 
-  // 3. Tambah Bayar Cicilan
   Future<void> addDebtPayment(int transId, int amount, String note) async {
     final db = await instance.database;
     String dateNow = DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now());
@@ -160,7 +164,6 @@ class DatabaseHelper {
         'note': note
       });
 
-      // Cek apakah lunas
       final res = await txn.rawQuery(
         'SELECT SUM(amount_paid) as total FROM debt_payments WHERE transaction_id = ?',
         [transId]
@@ -181,7 +184,6 @@ class DatabaseHelper {
     });
   }
 
-  // 4. Hitung Total Sisa Hutang (Net)
   Future<int> getTotalPiutangAllTime() async {
     final db = await instance.database;
     final resTrans = await db.rawQuery("SELECT SUM(total_price) as total FROM transactions WHERE payment_status = 'Belum Lunas'");
@@ -195,7 +197,6 @@ class DatabaseHelper {
     return totalHutang - totalSudahDibayar;
   }
 
-  // 5. Ambil Laporan Hutang LUNAS (Riwayat Lunas) dengan Filter
   Future<List<Map<String, dynamic>>> getDebtReport({
     required String status,
     required String startDate,
@@ -249,8 +250,6 @@ class DatabaseHelper {
       ORDER BY s.date DESC
     ''', [start, end]);
   }
-
-  // --- QUERY LAINNYA ---
 
   Future<List<Map<String, dynamic>>> getTransactionHistory({required String startDate, required String endDate}) async {
     final db = await instance.database;
@@ -316,8 +315,6 @@ class DatabaseHelper {
       LIMIT 5
     ''', [start, end]);
   }
-
-  // --- CORE TRANSAKSI & PRODUK ---
 
   Future<int> createTransaction({
     required int totalPrice, required int operational_cost, required String customerName, 
