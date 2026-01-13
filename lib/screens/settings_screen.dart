@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart'; // Wajib ada
-import 'package:csv/csv.dart';
+// CSV REMOVED
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:permission_handler/permission_handler.dart'; 
 import 'dart:io';
-import 'dart:convert';
 import 'dart:math'; 
 import '../helpers/database_helper.dart';
 import '../models/product.dart';
@@ -84,69 +83,87 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await DatabaseHelper.instance.saveSetting('store_name', _nameController.text);
     await DatabaseHelper.instance.saveSetting('store_address', _addressController.text);
     
-    // Logo sudah disave saat dipick
-    
     setState(() => _isLoading = false);
     if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Identitas Toko Disimpan!"), backgroundColor: Colors.green));
   }
 
-  // --- 1. GENERATE DATA TESTING ---
+  // --- 1. GENERATE DATA TESTING (2010 - SEKARANG) ---
   Future<void> _generateDummyData() async {
     setState(() => _isLoading = true);
     final db = DatabaseHelper.instance;
     final random = Random();
 
     try {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Meracik data history agar penuh..."), duration: Duration(seconds: 4)));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Meracik 1000+ data transaksi (2010-Sekarang)..."), duration: Duration(seconds: 4)));
 
+      // 1. Buat Produk Dummy (Stok Besar biar ga habis saat generate mundur)
       List<Product> dummies = [
-        Product(name: "Meranti 6x12", type: "KAYU", stock: 10000, source: "Gudang A", dimensions: "6x12x4", buyPriceUnit: 45000, sellPriceUnit: 55000, buyPriceCubic: 3000000, sellPriceCubic: 3800000, packContent: 70),
-        Product(name: "Reng 2x3", type: "RENG", stock: 20000, source: "Gudang B", dimensions: "2x3", buyPriceUnit: 2500, sellPriceUnit: 3500, buyPriceCubic: 25000, sellPriceCubic: 35000, packContent: 20),
-        Product(name: "Semen Tiga Roda", type: "BANGUNAN", stock: 5000, source: "Toko Pusat", dimensions: "Sak", buyPriceUnit: 62000, sellPriceUnit: 68000, buyPriceCubic: 0, sellPriceCubic: 0, packContent: 1),
-        Product(name: "Paku 5cm", type: "BANGUNAN", stock: 1000, source: "Toko Pusat", dimensions: "Kg", buyPriceUnit: 15000, sellPriceUnit: 18000, buyPriceCubic: 140000, sellPriceCubic: 170000, packContent: 10),
-        Product(name: "Cat Tembok Putih", type: "BANGUNAN", stock: 500, source: "Supplier C", dimensions: "Pail", buyPriceUnit: 450000, sellPriceUnit: 500000, buyPriceCubic: 0, sellPriceCubic: 0, packContent: 1),
-        Product(name: "Pasir Cor", type: "BANGUNAN", stock: 2000, source: "Pangkalan", dimensions: "Pickup", buyPriceUnit: 150000, sellPriceUnit: 250000, buyPriceCubic: 0, sellPriceCubic: 0, packContent: 1),
+        Product(name: "Meranti 6x12", type: "KAYU", woodClass: "Kelas 1", stock: 50000, source: "Gudang A", dimensions: "6x12x4", buyPriceUnit: 45000, sellPriceUnit: 55000, buyPriceCubic: 3000000, sellPriceCubic: 3800000, packContent: 70),
+        Product(name: "Kamper 5x10", type: "KAYU", woodClass: "Kelas 2", stock: 50000, source: "Gudang A", dimensions: "5x10x4", buyPriceUnit: 40000, sellPriceUnit: 50000, buyPriceCubic: 2800000, sellPriceCubic: 3500000, packContent: 80),
+        Product(name: "Reng 2x3", type: "RENG", stock: 100000, source: "Gudang B", dimensions: "2x3", buyPriceUnit: 2500, sellPriceUnit: 3500, buyPriceCubic: 25000, sellPriceCubic: 35000, packContent: 20),
+        Product(name: "Reng 3x4", type: "RENG", stock: 100000, source: "Gudang B", dimensions: "3x4", buyPriceUnit: 3500, sellPriceUnit: 4500, buyPriceCubic: 35000, sellPriceCubic: 45000, packContent: 10),
+        Product(name: "Kayu Tunjang", type: "BULAT", stock: 20000, source: "Hutan Lestari", dimensions: "-", buyPriceUnit: 15000, sellPriceUnit: 25000, buyPriceCubic: 0, sellPriceCubic: 0, packContent: 1),
+        Product(name: "Semen Tiga Roda", type: "BANGUNAN", stock: 10000, source: "Toko Pusat", dimensions: "Sak", buyPriceUnit: 62000, sellPriceUnit: 68000, buyPriceCubic: 0, sellPriceCubic: 0, packContent: 1),
+        Product(name: "Paku 5cm", type: "BANGUNAN", stock: 5000, source: "Toko Pusat", dimensions: "Kg", buyPriceUnit: 15000, sellPriceUnit: 18000, buyPriceCubic: 140000, sellPriceCubic: 170000, packContent: 10),
+        Product(name: "Cat Tembok Putih", type: "BANGUNAN", stock: 2000, source: "Supplier C", dimensions: "Pail", buyPriceUnit: 450000, sellPriceUnit: 500000, buyPriceCubic: 0, sellPriceCubic: 0, packContent: 1),
+        Product(name: "Pasir Cor", type: "BANGUNAN", stock: 5000, source: "Pangkalan", dimensions: "Pickup", buyPriceUnit: 150000, sellPriceUnit: 250000, buyPriceCubic: 0, sellPriceCubic: 0, packContent: 1),
       ];
 
       Map<int, int> localStockTracker = {};
       List<int> pIds = [];
+      
+      // Simpan Produk ke DB
       for (var p in dummies) {
         int id = await db.createProduct(p);
         pIds.add(id);
         localStockTracker[id] = p.stock; 
       }
 
-      List<String> customers = ["Pak Budi (Kontraktor)", "Bu Siti (Warung)", "Mas Joko (Tukang)", "PT. Maju Mundur", "Pak Haji", "User Umum"];
+      // Daftar Customer
+      List<String> customers = ["Pak Budi (Kontraktor)", "Bu Siti (Warung)", "Mas Joko (Tukang)", "PT. Maju Mundur", "Pak Haji", "User Umum", "CV. Karya Abadi", "Bu Lina"];
       for (var c in customers) {
         await db.saveCustomer(c);
       }
 
-      DateTime now = DateTime.now();
-      for (int i = 0; i < 130; i++) {
-        DateTime targetMonth = now.subtract(Duration(days: 30 * i));
-        int maxDay = 28;
-        if (targetMonth.year == now.year && targetMonth.month == now.month) maxDay = now.day;
+      // 2. Generate Transaksi (2010 - Hari Ini)
+      DateTime startDate = DateTime(2010, 1, 1);
+      DateTime endDate = DateTime.now();
+      
+      // Loop Hari dari 2010 sampai Sekarang
+      int totalDays = endDate.difference(startDate).inDays;
+      int transactionCount = 0;
+      
+      for (int i = 0; i <= totalDays; i++) {
+        DateTime currentDate = startDate.add(Duration(days: i));
+        
+        // Skip hari minggu sesekali (simulasi libur)
+        if (currentDate.weekday == DateTime.sunday && random.nextBool()) continue;
 
-        int transCount = random.nextInt(3) + 1; 
+        // Tentukan jumlah transaksi per hari (0 sampai 3 transaksi)
+        // Kita beri bobot random agar tidak flat setiap hari
+        int transToday = 0;
+        if (random.nextDouble() > 0.6) { // 40% hari ada transaksi
+           transToday = random.nextInt(3) + 1; // 1-3 transaksi
+        }
 
-        for (int j = 0; j < transCount; j++) {
-          int day = random.nextInt(maxDay) + 1;
-          int daysInMonth = DateUtils.getDaysInMonth(targetMonth.year, targetMonth.month);
-          if (day > daysInMonth) day = daysInMonth;
+        for (int t = 0; t < transToday; t++) {
+           // Jam Acak (08:00 - 17:00)
+           DateTime transTime = currentDate.add(Duration(hours: 8 + random.nextInt(9), minutes: random.nextInt(60)));
+           if (transTime.isAfter(DateTime.now())) continue;
 
-          DateTime transDate = DateTime(targetMonth.year, targetMonth.month, day, random.nextInt(14)+8, random.nextInt(59));
-          if (transDate.isAfter(now)) transDate = now.subtract(Duration(hours: random.nextInt(10)));
-
-          await _createRandomTransaction(db, transDate, dummies, pIds, customers, localStockTracker, random);
+           await _createRandomTransaction(db, transTime, dummies, pIds, customers, localStockTracker, random);
+           transactionCount++;
         }
       }
-
-      for (int k = 0; k < 5; k++) {
-        DateTime todayTrans = DateTime.now().subtract(Duration(hours: random.nextInt(12))); 
-        await _createRandomTransaction(db, todayTrans, dummies, pIds, customers, localStockTracker, random);
+      
+      // Safety: Jika randomnya pelit dan kurang dari 1000, tambahkan di bulan-bulan terakhir
+      while (transactionCount < 1200) {
+         DateTime randomDate = DateTime.now().subtract(Duration(days: random.nextInt(365 * 2))); // 2 tahun terakhir
+         await _createRandomTransaction(db, randomDate, dummies, pIds, customers, localStockTracker, random);
+         transactionCount++;
       }
 
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("SUKSES! Data Penuh (Termasuk Awal Bulan Ini)."), backgroundColor: Colors.green));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("SUKSES! $transactionCount Transaksi (2010-Kini) Berhasil Dibuat."), backgroundColor: Colors.green));
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal Generate: $e"), backgroundColor: Colors.red));
     } finally {
@@ -157,7 +174,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _createRandomTransaction(DatabaseHelper dbHelper, DateTime date, List<Product> products, List<int> pIds, List<String> customers, Map<int, int> stockTracker, Random random) async {
     String dateString = DateFormat('yyyy-MM-dd HH:mm:ss').format(date);
     String cust = customers[random.nextInt(customers.length)];
-    bool isHutang = random.nextInt(10) > 8; 
+    bool isHutang = random.nextInt(10) > 8; // 10% kemungkinan hutang
     String method = isHutang ? "HUTANG" : "TUNAI";
     String status = isHutang ? "Belum Lunas" : "Lunas";
 
@@ -170,17 +187,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
       Product p = products[pIndex];
       int pId = pIds[pIndex];
       
+      // Cek stok lokal dummy (simulasi)
       int currentStock = stockTracker[pId] ?? 0;
       if (currentStock <= 0) continue; 
 
-      int maxQty = min(10, currentStock); 
+      int maxQty = min(20, currentStock); 
       if (maxQty == 0) continue;
       
       int qty = random.nextInt(maxQty) + 1;
       stockTracker[pId] = currentStock - qty;
 
       bool isGrosir = random.nextInt(10) > 7;
-      String unit = isGrosir ? (p.type == 'KAYU' ? 'Kubik' : (p.type=='RENG'?'Ikat':'Grosir')) : (p.type == 'KAYU' || p.type == 'RENG' ? 'Batang' : 'Pcs/Sak');
+      if (p.type == 'BULAT') isGrosir = false; // Bulat ga ada grosir
+
+      String unit = "";
+      if (isGrosir) {
+         if (p.type == 'KAYU') unit = 'Kubik';
+         else if (p.type == 'RENG') unit = 'Ikat';
+         else unit = 'Grosir/Dus';
+      } else {
+         if (p.type == 'KAYU' || p.type == 'RENG' || p.type == 'BULAT') unit = 'Batang';
+         else unit = 'Pcs/Sak';
+      }
+
       int capital = isGrosir ? p.buyPriceCubic : p.buyPriceUnit;
       int sell = isGrosir ? p.sellPriceCubic : p.sellPriceUnit;
       if(capital == 0) capital = p.buyPriceUnit * p.packContent;
@@ -258,8 +287,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  Future<void> _importCsv() async { /* Import CSV Logic Standard */ }
-
   Future<void> _resetDatabase() async {
     final confirm = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(title: const Text("Hapus SEMUA Data?"), content: const Text("Semua data akan hilang permanen!"), actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Batal")), ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red), onPressed: () => Navigator.pop(ctx, true), child: const Text("HAPUS TOTAL"))]));
     if (confirm == true) {
@@ -278,7 +305,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         appBar: AppBar(title: const Text("Pengaturan"), backgroundColor: Colors.transparent, foregroundColor: Colors.white, elevation: 0),
         body: _isLoading ? const Center(child: CircularProgressIndicator(color: Colors.white)) : ListView(padding: const EdgeInsets.all(20), children: [
           
-          // --- KARTU IDENTITAS TOKO (BARU) ---
+          // --- KARTU IDENTITAS TOKO ---
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15)),
@@ -327,11 +354,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           
           const SizedBox(height: 30), const Text("Data & Backup", style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold)), const SizedBox(height: 10),
-          Card(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)), child: ListTile(leading: const Icon(Icons.file_upload, color: Colors.green), title: const Text("Import Stok CSV", style: TextStyle(fontWeight: FontWeight.bold)), subtitle: const Text("Dari Excel ke Aplikasi"), onTap: _importCsv)), const SizedBox(height: 10),
+          // MENU IMPORT CSV SUDAH DIHAPUS
           Card(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)), child: ListTile(leading: const Icon(Icons.cloud_upload, color: Colors.blue), title: const Text("Backup Database", style: TextStyle(fontWeight: FontWeight.bold)), subtitle: const Text("Simpan ke HP & Share"), onTap: _backupDatabase)), const SizedBox(height: 10),
           Card(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)), child: ListTile(leading: const Icon(Icons.settings_backup_restore, color: Colors.orange), title: const Text("Restore Database", style: TextStyle(fontWeight: FontWeight.bold)), subtitle: const Text("Kembalikan data lama"), onTap: _restoreDatabase)),
           const SizedBox(height: 30), const Text("Testing & Reset", style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold)), const SizedBox(height: 10),
-          Card(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)), child: ListTile(leading: const Icon(Icons.science, color: Colors.purple), title: const Text("Isi Data Testing (Fix History)", style: TextStyle(fontWeight: FontWeight.bold)), subtitle: const Text("Generate data penuh"), onTap: _generateDummyData)), const SizedBox(height: 10),
+          Card(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)), child: ListTile(leading: const Icon(Icons.science, color: Colors.purple), title: const Text("Isi Data Testing (Fix History)", style: TextStyle(fontWeight: FontWeight.bold)), subtitle: const Text("Generate 1000+ data (2010-Kini)"), onTap: _generateDummyData)), const SizedBox(height: 10),
           Card(color: Colors.red[50], shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)), child: ListTile(leading: const Icon(Icons.delete_forever, color: Colors.red), title: const Text("Reset Database", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red)), subtitle: const Text("Hapus SEMUA data"), onTap: _resetDatabase)),
         ]),
       ),

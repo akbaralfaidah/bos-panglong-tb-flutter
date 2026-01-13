@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart'; 
-import 'dart:io'; // Wajib untuk menampilkan Logo dari File
+import 'dart:io'; 
 import '../helpers/database_helper.dart';
 import 'product_list_screen.dart';
 import 'cashier_screen.dart';
 import 'settings_screen.dart';
 import 'history_screen.dart';
 import 'report_screen.dart'; 
+import 'customer_list_screen.dart'; 
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -29,7 +30,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int _bangunanTerjual = 0;
 
   // Identitas Toko
-  String _storeName = "Bos Panglong & TB"; // Default
+  String _storeName = "Bos Panglong & TB"; 
   String? _logoPath;
 
   @override
@@ -37,14 +38,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.initState(); 
     initializeDateFormatting('id_ID', null).then((_) {
       _refreshStats(); 
-      _loadStoreIdentity(); // Load nama toko saat buka
+      _loadStoreIdentity(); 
     }); 
   }
 
   void _nav(Widget page) async { 
     await Navigator.push(context, MaterialPageRoute(builder: (_) => page));
     _refreshStats(); 
-    _loadStoreIdentity(); // Refresh nama toko kalau pulang dari setting
+    _loadStoreIdentity(); 
   }
 
   void _openHistory(HistoryType type, String title) async {
@@ -56,7 +57,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return (value / 1000).round() * 1000;
   }
 
-  // --- AMBIL IDENTITAS TOKO DARI DB ---
   Future<void> _loadStoreIdentity() async {
     final db = DatabaseHelper.instance;
     String? name = await db.getSetting('store_name');
@@ -78,10 +78,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     String startOfDay = "$today 00:00:00";
     String endOfDay = "$today 23:59:59";
 
-    // 1. AMBIL TRANSAKSI (HANYA HARI INI)
     final transactions = await db.getTransactionHistory(startDate: today, endDate: today);
-
-    // 2. AMBIL TOTAL PIUTANG (SEMUA WAKTU)
     int totalOutstandingDebt = await db.getTotalPiutangAllTime();
 
     double omsetReal = 0; 
@@ -111,7 +108,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     
     double netProfit = totalMarginLaba - bensin;
 
-    // 3. BARANG TERJUAL (HARI INI)
     int kCount = 0;
     int bCount = 0;
     final resItems = await dbInstance.rawQuery(
@@ -124,7 +120,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if(type == 'KAYU' || type == 'RENG') kCount += q; else bCount += q;
     }
 
-    // 4. BELI STOK (HARI INI)
     final resStok = await dbInstance.rawQuery(
       '''SELECT quantity_added, capital_price FROM stock_logs WHERE date BETWEEN ? AND ? AND quantity_added > 0''',
       [startOfDay, endOfDay]
@@ -150,9 +145,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    double screenWidth = MediaQuery.of(context).size.width;
-    double gridRatio = (screenWidth / 2) / 80; 
-
     return Container(
       decoration: BoxDecoration(gradient: LinearGradient(colors: [_bgStart, _bgEnd], begin: Alignment.topCenter, end: Alignment.bottomCenter)),
       child: Scaffold(
@@ -161,7 +153,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           toolbarHeight: 70, 
           title: Row(
             children: [
-              // LOGO TOKO (Kiri)
               if (_logoPath != null && File(_logoPath!).existsSync()) 
                 Container(
                   margin: const EdgeInsets.only(right: 12),
@@ -183,7 +174,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ),
               
-              // NAMA TOKO & TANGGAL (Kanan)
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start, 
@@ -208,7 +198,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: 20),
-              // KARTU PROFIT
+              
+              // KARTU PROFIT BESAR
               InkWell(
                 onTap: () => _openHistory(HistoryType.transactions, "Detail Profit & Transaksi"),
                 borderRadius: BorderRadius.circular(25),
@@ -225,45 +216,87 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               const SizedBox(height: 20),
               
-              // GRID KEUANGAN
-              GridView.count(
-                crossAxisCount: 2, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
-                crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: gridRatio,
+              // --- BARIS 1 KEUANGAN (PIUTANG & OMSET) ---
+              Row(
                 children: [
-                  // --- PERUBAHAN DI SINI (Card Piutang arahnya ke ReportScreen Tab 1) ---
-                  _statCard(
-                    "Piutang (Total)", 
-                    _totalPiutang, 
-                    Icons.book, 
-                    Colors.red[700]!, 
-                    // Klik -> Buka Report Screen -> Tab Index 1 (Piutang)
-                    () => _nav(const ReportScreen(initialIndex: 1)) 
+                  Expanded(
+                    child: _statCard(
+                      "Piutang (Total)", 
+                      _totalPiutang, 
+                      Icons.book, 
+                      Colors.red[700]!, 
+                      () => _nav(const ReportScreen(initialIndex: 1))
+                    ),
                   ),
-                  _statCard("Omset (Hari Ini)", _omsetKotor, Icons.storefront, Colors.blue[800]!, () => _openHistory(HistoryType.transactions, "Riwayat Transaksi")),
-                  _statCard("Bensin (Hari Ini)", _uangBensin, Icons.local_gas_station, Colors.orange[800]!, () => _openHistory(HistoryType.bensin, "Pengeluaran Bensin")),
-                  _statCard("Stok Masuk (Hari Ini)", _totalBeliStok, Icons.shopping_cart, Colors.purple[800]!, () => _openHistory(HistoryType.stock, "Riwayat Stok Masuk")),
+                  const SizedBox(width: 12), // Jarak Horizontal antar kartu
+                  Expanded(
+                    child: _statCard(
+                      "Omset (Hari Ini)", 
+                      _omsetKotor, 
+                      Icons.storefront, 
+                      Colors.blue[800]!, 
+                      () => _openHistory(HistoryType.transactions, "Riwayat Transaksi")
+                    ),
+                  ),
                 ],
               ),
-              const SizedBox(height: 20),
               
-              // BARANG TERJUAL
+              const SizedBox(height: 12), // Jarak Vertikal Baris 1 ke Baris 2
+
+              // --- BARIS 2 KEUANGAN (BENSIN & STOK) ---
+              Row(
+                children: [
+                  Expanded(
+                    child: _statCard(
+                      "Bensin (Hari Ini)", 
+                      _uangBensin, 
+                      Icons.local_gas_station, 
+                      Colors.orange[800]!, 
+                      () => _openHistory(HistoryType.bensin, "Pengeluaran Bensin")
+                    ),
+                  ),
+                  const SizedBox(width: 12), // Jarak Horizontal antar kartu
+                  Expanded(
+                    child: _statCard(
+                      "Stok Masuk (Hari Ini)", 
+                      _totalBeliStok, 
+                      Icons.shopping_cart, 
+                      Colors.purple[800]!, 
+                      () => _openHistory(HistoryType.stock, "Riwayat Stok Masuk")
+                    ),
+                  ),
+                ],
+              ),
+
+              // --- JARAK NOL (0) ANTARA KEUANGAN DAN BARANG ---
+              // Sengaja tidak ada SizedBox disini agar nempel.
+              // Kalau mau ada celah dikit biar ga dempet banget, ubah height jadi 4 atau 8.
+              const SizedBox(height: 8), 
+              
+              // --- BARIS 3: INFO BARANG TERJUAL ---
               Row(children: [
                 Expanded(child: _itemCard("Kayu Hari Ini", "$_kayuTerjual Btg", Icons.forest, const Color(0xFF795548), () => _openHistory(HistoryType.soldItems, "Rincian Barang Keluar"))),
                 const SizedBox(width: 12),
                 Expanded(child: _itemCard("Bangunan Hari Ini", "$_bangunanTerjual Pcs", Icons.home_work, const Color(0xFF546E7A), () => _openHistory(HistoryType.soldItems, "Rincian Barang Keluar"))),
               ]),
+              
               const SizedBox(height: 30),
               
-              // MENU UTAMA
+              // MENU UTAMA (GUDANG & KASIR)
               Row(children: [
                 Expanded(child: _menuBtn("GUDANG", Icons.inventory_2, [Colors.orange[400]!, Colors.orange[700]!], () => _nav(const ProductListScreen()))),
                 const SizedBox(width: 12),
                 Expanded(child: _menuBtn("KASIR", Icons.point_of_sale, [const Color(0xFF00C6FF), const Color(0xFF0072FF)], () => _nav(const CashierScreen()))),
               ]),
               
-              // MENU LAPORAN
               const SizedBox(height: 12),
-              _menuBtn("LAPORAN & EXPORT", Icons.analytics, [const Color.fromARGB(255, 71, 208, 7), const Color.fromARGB(255, 71, 143, 3)], () => _nav(const ReportScreen())),
+
+              // MENU LAPORAN & DATA PELANGGAN
+              Row(children: [
+                Expanded(child: _menuBtn("LAPORAN", Icons.analytics, [const Color.fromARGB(255, 71, 208, 7), const Color.fromARGB(255, 71, 143, 3)], () => _nav(const ReportScreen()))),
+                const SizedBox(width: 12),
+                Expanded(child: _menuBtn("DATA PELANGGAN", Icons.people_alt, [Colors.purple[400]!, Colors.purple[700]!], () => _nav(const CustomerListScreen()))),
+              ]),
 
               const SizedBox(height: 50),
             ],

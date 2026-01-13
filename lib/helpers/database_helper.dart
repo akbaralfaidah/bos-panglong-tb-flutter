@@ -22,9 +22,9 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 2, // <--- NAIK VERSI BIAR UPDATE
+      version: 2, 
       onCreate: _createDB,
-      onUpgrade: _onUpgrade, // <--- LOGIC UPDATE DATA LAMA
+      onUpgrade: _onUpgrade, 
     );
   }
 
@@ -49,7 +49,7 @@ class DatabaseHelper {
         stock INTEGER NOT NULL,
         source TEXT,
         dimensions TEXT,
-        wood_class TEXT, -- <--- KOLOM BARU
+        wood_class TEXT, 
         buy_price_unit INTEGER,
         buy_price_cubic INTEGER,
         sell_price_unit INTEGER,
@@ -114,9 +114,24 @@ class DatabaseHelper {
   // LOGIC UPDATE DB LAMA (MIGRASI)
   Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
-      // Tambah kolom wood_class kalau user update dari versi 1
       await db.execute('ALTER TABLE products ADD COLUMN wood_class TEXT');
     }
+  }
+
+  // ==========================================
+  // FITUR DATA PELANGGAN (CRM) - BARU
+  // ==========================================
+
+  // Ambil Semua Transaksi milik 1 Customer
+  // Kita pakai LIKE karena di transaksi nama tersimpan sebagai "Nama (No HP) \n Alamat"
+  Future<List<Map<String, dynamic>>> getTransactionsByCustomer(String name) async {
+    final db = await instance.database;
+    return await db.query(
+      'transactions',
+      where: 'customer_name LIKE ?',
+      whereArgs: ['$name%'], // Mencari yang diawali nama tersebut
+      orderBy: 'transaction_date DESC'
+    );
   }
 
   // ==========================================

@@ -71,50 +71,228 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     }
   }
 
-  // --- LOGIC EDIT ITEM DI CHECKOUT ---
+  // --- REVISI: EDIT ITEM DENGAN PILIHAN SATUAN VS GROSIR ---
   Future<void> _editItem(int index) async {
     CartItem item = widget.cartItems[index];
-    Product p = item.product;
+    Product product = item.product;
+    bool isBulat = product.type == 'BULAT'; 
     
-    // Simple Edit Dialog (Qty Only for simplicity in Checkout)
-    final qtyCtrl = TextEditingController(text: item.qty % 1 == 0 ? item.qty.toInt().toString() : item.qty.toString());
+    // Inisialisasi nilai awal dari item yang mau diedit
+    String initQty = item.qty % 1 == 0 ? item.qty.toInt().toString() : item.qty.toString();
+    final TextEditingController qtyCtrl = TextEditingController(text: initQty);
+    final TextEditingController totalPriceCtrl = TextEditingController(text: _formatRpNoSymbol(item.agreedPriceTotal));
     
+    // State lokal dialog untuk toggle
+    bool isGrosirMode = item.isGrosir;
+    String profitInfo = ""; 
+    Color profitColor = Colors.grey;
+    String stockInfo = "";
+
+    String getUnitLabel(bool grosir) {
+      if (product.type == 'KAYU' || product.type == 'BULAT') return grosir ? "Kubik" : "Batang";
+      if (product.type == 'RENG') return grosir ? "Ikat" : "Batang";
+      return grosir ? "Grosir/Dus" : "Satuan";
+    }
+
     await showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text("Edit: ${p.name}"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: qtyCtrl,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(labelText: "Jumlah Baru", border: OutlineInputBorder()),
-            )
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Batal")),
-          ElevatedButton(
-            onPressed: () async {
-              double newQty = double.tryParse(qtyCtrl.text.replaceAll(',', '.')) ?? item.qty;
-              if (newQty > 0) {
-                // Recalculate price logic simply (assuming price per unit doesn't change here)
-                int price = item.isGrosir ? p.sellPriceCubic : p.sellPriceUnit;
-                int newTotal = (newQty * price).round();
-                int deduction = await _calculateRealStockDeduction(p, newQty, item.isGrosir);
-                
-                setState(() {
-                  item.qty = newQty;
-                  item.agreedPriceTotal = newTotal;
-                  item.stockDeduction = deduction;
-                });
-              }
-              Navigator.pop(ctx);
-            },
-            child: const Text("Simpan"),
-          )
-        ],
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          
+          void updateCalculations() {
+            double q = double.tryParse(qtyCtrl.text.replaceAll(',', '.')) ?? 0;
+            // Gunakan harga sesuai mode yang dipilih sekarang
+            int pricePerUnit = isGrosirMode ? product.sellPriceCubic : product.sellPriceUnit;
+            
+            // Auto update total price jika user hanya ubah qty (bukan manual edit harga total)
+            // Disini kita paksa update agar sinkron saat ganti mode
+            int total = (q * pricePerUnit).round();
+            totalPriceCtrl.text = NumberFormat('#,###', 'id_ID').format(total);
+            
+            int inputTotal = int.tryParse(totalPriceCtrl.text.replaceAll('.', '')) ?? 0;
+            int modalPerUnit = isGrosirMode ? product.buyPriceCubic : product.buyPriceUnit;
+            
+            if (isGrosirMode && modalPerUnit == 0 && product.type != 'KAYU') {
+               modalPerUnit = product.buyPriceUnit * product.packContent;
+            }
+
+            int totalModal = (q * modalPerUnit).round();
+            int margin = inputTotal - totalModal;
+
+            if (margin < 0) {
+              profitInfo = "AWAS RUGI: ${_formatRp(margin)}";
+              profitColor = Colors.red;
+            } else {
+              profitInfo = "Estimasi Untung: ${_formatRp(margin)}";
+              profitColor = Colors.green[700]!;
+            }
+
+            if (isGrosirMode) {
+               _calculateRealStockDeduction(product, q, true).then((val) {
+                 if(mounted) setDialogState(() => stockInfo = "(Setara ± $val ${product.type=='KAYU'?'Batang':'Pcs'})");
+               });
+            } else {
+               stockInfo = "";
+            }
+          }
+
+          // Panggil sekali di awal agar info profit muncul
+          if(profitInfo.isEmpty) updateCalculations();
+
+          return Dialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.85),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text("Edit Pesanan", style: TextStyle(color: Colors.grey, fontSize: 12)),
+                    const SizedBox(height: 5),
+                    Text(product.name, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                    Text("Sisa Stok: ${product.stock}", style: TextStyle(fontSize: 12, color: product.stock <= 0 ? Colors.red : Colors.grey, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 20),
+                    
+                    // TOGGLE PILIHAN (Hanya jika bukan BULAT)
+                    if (!isBulat) ...[
+                      Row(
+                        children: [
+                          Expanded(child: ChoiceChip(
+                            label: Text(product.type == 'KAYU' || product.type == 'RENG' ? "Satuan" : "Eceran"), 
+                            selected: !isGrosirMode, 
+                            onSelected: (v) { setDialogState(() { 
+                              isGrosirMode = false; 
+                              updateCalculations(); // Recalculate price
+                            }); },
+                          )),
+                          const SizedBox(width: 10),
+                          Expanded(child: ChoiceChip(
+                            label: Text(getUnitLabel(true)), 
+                            selected: isGrosirMode, 
+                            onSelected: (v) { setDialogState(() { 
+                              isGrosirMode = true; 
+                              updateCalculations(); // Recalculate price
+                            }); },
+                          )),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                    ] else ...[
+                      const Text("Jual Satuan (Batang)", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
+                      const SizedBox(height: 10),
+                    ],
+
+                    // INPUT JUMLAH
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        IconButton(icon: const Icon(Icons.remove_circle, color: Colors.red, size: 36), onPressed: () {
+                           double c = double.tryParse(qtyCtrl.text.replaceAll(',', '.')) ?? 0;
+                           if(c > 1) qtyCtrl.text = (c - 1).toStringAsFixed(0);
+                           else if(c > 0.1) qtyCtrl.text = (c - 0.1).toStringAsFixed(2);
+                           updateCalculations(); setDialogState((){});
+                        }),
+                        SizedBox(width: 80, child: TextField(
+                          controller: qtyCtrl, textAlign: TextAlign.center, 
+                          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold), 
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true), 
+                          onChanged: (v) { 
+                            updateCalculations(); setDialogState((){}); 
+                          },
+                          decoration: const InputDecoration(border: OutlineInputBorder(), contentPadding: EdgeInsets.all(5))
+                        )),
+                        IconButton(icon: const Icon(Icons.add_circle, color: Colors.green, size: 36), onPressed: () {
+                           double c = double.tryParse(qtyCtrl.text.replaceAll(',', '.')) ?? 0;
+                           qtyCtrl.text = (c + 1).toStringAsFixed(0);
+                           updateCalculations(); setDialogState((){});
+                        }),
+                      ],
+                    ),
+                    
+                    if (!isBulat)
+                      Text(getUnitLabel(isGrosirMode), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+                    
+                    if (stockInfo.isNotEmpty) Text(stockInfo, style: const TextStyle(fontSize: 11, color: Colors.blueGrey)),
+                    
+                    const SizedBox(height: 20),
+                    const Text("Harga Total (Update Otomatis)", style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
+                    TextField(
+                      controller: totalPriceCtrl, textAlign: TextAlign.center, 
+                      keyboardType: TextInputType.number, 
+                      style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.blue), 
+                      decoration: const InputDecoration(prefixText: "Rp ", border: OutlineInputBorder()), 
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly, CurrencyInputFormatter()],
+                      onChanged: (v) => setDialogState(() {
+                         // Manual override profit info if user edits price manually
+                         int inputTotal = int.tryParse(v.replaceAll('.', '')) ?? 0;
+                         double q = double.tryParse(qtyCtrl.text.replaceAll(',', '.')) ?? 0;
+                         int modalPerUnit = isGrosirMode ? product.buyPriceCubic : product.buyPriceUnit;
+                         if (isGrosirMode && modalPerUnit == 0 && product.type != 'KAYU') {
+                            modalPerUnit = product.buyPriceUnit * product.packContent;
+                         }
+                         int totalModal = (q * modalPerUnit).round();
+                         int margin = inputTotal - totalModal;
+                         if (margin < 0) {
+                           profitInfo = "AWAS RUGI: ${_formatRp(margin)}";
+                           profitColor = Colors.red;
+                         } else {
+                           profitInfo = "Estimasi Untung: ${_formatRp(margin)}";
+                           profitColor = Colors.green[700]!;
+                         }
+                      }),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(profitInfo, style: TextStyle(color: profitColor, fontWeight: FontWeight.bold, fontSize: 13)),
+
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Expanded(child: OutlinedButton(onPressed: () => Navigator.pop(ctx), child: const Text("Batal"))),
+                        const SizedBox(width: 10),
+                        Expanded(child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(backgroundColor: _bgStart), 
+                          onPressed: () async {
+                            double finalQty = double.tryParse(qtyCtrl.text.replaceAll(',', '.')) ?? item.qty;
+                            int finalTotal = int.tryParse(totalPriceCtrl.text.replaceAll('.', '')) ?? 0;
+                            int deduction = await _calculateRealStockDeduction(product, finalQty, isGrosirMode);
+
+                            if (deduction > product.stock) {
+                              if(mounted) {
+                                showDialog(context: context, builder: (c) => AlertDialog(
+                                  title: const Text("Stok Kurang!", style: TextStyle(color: Colors.red)),
+                                  content: Text("Butuh: $deduction\nTersedia: ${product.stock}"),
+                                  actions: [TextButton(onPressed: ()=>Navigator.pop(c), child: const Text("OK"))],
+                                ));
+                              }
+                              return;
+                            }
+                            
+                            int activeCapital = isGrosirMode ? product.buyPriceCubic : product.buyPriceUnit;
+                            
+                            setState(() {
+                              item.qty = finalQty;
+                              item.isGrosir = isGrosirMode; // Update Mode
+                              item.unitName = getUnitLabel(isGrosirMode); // Update Nama Satuan
+                              item.sellPrice = isGrosirMode ? product.sellPriceCubic : product.sellPriceUnit; // Update Harga Dasar
+                              item.agreedPriceTotal = finalTotal;
+                              item.capitalPrice = activeCapital;
+                              item.stockDeduction = deduction;
+                            });
+                            
+                            Navigator.pop(ctx);
+                          }, 
+                          child: const Text("SIMPAN PERUBAHAN", style: TextStyle(color: Colors.white, fontSize: 12))
+                        )),
+                      ],
+                    )
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
       )
     );
   }
@@ -490,4 +668,15 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   String _formatRp(dynamic number) => NumberFormat.currency(locale: 'id', symbol: '', decimalDigits: 0).format(number);
   String _formatRpNoSymbol(dynamic number) => NumberFormat.currency(locale: 'id', symbol: '', decimalDigits: 0).format(number);
+}
+
+class CurrencyInputFormatter extends TextInputFormatter {
+  @override 
+  TextEditingValue formatEditUpdate(TextEditingValue o, TextEditingValue n) { 
+    if(n.selection.baseOffset==0) return n; 
+    String c = n.text.replaceAll(RegExp(r'[^0-9]'), ''); 
+    int v = int.tryParse(c) ?? 0; 
+    String t = NumberFormat('#,###', 'id_ID').format(v); 
+    return n.copyWith(text: t, selection: TextSelection.collapsed(offset: t.length)); 
+  }
 }
