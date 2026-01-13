@@ -3,6 +3,8 @@ import 'package:intl/intl.dart';
 import '../models/product.dart';
 import '../helpers/database_helper.dart';
 import 'product_form_screen.dart'; 
+// REVISI: Import file baru
+import 'stock_in_bulk_screen.dart'; 
 
 class ProductListScreen extends StatefulWidget {
   const ProductListScreen({super.key});
@@ -46,7 +48,6 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
     }).toList();
 
     setState(() {
-      // LOGIC BARU: Tipe BULAT juga masuk ke Tab 1
       _kayuList = temp.where((p) => p.type == 'KAYU' || p.type == 'RENG' || p.type == 'BULAT').toList();
       _bangunanList = temp.where((p) => p.type == 'BANGUNAN').toList();
     });
@@ -82,6 +83,19 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
           foregroundColor: Colors.white,
           elevation: 0,
           actions: [
+            // REVISI: Tombol Navigasi ke Tambah Stok Banyak (Bulk)
+            if (!_isSearching)
+              IconButton(
+                tooltip: "Tambah Stok Banyak",
+                icon: const Icon(Icons.library_add_check),
+                onPressed: () async {
+                  await Navigator.push(
+                    context, 
+                    MaterialPageRoute(builder: (_) => const StockInBulkScreen())
+                  );
+                  _loadProducts(); // Refresh data saat kembali
+                },
+              ),
             IconButton(
               icon: Icon(_isSearching ? Icons.close : Icons.search),
               onPressed: () {
@@ -137,7 +151,7 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
         final p = products[i];
         bool isKayu = p.type == 'KAYU'; 
         bool isReng = p.type == 'RENG'; 
-        bool isBulat = p.type == 'BULAT'; // Tipe Baru
+        bool isBulat = p.type == 'BULAT';
 
         String labelModalGrosir = "Modal Grosir";
         String labelJualGrosir = "Jual Grosir";
@@ -179,21 +193,17 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Column(
                   children: [
-                    // BARIS 1: HARGA JUAL
                     Row(
                       children: [
                         _priceInfo("Jual Satuan", _formatRp(p.sellPriceUnit), Colors.blue),
                         const SizedBox(width: 8),
-                        // Jika Bulat, sembunyikan kolom grosir (biar rapi)
                         if (!isBulat) 
                           _priceInfo(labelJualGrosir, _formatRp(p.sellPriceCubic), Colors.blue)
                         else 
-                          const Expanded(child: SizedBox()), // Spacer kosong
+                          const Expanded(child: SizedBox()), 
                       ],
                     ),
                     const SizedBox(height: 8),
-                    
-                    // BARIS 2: HARGA MODAL
                     Row(
                       children: [
                         _priceInfo("Modal Satuan", _formatRp(p.buyPriceUnit), Colors.red),
@@ -201,7 +211,7 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
                         if (!isBulat)
                           _priceInfo(labelModalGrosir, _formatRp(p.buyPriceCubic), Colors.red)
                         else 
-                          const Expanded(child: SizedBox()), // Spacer kosong
+                          const Expanded(child: SizedBox()), 
                       ],
                     ),
                     const Divider(),
@@ -283,8 +293,6 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
               children: [
                 Text("Stok Sekarang: ${p.stock}", style: const TextStyle(color: Colors.grey)),
                 const SizedBox(height: 15),
-                
-                // HANYA TAMPILKAN TOGGLE JIKA BUKAN BULAT
                 if (!isBulat) 
                   Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                     ChoiceChip(label: const Text("Satuan"), selected: !isGrosirMode, onSelected: (s) => setDialogState(() => isGrosirMode = false)),
