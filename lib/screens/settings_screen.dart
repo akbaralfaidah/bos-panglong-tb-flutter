@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:image_picker/image_picker.dart'; // Wajib ada
-// CSV REMOVED
+import 'package:image_picker/image_picker.dart'; 
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:permission_handler/permission_handler.dart'; 
+import 'package:sqflite/sqflite.dart'; // <--- INI YANG KURANG TADI
 import 'dart:io';
 import 'dart:math'; 
 import '../helpers/database_helper.dart';
@@ -37,328 +37,315 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   // --- 0. LOAD & SAVE IDENTITAS TOKO ---
   Future<void> _loadStoreSettings() async {
-    final db = DatabaseHelper.instance;
-    String? name = await db.getSetting('store_name');
-    String? address = await db.getSetting('store_address');
-    String? logoPath = await db.getSetting('store_logo');
+    String? name = await DatabaseHelper.instance.getSetting('store_name');
+    String? address = await DatabaseHelper.instance.getSetting('store_address');
+    String? logoPath = await DatabaseHelper.instance.getSetting('store_logo');
 
     setState(() {
       _nameController.text = name ?? "Bos Panglong & TB";
-      _addressController.text = address ?? "Jl. Raya Sukses No. 1";
-      if (logoPath != null && File(logoPath).existsSync()) {
+      _addressController.text = address ?? "";
+      if (logoPath != null && logoPath.isNotEmpty) {
         _logoFile = File(logoPath);
       }
     });
   }
 
   Future<void> _pickLogo() async {
-    try {
-      final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
-      if (image != null) {
-        // Simpan file ke folder aplikasi agar permanen (persistent)
-        final Directory appDir = await getApplicationDocumentsDirectory();
-        final String fileName = 'shop_logo_${DateTime.now().millisecondsSinceEpoch}.jpg';
-        final File savedImage = await File(image.path).copy('${appDir.path}/$fileName');
+    final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
+    if (image != null) {
+      final appDir = await getApplicationDocumentsDirectory();
+      final fileName = 'store_logo_${DateTime.now().millisecondsSinceEpoch}.png';
+      final savedImage = await File(image.path).copy('${appDir.path}/$fileName');
 
-        setState(() {
-          _logoFile = savedImage;
-        });
-        
-        // Simpan path ke database langsung
-        await DatabaseHelper.instance.saveSetting('store_logo', savedImage.path);
-        if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Logo berhasil diubah!"), backgroundColor: Colors.green));
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal ambil gambar: $e")));
+      setState(() {
+        _logoFile = savedImage;
+      });
     }
   }
 
-  Future<void> _saveIdentity() async {
-    if (_nameController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Nama Toko wajib diisi!")));
-      return;
-    }
-
-    setState(() => _isLoading = true);
+  Future<void> _saveSettings() async {
     await DatabaseHelper.instance.saveSetting('store_name', _nameController.text);
     await DatabaseHelper.instance.saveSetting('store_address', _addressController.text);
-    
-    setState(() => _isLoading = false);
-    if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Identitas Toko Disimpan!"), backgroundColor: Colors.green));
-  }
-
-  // --- 1. GENERATE DATA TESTING (2010 - SEKARANG) ---
-  Future<void> _generateDummyData() async {
-    setState(() => _isLoading = true);
-    final db = DatabaseHelper.instance;
-    final random = Random();
-
-    try {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Meracik 1000+ data transaksi (2010-Sekarang)..."), duration: Duration(seconds: 4)));
-
-      // 1. Buat Produk Dummy (Stok Besar biar ga habis saat generate mundur)
-      List<Product> dummies = [
-        Product(name: "Meranti 6x12", type: "KAYU", woodClass: "Kelas 1", stock: 50000, source: "Gudang A", dimensions: "6x12x4", buyPriceUnit: 45000, sellPriceUnit: 55000, buyPriceCubic: 3000000, sellPriceCubic: 3800000, packContent: 70),
-        Product(name: "Kamper 5x10", type: "KAYU", woodClass: "Kelas 2", stock: 50000, source: "Gudang A", dimensions: "5x10x4", buyPriceUnit: 40000, sellPriceUnit: 50000, buyPriceCubic: 2800000, sellPriceCubic: 3500000, packContent: 80),
-        Product(name: "Reng 2x3", type: "RENG", stock: 100000, source: "Gudang B", dimensions: "2x3", buyPriceUnit: 2500, sellPriceUnit: 3500, buyPriceCubic: 25000, sellPriceCubic: 35000, packContent: 20),
-        Product(name: "Reng 3x4", type: "RENG", stock: 100000, source: "Gudang B", dimensions: "3x4", buyPriceUnit: 3500, sellPriceUnit: 4500, buyPriceCubic: 35000, sellPriceCubic: 45000, packContent: 10),
-        Product(name: "Kayu Tunjang", type: "BULAT", stock: 20000, source: "Hutan Lestari", dimensions: "-", buyPriceUnit: 15000, sellPriceUnit: 25000, buyPriceCubic: 0, sellPriceCubic: 0, packContent: 1),
-        Product(name: "Semen Tiga Roda", type: "BANGUNAN", stock: 10000, source: "Toko Pusat", dimensions: "Sak", buyPriceUnit: 62000, sellPriceUnit: 68000, buyPriceCubic: 0, sellPriceCubic: 0, packContent: 1),
-        Product(name: "Paku 5cm", type: "BANGUNAN", stock: 5000, source: "Toko Pusat", dimensions: "Kg", buyPriceUnit: 15000, sellPriceUnit: 18000, buyPriceCubic: 140000, sellPriceCubic: 170000, packContent: 10),
-        Product(name: "Cat Tembok Putih", type: "BANGUNAN", stock: 2000, source: "Supplier C", dimensions: "Pail", buyPriceUnit: 450000, sellPriceUnit: 500000, buyPriceCubic: 0, sellPriceCubic: 0, packContent: 1),
-        Product(name: "Pasir Cor", type: "BANGUNAN", stock: 5000, source: "Pangkalan", dimensions: "Pickup", buyPriceUnit: 150000, sellPriceUnit: 250000, buyPriceCubic: 0, sellPriceCubic: 0, packContent: 1),
-      ];
-
-      Map<int, int> localStockTracker = {};
-      List<int> pIds = [];
-      
-      // Simpan Produk ke DB
-      for (var p in dummies) {
-        int id = await db.createProduct(p);
-        pIds.add(id);
-        localStockTracker[id] = p.stock; 
-      }
-
-      // Daftar Customer
-      List<String> customers = ["Pak Budi (Kontraktor)", "Bu Siti (Warung)", "Mas Joko (Tukang)", "PT. Maju Mundur", "Pak Haji", "User Umum", "CV. Karya Abadi", "Bu Lina"];
-      for (var c in customers) {
-        await db.saveCustomer(c);
-      }
-
-      // 2. Generate Transaksi (2010 - Hari Ini)
-      DateTime startDate = DateTime(2010, 1, 1);
-      DateTime endDate = DateTime.now();
-      
-      // Loop Hari dari 2010 sampai Sekarang
-      int totalDays = endDate.difference(startDate).inDays;
-      int transactionCount = 0;
-      
-      for (int i = 0; i <= totalDays; i++) {
-        DateTime currentDate = startDate.add(Duration(days: i));
-        
-        // Skip hari minggu sesekali (simulasi libur)
-        if (currentDate.weekday == DateTime.sunday && random.nextBool()) continue;
-
-        // Tentukan jumlah transaksi per hari (0 sampai 3 transaksi)
-        // Kita beri bobot random agar tidak flat setiap hari
-        int transToday = 0;
-        if (random.nextDouble() > 0.6) { // 40% hari ada transaksi
-           transToday = random.nextInt(3) + 1; // 1-3 transaksi
-        }
-
-        for (int t = 0; t < transToday; t++) {
-           // Jam Acak (08:00 - 17:00)
-           DateTime transTime = currentDate.add(Duration(hours: 8 + random.nextInt(9), minutes: random.nextInt(60)));
-           if (transTime.isAfter(DateTime.now())) continue;
-
-           await _createRandomTransaction(db, transTime, dummies, pIds, customers, localStockTracker, random);
-           transactionCount++;
-        }
-      }
-      
-      // Safety: Jika randomnya pelit dan kurang dari 1000, tambahkan di bulan-bulan terakhir
-      while (transactionCount < 1200) {
-         DateTime randomDate = DateTime.now().subtract(Duration(days: random.nextInt(365 * 2))); // 2 tahun terakhir
-         await _createRandomTransaction(db, randomDate, dummies, pIds, customers, localStockTracker, random);
-         transactionCount++;
-      }
-
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("SUKSES! $transactionCount Transaksi (2010-Kini) Berhasil Dibuat."), backgroundColor: Colors.green));
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal Generate: $e"), backgroundColor: Colors.red));
-    } finally {
-      setState(() => _isLoading = false);
+    if (_logoFile != null) {
+      await DatabaseHelper.instance.saveSetting('store_logo', _logoFile!.path);
     }
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Pengaturan Disimpan!")));
   }
 
-  Future<void> _createRandomTransaction(DatabaseHelper dbHelper, DateTime date, List<Product> products, List<int> pIds, List<String> customers, Map<int, int> stockTracker, Random random) async {
-    String dateString = DateFormat('yyyy-MM-dd HH:mm:ss').format(date);
-    String cust = customers[random.nextInt(customers.length)];
-    bool isHutang = random.nextInt(10) > 8; // 10% kemungkinan hutang
-    String method = isHutang ? "HUTANG" : "TUNAI";
-    String status = isHutang ? "Belum Lunas" : "Lunas";
-
-    List<CartItemModel> items = [];
-    int totalPrice = 0;
-    int itemCount = random.nextInt(3) + 1;
-
-    for (int k = 0; k < itemCount; k++) {
-      int pIndex = random.nextInt(products.length);
-      Product p = products[pIndex];
-      int pId = pIds[pIndex];
-      
-      // Cek stok lokal dummy (simulasi)
-      int currentStock = stockTracker[pId] ?? 0;
-      if (currentStock <= 0) continue; 
-
-      int maxQty = min(20, currentStock); 
-      if (maxQty == 0) continue;
-      
-      int qty = random.nextInt(maxQty) + 1;
-      stockTracker[pId] = currentStock - qty;
-
-      bool isGrosir = random.nextInt(10) > 7;
-      if (p.type == 'BULAT') isGrosir = false; // Bulat ga ada grosir
-
-      String unit = "";
-      if (isGrosir) {
-         if (p.type == 'KAYU') unit = 'Kubik';
-         else if (p.type == 'RENG') unit = 'Ikat';
-         else unit = 'Grosir/Dus';
-      } else {
-         if (p.type == 'KAYU' || p.type == 'RENG' || p.type == 'BULAT') unit = 'Batang';
-         else unit = 'Pcs/Sak';
-      }
-
-      int capital = isGrosir ? p.buyPriceCubic : p.buyPriceUnit;
-      int sell = isGrosir ? p.sellPriceCubic : p.sellPriceUnit;
-      if(capital == 0) capital = p.buyPriceUnit * p.packContent;
-      if(sell == 0) sell = p.sellPriceUnit * p.packContent;
-
-      totalPrice += (qty * sell);
-      items.add(CartItemModel(productId: pId, productName: p.name, productType: p.type, quantity: qty, unitType: unit, capitalPrice: capital, sellPrice: sell));
-    }
-
-    if (items.isNotEmpty) await _insertHistoricalTransaction(dbHelper, totalPrice, cust, method, status, dateString, items);
-  }
-
-  Future<void> _insertHistoricalTransaction(DatabaseHelper dbHelper, int total, String cust, String method, String status, String date, List<CartItemModel> items) async {
-    final db = await dbHelper.database;
-    int queue = Random().nextInt(50) + 1; 
-    int bensin = Random().nextInt(10) > 6 ? (Random().nextInt(4) + 1) * 5000 : 0;
-    await db.transaction((txn) async {
-      int tId = await txn.insert('transactions', {'total_price': total + bensin, 'operational_cost': bensin, 'customer_name': cust, 'payment_method': method, 'payment_status': status, 'queue_number': queue, 'transaction_date': date});
-      for (var item in items) {
-        await txn.insert('transaction_items', {'transaction_id': tId, 'product_id': item.productId, 'product_name': item.productName, 'product_type': item.productType, 'quantity': item.quantity, 'unit_type': item.unitType, 'capital_price': item.capitalPrice, 'sell_price': item.sellPrice});
-        await txn.rawUpdate('UPDATE products SET stock = stock - ? WHERE id = ?', [item.quantity, item.productId]);
-      }
-    });
-  }
-
+  // --- 1. BACKUP DATABASE ---
   Future<void> _backupDatabase() async {
-    var status = await Permission.manageExternalStorage.status;
-    if (!status.isGranted) status = await Permission.manageExternalStorage.request();
-    if (!status.isGranted) { var s2 = await Permission.storage.status; if(!s2.isGranted) await Permission.storage.request(); }
-
     setState(() => _isLoading = true);
     try {
-      String dbPath = await DatabaseHelper.instance.getDbPath();
-      File dbFile = File(dbPath);
-      if (await dbFile.exists()) {
-        String timestamp = DateFormat('yyyy-MM-dd_HH-mm').format(DateTime.now());
-        String filename = "BACKUP_PANGLONG_$timestamp.db";
-        Directory? dir;
-        if (Platform.isAndroid) dir = Directory("/storage/emulated/0/Download"); else dir = await getApplicationDocumentsDirectory();
-        if (!await dir.exists()) dir = (await getExternalStorageDirectory())!; 
-        String savePath = "${dir.path}/$filename";
-        await dbFile.copy(savePath);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Backup Tersimpan di: $savePath"), backgroundColor: Colors.green));
-          await Share.shareXFiles([XFile(savePath)], text: "Backup Data Bos Panglong ($timestamp)");
-        }
-      }
+      final dbFolder = await getApplicationDocumentsDirectory();
+      final dbPath = await DatabaseHelper.instance.getDbPath();
+      final File dbFile = File(dbPath);
+
+      String dateStr = DateFormat('yyyy-MM-dd_HHmm').format(DateTime.now());
+      String backupFileName = "panglong_backup_$dateStr.db";
+      
+      // Copy ke folder dokumen dulu
+      final newPath = "${dbFolder.path}/$backupFileName";
+      await dbFile.copy(newPath);
+
+      // Share file tersebut
+      await Share.shareXFiles([XFile(newPath)], text: 'Backup Database Bos Panglong');
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal Backup: $e"), backgroundColor: Colors.red));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal Backup: $e")));
     } finally {
       setState(() => _isLoading = false);
     }
   }
 
+  // --- 2. RESTORE DATABASE ---
   Future<void> _restoreDatabase() async {
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles();
       if (result != null) {
-        File backupFile = File(result.files.single.path!);
-        if (await backupFile.length() > 0) {
-          final confirm = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(title: const Text("TIMPA DATA LAMA?", style: TextStyle(color: Colors.red)), content: const Text("Peringatan: Data di HP ini akan diganti dengan data backup.\n\nLanjutkan?"), actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("BATAL")), ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red), onPressed: () => Navigator.pop(ctx, true), child: const Text("YA, TIMPA"))]));
-          if (confirm == true) {
-            setState(() => _isLoading = true);
-            await DatabaseHelper.instance.close();
-            String dbPath = await DatabaseHelper.instance.getDbPath();
-            await backupFile.copy(dbPath);
-            setState(() => _isLoading = false);
-            if (mounted) await showDialog(context: context, barrierDismissible: false, builder: (ctx) => AlertDialog(title: const Text("Restore Berhasil!"), content: const Text("Silakan restart aplikasi."), actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("OK"))]));
-          }
+        setState(() => _isLoading = true);
+        File sourceFile = File(result.files.single.path!);
+        
+        // Validasi sederhana (cek ekstensi)
+        if (!sourceFile.path.endsWith('.db')) {
+          throw Exception("File bukan database (.db)");
         }
+
+        final dbPath = await DatabaseHelper.instance.getDbPath();
+        await DatabaseHelper.instance.close(); // Tutup koneksi lama
+        
+        await sourceFile.copy(dbPath); // Timpa file lama
+        
+        // Reload UI (Restart App Logic simple)
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Restore Berhasil! Silakan restart aplikasi.")));
       }
     } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal Restore: $e")));
+    } finally {
       setState(() => _isLoading = false);
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal Restore: $e")));
     }
   }
 
+  // --- 3. RESET DATABASE (BAHAYA) ---
   Future<void> _resetDatabase() async {
-    final confirm = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(title: const Text("Hapus SEMUA Data?"), content: const Text("Semua data akan hilang permanen!"), actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Batal")), ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red), onPressed: () => Navigator.pop(ctx, true), child: const Text("HAPUS TOTAL"))]));
-    if (confirm == true) {
-      final db = await DatabaseHelper.instance.database;
-      await db.delete('products'); await db.delete('transactions'); await db.delete('transaction_items'); await db.delete('stock_logs'); await db.delete('customers');
-      if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Database Bersih!"), backgroundColor: Colors.red));
+    bool confirm = await showDialog(
+      context: context, 
+      builder: (c) => AlertDialog(
+        title: const Text("HAPUS SEMUA DATA?", style: TextStyle(color: Colors.red)),
+        content: const Text("Tindakan ini tidak bisa dibatalkan. Seluruh data transaksi, stok, dan hutang akan hilang."),
+        actions: [
+          TextButton(onPressed: ()=>Navigator.pop(c, false), child: const Text("Batal")),
+          ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red), onPressed: ()=>Navigator.pop(c, true), child: const Text("HAPUS"))
+        ],
+      )
+    ) ?? false;
+
+    if (confirm) {
+      setState(() => _isLoading = true);
+      final dbPath = await DatabaseHelper.instance.getDbPath();
+      await DatabaseHelper.instance.close();
+      await deleteDatabase(dbPath); // Skrg sudah bisa karena ada import sqflite
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Database Terhapus. Restart aplikasi.")));
+      setState(() => _isLoading = false);
     }
+  }
+
+  // --- 4. GENERATE DUMMY DATA (TESTING FITUR BARU) ---
+  Future<void> _generateDummyData() async {
+    setState(() => _isLoading = true);
+    
+    final db = await DatabaseHelper.instance.database;
+    final random = Random();
+
+    // A. BUAT 50 PRODUK (25 KAYU, 25 BANGUNAN)
+    List<int> productIds = [];
+    
+    // 25 Produk Kayu
+    List<String> kayuTypes = ['Meranti', 'Kamper', 'Jati', 'Sengon', 'Mahoni'];
+    List<String> dimensions = ['2x3', '3x4', '4x6', '5x10', 'Papan 2x20'];
+    
+    for (int i = 0; i < 25; i++) {
+      String type = kayuTypes[random.nextInt(kayuTypes.length)];
+      String dim = dimensions[random.nextInt(dimensions.length)];
+      int basePrice = (random.nextInt(50) + 10) * 1000; // 10rb - 60rb
+      
+      Product p = Product(
+        name: "Kayu $type $dim",
+        type: 'KAYU',
+        dimensions: dim,
+        woodClass: 'Kelas ${random.nextInt(2)+1}', // Kelas 1 atau 2
+        // STOK AWAL DIBUAT 1 JUTA AGAR TIDAK MINUS SAAT DIHANTAM 5000 TRANSAKSI
+        stock: 1000000, 
+        buyPriceUnit: basePrice,
+        sellPriceUnit: basePrice + (basePrice * 0.2).toInt(), // Margin 20%
+        buyPriceCubic: basePrice * 100, // Asumsi
+        sellPriceCubic: (basePrice * 100) + ((basePrice*100) * 0.15).toInt(),
+        packContent: 0
+      );
+      int id = await DatabaseHelper.instance.createProduct(p);
+      productIds.add(id);
+    }
+
+    // 25 Produk Bangunan
+    List<String> matNames = ['Semen Tiga Roda', 'Semen Padang', 'Cat Dulux Putih', 'Cat Avian Kayu', 'Paku 5cm', 'Paku 7cm', 'Pipa PVC 3"', 'Besi 8mm', 'Besi 10mm', 'Pasir Karung'];
+    
+    for (int i = 0; i < 25; i++) {
+      String name = matNames[random.nextInt(matNames.length)] + " - V${i+1}";
+      int basePrice = (random.nextInt(100) + 5) * 1000; // 5rb - 105rb
+      
+      Product p = Product(
+        name: name,
+        type: 'BANGUNAN',
+        // STOK AWAL DIBUAT 1 JUTA
+        stock: 1000000,
+        buyPriceUnit: basePrice,
+        sellPriceUnit: basePrice + (basePrice * 0.15).toInt(),
+        packContent: 1
+      );
+      int id = await DatabaseHelper.instance.createProduct(p);
+      productIds.add(id);
+    }
+
+    // B. BUAT 5.000+ TRANSAKSI DARI TAHUN 2010
+    List<String> customers = ["Budi", "Siti", "Agus", "Wawan", "Lestari", "CV. Maju Jaya", "Pak RT", "Bu Ningsih", "Proyek Sekolah", "Bengkel Las"];
+    
+    DateTime startDate = DateTime(2010, 1, 1);
+    DateTime endDate = DateTime.now(); // 14 Jan 2026
+    int totalDays = endDate.difference(startDate).inDays;
+    
+    int targetTransactions = 5050; // Sedikit di atas 5000
+    
+    for (int i = 0; i < targetTransactions; i++) {
+      // Random Tanggal
+      int randomDays = random.nextInt(totalDays);
+      DateTime transDate = startDate.add(Duration(days: randomDays));
+      // Random Jam (08:00 - 17:00)
+      transDate = transDate.add(Duration(hours: 8 + random.nextInt(9), minutes: random.nextInt(60)));
+      
+      String dateStr = DateFormat('yyyy-MM-dd HH:mm:ss').format(transDate);
+      
+      // Random Customer
+      String cust = customers[random.nextInt(customers.length)];
+      
+      // Random Items (1-5 jenis barang)
+      int itemCount = random.nextInt(5) + 1;
+      List<CartItemModel> items = [];
+      int totalSellPrice = 0;
+      
+      for (int j = 0; j < itemCount; j++) {
+        int prodId = productIds[random.nextInt(productIds.length)];
+        
+        // Ambil data produk manual biar cepat (Query DB dalam loop berat, tapi aman untuk dummy)
+        List<Map<String, dynamic>> res = await db.query('products', where: 'id = ?', whereArgs: [prodId]);
+        if (res.isNotEmpty) {
+          Product p = Product.fromMap(res.first);
+          int qty = random.nextInt(10) + 1;
+          
+          items.add(CartItemModel(
+            productId: p.id!,
+            productName: p.name,
+            productType: p.type,
+            quantity: qty,
+            unitType: p.type == 'KAYU' ? 'Btg' : 'Pcs',
+            capitalPrice: p.buyPriceUnit,
+            sellPrice: p.sellPriceUnit
+          ));
+          totalSellPrice += (p.sellPriceUnit * qty);
+        }
+      }
+      
+      // Random Bensin & Diskon
+      int bensin = random.nextBool() ? (random.nextInt(5) + 1) * 10000 : 0; // 0 atau 10rb-50rb
+      int discount = 0;
+      
+      // 20% Transaksi ada Nego (Diskon)
+      if (random.nextDouble() < 0.2) {
+        discount = (totalSellPrice * (random.nextInt(10) + 1) / 100).toInt(); // Diskon 1-10%
+      }
+
+      int finalTotal = totalSellPrice + bensin - discount;
+      if (finalTotal < 0) finalTotal = 0;
+
+      // Status Lunas/Hutang
+      String method = random.nextBool() ? "TUNAI" : "HUTANG";
+      String status = method == "HUTANG" ? "Belum Lunas" : "Lunas";
+      
+      await DatabaseHelper.instance.createTransaction(
+        totalPrice: finalTotal, 
+        operational_cost: bensin, 
+        customerName: cust, 
+        paymentMethod: method, 
+        paymentStatus: status, 
+        queueNumber: i + 1, 
+        items: items,
+        transaction_date: dateStr,
+        discount: discount 
+      );
+    }
+
+    setState(() => _isLoading = false);
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Selesai! 50 Produk (Stok 1jt) & 5.000+ Transaksi dibuat.")));
   }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(gradient: LinearGradient(colors: [_bgStart, _bgEnd], begin: Alignment.topCenter, end: Alignment.bottomCenter)),
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        appBar: AppBar(title: const Text("Pengaturan"), backgroundColor: Colors.transparent, foregroundColor: Colors.white, elevation: 0),
-        body: _isLoading ? const Center(child: CircularProgressIndicator(color: Colors.white)) : ListView(padding: const EdgeInsets.all(20), children: [
-          
-          // --- KARTU IDENTITAS TOKO ---
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15)),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    GestureDetector(
-                      onTap: _pickLogo,
-                      child: CircleAvatar(
-                        radius: 35,
-                        backgroundColor: Colors.grey[200],
-                        backgroundImage: _logoFile != null ? FileImage(_logoFile!) : null,
-                        child: _logoFile == null ? const Icon(Icons.add_a_photo, color: Colors.grey) : null,
-                      ),
-                    ),
-                    const SizedBox(width: 15),
-                    Expanded(
-                      child: Column(
-                        children: [
-                          TextField(
-                            controller: _nameController,
-                            decoration: const InputDecoration(labelText: "Nama Toko", isDense: true, contentPadding: EdgeInsets.symmetric(vertical: 8)),
-                          ),
-                          TextField(
-                            controller: _addressController,
-                            decoration: const InputDecoration(labelText: "Alamat / Slogan", isDense: true, contentPadding: EdgeInsets.symmetric(vertical: 8)),
-                          ),
-                        ],
-                      ),
-                    )
-                  ],
-                ),
-                const SizedBox(height: 15),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _saveIdentity,
-                    style: ElevatedButton.styleFrom(backgroundColor: _bgStart),
-                    child: const Text("SIMPAN IDENTITAS", style: TextStyle(color: Colors.white)),
-                  ),
-                )
-              ],
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("Pengaturan & Data"),
+        flexibleSpace: Container(decoration: BoxDecoration(gradient: LinearGradient(colors: [_bgStart, _bgEnd]))),
+        foregroundColor: Colors.white,
+      ),
+      body: _isLoading 
+        ? const Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [CircularProgressIndicator(), SizedBox(height: 20), Text("Sedang memproses data...", style: TextStyle(fontWeight: FontWeight.bold))]))
+        : SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          // IDENTITAS TOKO
+          const Text("Identitas Toko", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.blue)),
+          const SizedBox(height: 15),
+          GestureDetector(
+            onTap: _pickLogo,
+            child: Center(
+              child: CircleAvatar(
+                radius: 50,
+                backgroundColor: Colors.grey[200],
+                backgroundImage: _logoFile != null ? FileImage(_logoFile!) : null,
+                child: _logoFile == null ? const Icon(Icons.camera_alt, size: 40, color: Colors.grey) : null,
+              ),
             ),
           ),
+          const SizedBox(height: 10),
+          const Center(child: Text("Ketuk untuk ganti logo", style: TextStyle(color: Colors.grey, fontSize: 12))),
+          const SizedBox(height: 20),
+          TextField(controller: _nameController, decoration: const InputDecoration(labelText: "Nama Toko", border: OutlineInputBorder(), prefixIcon: Icon(Icons.store))),
+          const SizedBox(height: 15),
+          TextField(controller: _addressController, decoration: const InputDecoration(labelText: "Alamat Toko", border: OutlineInputBorder(), prefixIcon: Icon(Icons.location_on))),
+          const SizedBox(height: 20),
+          SizedBox(width: double.infinity, height: 50, child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: _bgStart), onPressed: _saveSettings, child: const Text("SIMPAN IDENTITAS", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)))),
           
-          const SizedBox(height: 30), const Text("Data & Backup", style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold)), const SizedBox(height: 10),
-          // MENU IMPORT CSV SUDAH DIHAPUS
-          Card(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)), child: ListTile(leading: const Icon(Icons.cloud_upload, color: Colors.blue), title: const Text("Backup Database", style: TextStyle(fontWeight: FontWeight.bold)), subtitle: const Text("Simpan ke HP & Share"), onTap: _backupDatabase)), const SizedBox(height: 10),
-          Card(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)), child: ListTile(leading: const Icon(Icons.settings_backup_restore, color: Colors.orange), title: const Text("Restore Database", style: TextStyle(fontWeight: FontWeight.bold)), subtitle: const Text("Kembalikan data lama"), onTap: _restoreDatabase)),
-          const SizedBox(height: 30), const Text("Testing & Reset", style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold)), const SizedBox(height: 10),
-          Card(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)), child: ListTile(leading: const Icon(Icons.science, color: Colors.purple), title: const Text("Isi Data Testing (Fix History)", style: TextStyle(fontWeight: FontWeight.bold)), subtitle: const Text("Generate 1000+ data (2010-Kini)"), onTap: _generateDummyData)), const SizedBox(height: 10),
+          const Divider(height: 40, thickness: 2),
+
+          // MANAJEMEN DATA
+          const Text("Manajemen Database", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.blue)),
+          const SizedBox(height: 15),
+          Card(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)), child: ListTile(leading: const Icon(Icons.download, color: Colors.green), title: const Text("Backup Database", style: TextStyle(fontWeight: FontWeight.bold)), subtitle: const Text("Simpan/Share data ke WA/Drive"), onTap: _backupDatabase)),
+          const SizedBox(height: 10),
+          Card(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)), child: ListTile(leading: const Icon(Icons.upload, color: Colors.orange), title: const Text("Restore Database", style: TextStyle(fontWeight: FontWeight.bold)), subtitle: const Text("Kembalikan data lama"), onTap: _restoreDatabase)),
+          const SizedBox(height: 30), 
+          
+          const Text("Testing & Reset", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)), 
+          const SizedBox(height: 10),
+          
+          // TOMBOL DATA TESTING (UPDATED)
+          Card(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)), 
+            child: ListTile(
+              leading: const Icon(Icons.science, color: Colors.purple), 
+              title: const Text("Isi Data Testing (5000+)", style: TextStyle(fontWeight: FontWeight.bold)), 
+              subtitle: const Text("Generate 50 Produk & Transaksi (2010-Kini)"), 
+              onTap: _generateDummyData
+            )
+          ), 
+          
+          const SizedBox(height: 10),
           Card(color: Colors.red[50], shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)), child: ListTile(leading: const Icon(Icons.delete_forever, color: Colors.red), title: const Text("Reset Database", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red)), subtitle: const Text("Hapus SEMUA data"), onTap: _resetDatabase)),
         ]),
       ),

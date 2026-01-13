@@ -22,7 +22,8 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 2, 
+      // VERSI NAIK JADI 3 (Untuk fitur Diskon/Nego)
+      version: 3, 
       onCreate: _createDB,
       onUpgrade: _onUpgrade, 
     );
@@ -58,11 +59,13 @@ class DatabaseHelper {
       )
     ''');
 
+    // TABEL TRANSAKSI (Sudah ada kolom discount untuk install baru)
     await db.execute('''
       CREATE TABLE transactions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         total_price INTEGER,
         operational_cost INTEGER,
+        discount INTEGER DEFAULT 0, 
         customer_name TEXT,
         payment_method TEXT,
         payment_status TEXT,
@@ -116,20 +119,22 @@ class DatabaseHelper {
     if (oldVersion < 2) {
       await db.execute('ALTER TABLE products ADD COLUMN wood_class TEXT');
     }
+    // MIGRASI KE VERSI 3 (Tambah Kolom Discount)
+    if (oldVersion < 3) {
+      await db.execute('ALTER TABLE transactions ADD COLUMN discount INTEGER DEFAULT 0');
+    }
   }
 
   // ==========================================
-  // FITUR DATA PELANGGAN (CRM) - BARU
+  // FITUR DATA PELANGGAN (CRM)
   // ==========================================
 
-  // Ambil Semua Transaksi milik 1 Customer
-  // Kita pakai LIKE karena di transaksi nama tersimpan sebagai "Nama (No HP) \n Alamat"
   Future<List<Map<String, dynamic>>> getTransactionsByCustomer(String name) async {
     final db = await instance.database;
     return await db.query(
       'transactions',
       where: 'customer_name LIKE ?',
-      whereArgs: ['$name%'], // Mencari yang diawali nama tersebut
+      whereArgs: ['$name%'], 
       orderBy: 'transaction_date DESC'
     );
   }
@@ -179,22 +184,33 @@ class DatabaseHelper {
         'note': note
       });
 
+      // Hitung total bayar
       final res = await txn.rawQuery(
         'SELECT SUM(amount_paid) as total FROM debt_payments WHERE transaction_id = ?',
         [transId]
       );
       int alreadyPaid = (res.first['total'] as int?) ?? 0;
 
-      final trans = await txn.query('transactions', columns: ['total_price'], where: 'id = ?', whereArgs: [transId]);
-      int totalPrice = trans.first['total_price'] as int;
-
-      if (alreadyPaid >= totalPrice) {
-        await txn.update(
-          'transactions',
-          {'payment_status': 'Lunas'},
-          where: 'id = ?',
-          whereArgs: [transId]
-        );
+      // Ambil total tagihan sebenarnya (Total Barang + Bensin - Diskon)
+      // Diskon mengurangi total tagihan yang harus dibayar
+      final trans = await txn.query('transactions', columns: ['total_price', 'operational_cost', 'discount'], where: 'id = ?', whereArgs: [transId]);
+      
+      if (trans.isNotEmpty) {
+        int totalPrice = (trans.first['total_price'] as int?) ?? 0;
+        // Total yang harus dibayar sebenarnya sudah tersimpan rapi di total_price 
+        // (Logika: total_price di DB nanti adalah Net setelah diskon? 
+        // TUNGGU: Agar konsisten, kita sepakati: total_price di DB adalah FINAL PRICE (Net).
+        // Jadi logic pelunasan tetap sama: if alreadyPaid >= total_price -> Lunas.
+        // Kolom discount hanya pencatatan history bahwa ada potongan).
+        
+        if (alreadyPaid >= totalPrice) {
+          await txn.update(
+            'transactions',
+            {'payment_status': 'Lunas'},
+            where: 'id = ?',
+            whereArgs: [transId]
+          );
+        }
       }
     });
   }
@@ -300,6 +316,7 @@ class DatabaseHelper {
         t.id as invoice_id, 
         t.customer_name, 
         t.payment_status,
+        t.discount,
         i.product_name, 
         i.quantity, 
         i.unit_type,
@@ -331,10 +348,17 @@ class DatabaseHelper {
     ''', [start, end]);
   }
 
+  // --- REVISI: Tambah Parameter discount ---
   Future<int> createTransaction({
-    required int totalPrice, required int operational_cost, required String customerName, 
-    required String paymentMethod, required String paymentStatus, required int queueNumber, 
-    required List<dynamic> items, String? transaction_date 
+    required int totalPrice, 
+    required int operational_cost, 
+    required String customerName, 
+    required String paymentMethod, 
+    required String paymentStatus, 
+    required int queueNumber, 
+    required List<dynamic> items, 
+    String? transaction_date,
+    int discount = 0, // NEW PARAMETER
   }) async {
     final db = await instance.database;
     String dateNow = transaction_date ?? DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now());
@@ -344,6 +368,7 @@ class DatabaseHelper {
         int tId = await txn.insert('transactions', {
           'total_price': totalPrice, 
           'operational_cost': operational_cost, 
+          'discount': discount, // SIMPAN DISKON
           'customer_name': customerName,
           'payment_method': paymentMethod, 
           'payment_status': paymentStatus, 

@@ -48,10 +48,8 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     final dbHelper = DatabaseHelper.instance;
     final db = await dbHelper.database;
 
-    // 1. Ambil data terbaru transaksi (biar status lunas terupdate)
     final transRefresh = await db.query('transactions', where: 'id = ?', whereArgs: [widget.transaction['id']]);
     
-    // 2. Ambil barang + dimensi
     final items = await db.rawQuery('''
       SELECT ti.*, p.dimensions 
       FROM transaction_items ti 
@@ -59,7 +57,6 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
       WHERE ti.transaction_id = ?
     ''', [widget.transaction['id']]);
     
-    // 3. Ambil riwayat cicilan
     final payments = await dbHelper.getDebtPayments(widget.transaction['id']);
     
     String? name = await dbHelper.getSetting('store_name');
@@ -81,16 +78,47 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     }
   }
 
-  // --- LOGIKA PEMBAYARAN DENGAN FORMAT RIBUAN ---
+  // --- PARSE DATA PELANGGAN YANG DISIMPAN GABUNGAN ---
+  // Format di DB: "Nama (NoHP) \n Alamat"
+  Map<String, String> _parseCustomerInfo(String raw) {
+    String name = raw;
+    String phone = "-";
+    String address = "-";
+
+    try {
+      List<String> lines = raw.split('\n');
+      if (lines.isNotEmpty) {
+        String line1 = lines[0]; // Isinya "Nama (NoHP)"
+        if (lines.length > 1) {
+          // Sisanya adalah alamat (digabung kembali jika ada enter)
+          address = lines.sublist(1).join(' ');
+        }
+        
+        // Ambil NoHP di dalam kurung terakhir pada baris 1
+        RegExp exp = RegExp(r'\(([^)]+)\)$'); 
+        Match? match = exp.firstMatch(line1);
+        if (match != null) {
+          phone = match.group(1) ?? "-";
+          // Nama adalah teks sebelum kurung buka
+          name = line1.substring(0, match.start).trim();
+        } else {
+          name = line1; // Tidak ada kurung HP
+        }
+      }
+    } catch (_) {
+      // Jika error parsing, kembalikan raw
+    }
+    return {'name': name, 'phone': phone, 'address': address};
+  }
+
   void _openPaymentDialog() {
     final TextEditingController amountCtrl = TextEditingController();
     final TextEditingController noteCtrl = TextEditingController();
     
-    int totalInv = _transData['total_price'];
+    int totalInv = _transData['total_price']; 
     int totalPaid = _payments.fold(0, (sum, item) => sum + (item['amount_paid'] as int));
     int remains = totalInv - totalPaid;
 
-    // Auto-fill jumlah bayar (Langsung format ada titiknya)
     if (remains > 0) {
       amountCtrl.text = _formatRpNoSymbol(remains);
     }
@@ -102,13 +130,12 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("Total Nota:"), Text(_formatRp(totalInv))]),
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("Total Tagihan (Net):"), Text(_formatRp(totalInv))]),
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("Sisa Hutang:", style: TextStyle(color: Colors.red)), Text(_formatRp(remains), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red))]),
             const Divider(),
             TextField(
               controller: amountCtrl,
               keyboardType: TextInputType.number,
-              // FORMATTER BIAR ADA TITIKNYA
               inputFormatters: [
                 FilteringTextInputFormatter.digitsOnly,
                 CurrencyInputFormatter(),
@@ -131,7 +158,6 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
             onPressed: () async {
-              // BERSIHKAN TITIK SEBELUM SIMPAN KE DB
               String cleanAmount = amountCtrl.text.replaceAll('.', '');
               int val = int.tryParse(cleanAmount) ?? 0;
               
@@ -142,7 +168,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
               if (mounted) {
                 Navigator.pop(ctx);
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Pembayaran Berhasil Dicatat!")));
-                _loadData(); // Refresh agar status berubah
+                _loadData(); 
               }
             }, 
             child: const Text("SIMPAN PEMBAYARAN", style: TextStyle(color: Colors.white))
@@ -196,12 +222,19 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     String dateStr = DateFormat('dd MMM yyyy • HH:mm', 'id_ID').format(DateTime.parse(_transData['transaction_date']));
     int antrian = _transData['queue_number'] ?? 0;
     
-    int totalInv = _transData['total_price'];
-    int totalPaid = _payments.fold(0, (sum, item) => sum + (item['amount_paid'] as int));
-    int sisaHutang = totalInv - totalPaid;
+    int totalNet = _transData['total_price']; 
+    int discount = _transData['discount'] ?? 0; 
+    int bensin = _transData['operational_cost'] ?? 0;
     
-    // Safety check visual
+    int totalGross = totalNet + discount;
+
+    int totalPaid = _payments.fold(0, (sum, item) => sum + (item['amount_paid'] as int));
+    int sisaHutang = totalNet - totalPaid;
+    
     if (sisaHutang <= 0) isLunas = true;
+
+    // PARSE INFO CUSTOMER DULU
+    Map<String, String> custInfo = _parseCustomerInfo(_transData['customer_name']);
 
     return Scaffold(
       appBar: AppBar(
@@ -237,10 +270,35 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                         const Divider(thickness: 1.5, height: 20),
 
                         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text("INV-#${_transData['id']} (Antrian: $antrian)", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)), Text(dateStr, style: const TextStyle(fontSize: 12))]),
-                        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("Pelanggan:", style: TextStyle(fontSize: 12)), Text(_transData['customer_name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12))]),
+                        const SizedBox(height: 10),
+
+                        // --- REVISI TAMPILAN PELANGGAN DI DETAIL HISTORY ---
+                        Table(
+                          columnWidths: const {0: FixedColumnWidth(70), 1: FixedColumnWidth(10), 2: FlexColumnWidth()},
+                          children: [
+                            TableRow(children: [
+                              const Text("Pelanggan", style: TextStyle(fontSize: 12)),
+                              const Text(":", style: TextStyle(fontSize: 12)),
+                              Text(custInfo['name']!, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12), textAlign: TextAlign.right),
+                            ]),
+                            if (custInfo['phone'] != '-' && custInfo['phone']!.isNotEmpty)
+                            TableRow(children: [
+                              const Text("Nomor HP", style: TextStyle(fontSize: 12)),
+                              const Text(":", style: TextStyle(fontSize: 12)),
+                              Text(custInfo['phone']!, style: const TextStyle(fontSize: 12), textAlign: TextAlign.right),
+                            ]),
+                            if (custInfo['address'] != '-' && custInfo['address']!.isNotEmpty)
+                            TableRow(children: [
+                              const Text("Alamat", style: TextStyle(fontSize: 12)),
+                              const Text(":", style: TextStyle(fontSize: 12)),
+                              Text(custInfo['address']!, style: const TextStyle(fontSize: 12), textAlign: TextAlign.right),
+                            ]),
+                          ],
+                        ),
+                        // --------------------------------------------------
+                        
                         const SizedBox(height: 15),
                         
-                        // TABEL ITEMS
                         const Divider(color: Colors.black),
                         Table(
                           columnWidths: const {0: FlexColumnWidth(2), 1: FlexColumnWidth(1.2), 2: FlexColumnWidth(1.2), 3: FlexColumnWidth(0.6), 4: FlexColumnWidth(1.5)},
@@ -271,10 +329,24 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                         ),
                         const Divider(color: Colors.black),
 
-                        if(_transData['operational_cost'] > 0) 
-                          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("Bensin"), Text(_formatRp(_transData['operational_cost']), style: const TextStyle(fontWeight: FontWeight.bold))]),
+                        if(bensin > 0) 
+                          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("Bensin"), Text(_formatRp(bensin), style: const TextStyle(fontWeight: FontWeight.bold))]),
 
-                        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("TOTAL NOTA", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)), Text(_formatRp(totalInv), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16))]),
+                        if (discount > 0)
+                          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                             const Text("Subtotal"), 
+                             Text(_formatRp(totalGross), style: const TextStyle(fontSize: 12))
+                          ]),
+
+                        if (discount > 0) ...[
+                          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                             const Text("Potongan / Diskon", style: TextStyle(fontStyle: FontStyle.italic)), 
+                             Text("- ${_formatRp(discount)}", style: const TextStyle(fontStyle: FontStyle.italic))
+                          ]),
+                          const Divider(),
+                        ],
+
+                        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("TOTAL NOTA", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)), Text(_formatRp(totalNet), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16))]),
                         const SizedBox(height: 5),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -288,7 +360,6 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                           ],
                         ),
 
-                        // INFO CICILAN DI NOTA
                         if (_payments.isNotEmpty) ...[
                           const SizedBox(height: 15),
                           const Align(alignment: Alignment.centerLeft, child: Text("Riwayat Pembayaran:", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, decoration: TextDecoration.underline))),
@@ -301,7 +372,6 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                             const Text("TOTAL DIBAYAR", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
                             Text(_formatRp(totalPaid), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold))
                           ]),
-                          // Jika masih ada sisa, tampilkan merah
                           if (!isLunas) Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                             const Text("SISA HUTANG", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.red)),
                             Text(_formatRp(sisaHutang), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.red))
@@ -318,7 +388,6 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                 
                 const SizedBox(height: 20),
 
-                // TOMBOL BAYAR (Hanya jika belum lunas)
                 if (!isLunas)
                   SizedBox(
                     width: double.infinity,
@@ -333,7 +402,6 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
 
                 const SizedBox(height: 15),
                 
-                // TOMBOL AKSI BAWAH
                 Row(
                   children: [
                     Expanded(
@@ -376,22 +444,13 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
   }
 }
 
-// FORMATTER ANGKA RIBUAN (AGAR ADA TITIKNYA SAAT KETIK)
 class CurrencyInputFormatter extends TextInputFormatter {
   @override 
   TextEditingValue formatEditUpdate(TextEditingValue o, TextEditingValue n) { 
     if(n.selection.baseOffset==0) return n; 
-    
-    // Hapus semua karakter non-angka
     String c = n.text.replaceAll(RegExp(r'[^0-9]'), ''); 
     int v = int.tryParse(c) ?? 0; 
-    
-    // Format ulang dengan titik
     String t = NumberFormat('#,###', 'id_ID').format(v); 
-    
-    return n.copyWith(
-      text: t, 
-      selection: TextSelection.collapsed(offset: t.length)
-    ); 
+    return n.copyWith(text: t, selection: TextSelection.collapsed(offset: t.length)); 
   }
 }

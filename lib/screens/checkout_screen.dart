@@ -30,6 +30,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   final TextEditingController _addressController = TextEditingController(); 
   final TextEditingController _bensinController = TextEditingController();
   
+  // Controller untuk Total Akhir (Bisa Nego)
+  final TextEditingController _totalFinalController = TextEditingController(); 
+  
   List<String> _savedCustomers = [];
   String _selectedPaymentMethod = "TUNAI";
   bool _isLoading = false; 
@@ -38,6 +41,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   String _storeAddress = ""; 
   String? _logoPath;
   
+  // Variabel untuk Indikator Laba/Rugi Nego
+  String _profitAlertText = "";
+  Color _profitAlertColor = Colors.transparent;
+  int _totalCapitalAllItems = 0; 
+
   final GlobalKey _printKey = GlobalKey();
   final PrinterHelper _printerHelper = PrinterHelper(); 
 
@@ -45,6 +53,49 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   void initState() {
     super.initState();
     _loadSettings();
+    _calculateInitialTotal(); 
+  }
+
+  void _calculateInitialTotal() {
+    int itemTotal = widget.cartItems.fold(0, (sum, item) => sum + item.agreedPriceTotal);
+    
+    // Hitung Total Modal Dasar (Qty * Modal Satuan)
+    _totalCapitalAllItems = widget.cartItems.fold(0, (sum, item) {
+      return sum + (item.qty * item.capitalPrice).round();
+    });
+
+    // Set nilai awal ke controller total (Harga Normal)
+    _totalFinalController.text = _formatRpNoSymbol(itemTotal);
+    
+    // Trigger perhitungan profit awal
+    _calculateProfitOnNego(_totalFinalController.text);
+  }
+
+  void _calculateProfitOnNego(String negoTotalStr) {
+    int negoTotal = int.tryParse(negoTotalStr.replaceAll('.', '')) ?? 0;
+    int bensin = int.tryParse(_bensinController.text.replaceAll('.', '')) ?? 0;
+    
+    int totalCost = _totalCapitalAllItems + bensin;
+    int margin = negoTotal - totalCost;
+
+    setState(() {
+      if (margin < 0) {
+        _profitAlertText = "⚠️ AWAS RUGI: ${_formatRp(margin)} (Di bawah modal)";
+        _profitAlertColor = Colors.red;
+      } else {
+        _profitAlertText = "✅ Aman! Estimasi Untung: ${_formatRp(margin)}";
+        _profitAlertColor = Colors.green[700]!;
+      }
+    });
+  }
+
+  void _updateTotalFromBensin(String bensinVal) {
+    int itemTotal = widget.cartItems.fold(0, (sum, item) => sum + item.agreedPriceTotal);
+    int bensin = int.tryParse(bensinVal.replaceAll('.', '')) ?? 0;
+    int grandTotal = itemTotal + bensin;
+    
+    _totalFinalController.text = _formatRpNoSymbol(grandTotal);
+    _calculateProfitOnNego(_totalFinalController.text);
   }
 
   Future<void> _loadSettings() async {
@@ -71,18 +122,15 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     }
   }
 
-  // --- REVISI: EDIT ITEM DENGAN PILIHAN SATUAN VS GROSIR ---
   Future<void> _editItem(int index) async {
     CartItem item = widget.cartItems[index];
     Product product = item.product;
     bool isBulat = product.type == 'BULAT'; 
     
-    // Inisialisasi nilai awal dari item yang mau diedit
     String initQty = item.qty % 1 == 0 ? item.qty.toInt().toString() : item.qty.toString();
     final TextEditingController qtyCtrl = TextEditingController(text: initQty);
     final TextEditingController totalPriceCtrl = TextEditingController(text: _formatRpNoSymbol(item.agreedPriceTotal));
     
-    // State lokal dialog untuk toggle
     bool isGrosirMode = item.isGrosir;
     String profitInfo = ""; 
     Color profitColor = Colors.grey;
@@ -102,11 +150,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           
           void updateCalculations() {
             double q = double.tryParse(qtyCtrl.text.replaceAll(',', '.')) ?? 0;
-            // Gunakan harga sesuai mode yang dipilih sekarang
             int pricePerUnit = isGrosirMode ? product.sellPriceCubic : product.sellPriceUnit;
             
-            // Auto update total price jika user hanya ubah qty (bukan manual edit harga total)
-            // Disini kita paksa update agar sinkron saat ganti mode
             int total = (q * pricePerUnit).round();
             totalPriceCtrl.text = NumberFormat('#,###', 'id_ID').format(total);
             
@@ -137,7 +182,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             }
           }
 
-          // Panggil sekali di awal agar info profit muncul
           if(profitInfo.isEmpty) updateCalculations();
 
           return Dialog(
@@ -152,10 +196,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     const Text("Edit Pesanan", style: TextStyle(color: Colors.grey, fontSize: 12)),
                     const SizedBox(height: 5),
                     Text(product.name, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                    Text("Sisa Stok: ${product.stock}", style: TextStyle(fontSize: 12, color: product.stock <= 0 ? Colors.red : Colors.grey, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 20),
                     
-                    // TOGGLE PILIHAN (Hanya jika bukan BULAT)
                     if (!isBulat) ...[
                       Row(
                         children: [
@@ -164,7 +206,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                             selected: !isGrosirMode, 
                             onSelected: (v) { setDialogState(() { 
                               isGrosirMode = false; 
-                              updateCalculations(); // Recalculate price
+                              updateCalculations(); 
                             }); },
                           )),
                           const SizedBox(width: 10),
@@ -173,18 +215,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                             selected: isGrosirMode, 
                             onSelected: (v) { setDialogState(() { 
                               isGrosirMode = true; 
-                              updateCalculations(); // Recalculate price
+                              updateCalculations(); 
                             }); },
                           )),
                         ],
                       ),
                       const SizedBox(height: 20),
-                    ] else ...[
-                      const Text("Jual Satuan (Batang)", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
-                      const SizedBox(height: 10),
                     ],
 
-                    // INPUT JUMLAH
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -213,7 +251,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     
                     if (!isBulat)
                       Text(getUnitLabel(isGrosirMode), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
-                    
                     if (stockInfo.isNotEmpty) Text(stockInfo, style: const TextStyle(fontSize: 11, color: Colors.blueGrey)),
                     
                     const SizedBox(height: 20),
@@ -225,7 +262,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                       decoration: const InputDecoration(prefixText: "Rp ", border: OutlineInputBorder()), 
                       inputFormatters: [FilteringTextInputFormatter.digitsOnly, CurrencyInputFormatter()],
                       onChanged: (v) => setDialogState(() {
-                         // Manual override profit info if user edits price manually
                          int inputTotal = int.tryParse(v.replaceAll('.', '')) ?? 0;
                          double q = double.tryParse(qtyCtrl.text.replaceAll(',', '.')) ?? 0;
                          int modalPerUnit = isGrosirMode ? product.buyPriceCubic : product.buyPriceUnit;
@@ -273,17 +309,20 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                             
                             setState(() {
                               item.qty = finalQty;
-                              item.isGrosir = isGrosirMode; // Update Mode
-                              item.unitName = getUnitLabel(isGrosirMode); // Update Nama Satuan
-                              item.sellPrice = isGrosirMode ? product.sellPriceCubic : product.sellPriceUnit; // Update Harga Dasar
+                              item.isGrosir = isGrosirMode;
+                              item.unitName = getUnitLabel(isGrosirMode);
+                              item.sellPrice = isGrosirMode ? product.sellPriceCubic : product.sellPriceUnit;
                               item.agreedPriceTotal = finalTotal;
                               item.capitalPrice = activeCapital;
                               item.stockDeduction = deduction;
+                              
+                              _updateTotalFromBensin(_bensinController.text);
+                              _calculateInitialTotal();
                             });
                             
                             Navigator.pop(ctx);
                           }, 
-                          child: const Text("SIMPAN PERUBAHAN", style: TextStyle(color: Colors.white, fontSize: 12))
+                          child: const Text("SIMPAN", style: TextStyle(color: Colors.white))
                         )),
                       ],
                     )
@@ -302,28 +341,28 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Nama Pelanggan wajib diisi!")));
       return;
     }
-    // VALIDASI ALAMAT (WAJIB TAPI TIDAK DITULIS WAJIB DI UI)
-    if (_addressController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Alamat lengkap wajib diisi!")));
-      return;
-    }
+    // VALIDASI DIPERBOLEHKAN KOSONG, TAPI DISARANKAN DIISI UNTUK NOTA YANG BAGUS
+    // if (_addressController.text.isEmpty) ... (Dihapus agar fleksibel, tapi data akan kosong di struk)
 
     setState(() => _isLoading = true);
     
-    // 1. Simpan Customer
     await DatabaseHelper.instance.saveCustomer(_customerController.text);
     
-    // 2. Hitung Total
     int itemTotal = widget.cartItems.fold(0, (sum, item) => sum + item.agreedPriceTotal);
     int bensinCost = int.tryParse(_bensinController.text.replaceAll('.', '')) ?? 0;
-    int grandTotal = itemTotal + bensinCost;
+    
+    int grossTotal = itemTotal + bensinCost;
+    
+    int finalNetTotal = int.tryParse(_totalFinalController.text.replaceAll('.', '')) ?? 0;
+    if (finalNetTotal <= 0) finalNetTotal = grossTotal; 
 
-    // 3. Siapkan Item untuk DB
+    int discount = grossTotal - finalNetTotal;
+    if (discount < 0) discount = 0; 
+
     List<CartItemModel> itemsToSave = widget.cartItems.map((c) {
       int realCapitalPerUnit = c.capitalPrice;
       int realSellPricePerUnit = c.sellPrice;
       
-      // Hitung rata-rata modal/jual jika grosir
       if (c.stockDeduction > 0) {
          double totalModalRow = c.qty * c.capitalPrice; 
          realCapitalPerUnit = (totalModalRow / c.stockDeduction).round();
@@ -344,42 +383,40 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       );
     }).toList();
 
-    // 4. Generate Data Transaksi
     int queueNo = await DatabaseHelper.instance.getNextQueueNumber();
     String finalStatus = _selectedPaymentMethod == "HUTANG" ? "Belum Lunas" : "Lunas";
-    // Gabung Nama + No HP + Alamat
+    
+    // FORMAT PENYIMPANAN NAMA DI DATABASE TETAP DIGABUNG AGAR KOMPATIBEL
+    // Format: "Nama (NoHP) \n Alamat"
     String finalCustomerName = "${_customerController.text} (${_phoneController.text})\n${_addressController.text}";
 
-    // 5. Simpan ke DB
     int tId = await DatabaseHelper.instance.createTransaction(
-      totalPrice: grandTotal, 
+      totalPrice: finalNetTotal, 
       operational_cost: bensinCost, 
       customerName: finalCustomerName, 
       paymentMethod: _selectedPaymentMethod, 
       paymentStatus: finalStatus, 
       queueNumber: queueNo, 
-      items: itemsToSave
+      items: itemsToSave,
+      discount: discount 
     );
 
     setState(() => _isLoading = false);
 
     if (tId != -1) {
-      // Tampilkan Animasi Sukses & Nota
       if(mounted) {
         await showDialog(context: context, builder: (ctx) { 
           Future.delayed(const Duration(seconds: 1), () => Navigator.pop(ctx)); 
           return const Dialog(child: Padding(padding: EdgeInsets.all(20), child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.check_circle, color: Colors.green, size: 60), SizedBox(height: 10), Text("Transaksi Berhasil!")]))); 
         });
-        
-        _showReceiptDialog(queueNo, grandTotal, bensinCost, tId);
+        _showReceiptDialog(queueNo, finalNetTotal, bensinCost, tId, discount);
       }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Gagal menyimpan transaksi")));
     }
   }
 
-  // --- LOGIC NOTA (DIKEMBALIKAN DARI CASHIER SCREEN) ---
-  void _showReceiptDialog(int q, int total, int bensin, int tId) {
+  void _showReceiptDialog(int q, int finalTotal, int bensin, int tId, int discount) {
     showDialog(
       context: context, 
       barrierDismissible: false, 
@@ -410,23 +447,38 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         const Divider(thickness: 2, height: 25),
                         
                         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text("INV-#$tId (Antrian: $q)", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)), Text(DateFormat('dd/MM HH:mm').format(DateTime.now()), style: const TextStyle(fontSize: 16))]),
-                        const SizedBox(height: 5),
-                        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("Pelanggan:", style: TextStyle(fontSize: 16)), Text(_customerController.text, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16))]),
-                        if(_phoneController.text.isNotEmpty) Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("No HP:", style: TextStyle(fontSize: 16)), Text(_phoneController.text, style: const TextStyle(fontSize: 16))]),
-                        if(_addressController.text.isNotEmpty) Row(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text("Alamat: ", style: TextStyle(fontSize: 16)), Expanded(child: Text(_addressController.text, style: const TextStyle(fontSize: 16), textAlign: TextAlign.right))]),
+                        const SizedBox(height: 10),
+
+                        // --- REVISI TAMPILAN PELANGGAN DI STRUK ---
+                        Table(
+                          columnWidths: const {0: FixedColumnWidth(90), 1: FixedColumnWidth(10), 2: FlexColumnWidth()},
+                          children: [
+                            TableRow(children: [
+                              const Text("Pelanggan", style: TextStyle(fontSize: 14)),
+                              const Text(":", style: TextStyle(fontSize: 14)),
+                              Text(_customerController.text, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14), textAlign: TextAlign.right),
+                            ]),
+                            if (_phoneController.text.isNotEmpty)
+                            TableRow(children: [
+                              const Text("Nomor HP", style: TextStyle(fontSize: 14)),
+                              const Text(":", style: TextStyle(fontSize: 14)),
+                              Text(_phoneController.text, style: const TextStyle(fontSize: 14), textAlign: TextAlign.right),
+                            ]),
+                            if (_addressController.text.isNotEmpty)
+                            TableRow(children: [
+                              const Text("Alamat", style: TextStyle(fontSize: 14)),
+                              const Text(":", style: TextStyle(fontSize: 14)),
+                              Text(_addressController.text, style: const TextStyle(fontSize: 14), textAlign: TextAlign.right),
+                            ]),
+                          ],
+                        ),
+                        // ------------------------------------------
                         
                         const SizedBox(height: 15),
                         const Divider(color: Colors.black, thickness: 1.5),
                         
-                        // TABEL ITEM NOTA
                         Table(
-                          columnWidths: const {
-                            0: FlexColumnWidth(2.5), 
-                            1: FlexColumnWidth(1.2), 
-                            2: FlexColumnWidth(1.3), 
-                            3: FlexColumnWidth(0.7), 
-                            4: FlexColumnWidth(1.5), 
-                          },
+                          columnWidths: const { 0: FlexColumnWidth(2.5), 1: FlexColumnWidth(1.2), 2: FlexColumnWidth(1.3), 3: FlexColumnWidth(0.7), 4: FlexColumnWidth(1.5) },
                           children: const [
                             TableRow(children: [
                               Text("Item", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
@@ -440,13 +492,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         const Divider(color: Colors.black, thickness: 1.5),
 
                         Table(
-                          columnWidths: const {
-                            0: FlexColumnWidth(2.5), 
-                            1: FlexColumnWidth(1.2), 
-                            2: FlexColumnWidth(1.3), 
-                            3: FlexColumnWidth(0.7), 
-                            4: FlexColumnWidth(1.5), 
-                          },
+                          columnWidths: const { 0: FlexColumnWidth(2.5), 1: FlexColumnWidth(1.2), 2: FlexColumnWidth(1.3), 3: FlexColumnWidth(0.7), 4: FlexColumnWidth(1.5) },
                           children: widget.cartItems.map((i) {
                             String ukuran = i.product.dimensions ?? "-";
                             return TableRow(
@@ -463,12 +509,20 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         
                         const Divider(color: Colors.black, thickness: 1.5),
 
-                        if(bensin>0) ...[
-                          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("Bensin", style: TextStyle(fontSize: 16)), Text(_formatRp(bensin), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16))]),
-                          const SizedBox(height: 5),
+                        if(bensin > 0) ...[
+                           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("Subtotal Item", style: TextStyle(fontSize: 14)), Text(_formatRp(finalTotal - bensin + discount), style: const TextStyle(fontSize: 14))]),
+                           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("Ongkos Bensin", style: TextStyle(fontSize: 14)), Text(_formatRp(bensin), style: const TextStyle(fontSize: 14))]),
+                        ],
+
+                        if (discount > 0) ...[
+                           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                             const Text("Potongan / Diskon", style: TextStyle(fontSize: 14, fontStyle: FontStyle.italic)), 
+                             Text("- ${_formatRp(discount)}", style: const TextStyle(fontSize: 14, fontStyle: FontStyle.italic))
+                           ]),
+                           const Divider(),
                         ],
                         
-                        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("TOTAL", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24)), Text(_formatRp(total), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 28))]), 
+                        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("TOTAL AKHIR", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24)), Text(_formatRp(finalTotal), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 28))]), 
                         
                         const SizedBox(height: 50), 
                         const Text("Terima Kasih", style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic, fontSize: 16)),
@@ -508,9 +562,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(backgroundColor: _bgStart), 
                 onPressed: (){ 
-                  // REVISI NAVIGASI SELESAI
-                  Navigator.pop(ctx); // Tutup Dialog Nota
-                  // Hapus semua route sampai halaman pertama (Dashboard/Home)
+                  Navigator.pop(ctx); 
                   Navigator.of(context).popUntil((route) => route.isFirst);
                 }, 
                 child: const Text("SELESAI", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))
@@ -522,7 +574,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     );
   }
 
-  // --- HELPER FUNCTION NOTA ---
   Future<void> _captureAndSharePng(int tId, int queue, String custName) async {
     try {
       RenderRepaintBoundary boundary = _printKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
@@ -559,7 +610,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   Widget build(BuildContext context) {
     int itemTotal = widget.cartItems.fold(0, (sum, item) => sum + item.agreedPriceTotal);
     int bensin = int.tryParse(_bensinController.text.replaceAll('.', '')) ?? 0;
-    int grandTotal = itemTotal + bensin;
+    
+    int grossTotal = itemTotal + bensin;
 
     return Scaffold(
       appBar: AppBar(
@@ -574,7 +626,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // FORM PELANGGAN
                 const Text("Data Pelanggan", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.blue)),
                 const SizedBox(height: 10),
                 Autocomplete<String>(
@@ -592,12 +643,16 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 const SizedBox(height: 10),
                 DropdownButtonFormField<String>(value: _selectedPaymentMethod, items: ["TUNAI", "TRANSFER", "HUTANG"].map((e)=>DropdownMenuItem(value: e, child: Text(e))).toList(), onChanged: (v) => setState(() => _selectedPaymentMethod = v!), decoration: const InputDecoration(contentPadding: EdgeInsets.symmetric(horizontal: 10), border: OutlineInputBorder(), labelText: "Metode Pembayaran")),
                 const SizedBox(height: 10),
+                
                 TextField(
                   controller: _bensinController, 
                   keyboardType: TextInputType.number, 
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly, CurrencyInputFormatter()], 
                   decoration: const InputDecoration(labelText: "Ongkos Bensin (Opsional)", prefixText: "Rp ", border: OutlineInputBorder(), isDense: true),
-                  onChanged: (v) => setState((){}), // Refresh Total
+                  onChanged: (v) {
+                    setState((){}); 
+                    _updateTotalFromBensin(v); 
+                  }, 
                 ),
 
                 const SizedBox(height: 20),
@@ -627,7 +682,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                             onPressed: () {
                               setState(() {
                                 widget.cartItems.removeAt(i);
-                                if (widget.cartItems.isEmpty) Navigator.pop(context); // Balik jika kosong
+                                if (widget.cartItems.isEmpty) Navigator.pop(context); 
+                                _updateTotalFromBensin(_bensinController.text); 
+                                _calculateInitialTotal(); 
                               });
                             },
                           ),
@@ -638,10 +695,35 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 ),
                 
                 const Divider(thickness: 2),
-                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("Ongkos Bensin:", style: TextStyle(fontSize: 16)), Text(_formatRp(bensin), style: const TextStyle(fontSize: 16))]),
-                const SizedBox(height: 10),
-                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("TOTAL BAYAR:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)), Text(_formatRp(grandTotal), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 24, color: Colors.green))]),
+                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("Total Item:", style: TextStyle(fontSize: 16)), Text(_formatRp(itemTotal), style: const TextStyle(fontSize: 16))]),
+                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("Bensin:", style: TextStyle(fontSize: 16)), Text(_formatRp(bensin), style: const TextStyle(fontSize: 16))]),
+                const Divider(),
                 
+                const SizedBox(height: 10),
+                TextField(
+                  controller: _totalFinalController,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly, CurrencyInputFormatter()],
+                  style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.green),
+                  textAlign: TextAlign.right,
+                  decoration: const InputDecoration(
+                    labelText: "TOTAL BAYAR (Bisa Nego)",
+                    labelStyle: TextStyle(fontSize: 18, color: Colors.green),
+                    prefixText: "Rp ",
+                    border: OutlineInputBorder(borderSide: BorderSide(color: Colors.green, width: 2)),
+                    focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.green, width: 3)),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 20)
+                  ),
+                  onChanged: (v) => _calculateProfitOnNego(v), // Listener Hitung Profit Saat Nego
+                ),
+                
+                // Indikator Profit
+                if (_profitAlertText.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(_profitAlertText, textAlign: TextAlign.right, style: TextStyle(color: _profitAlertColor, fontWeight: FontWeight.bold)),
+                  ),
+
                 const SizedBox(height: 30),
                 Row(
                   children: [
@@ -654,7 +736,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     )),
                   ],
                 ),
-                const SizedBox(height: 50), // Spasi bawah agar tidak mentok
+                const SizedBox(height: 50), 
               ],
             ),
           ),
