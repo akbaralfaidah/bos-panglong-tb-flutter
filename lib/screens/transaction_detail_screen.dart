@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // Wajib untuk Formatter input
 import 'package:intl/intl.dart';
 import 'dart:io'; 
 import 'dart:ui' as ui; 
-import 'dart:typed_data'; // WAJIB ADA
+import 'dart:typed_data'; 
 import 'package:flutter/rendering.dart'; 
 import 'package:path_provider/path_provider.dart'; 
 import 'package:share_plus/share_plus.dart'; 
 import '../helpers/database_helper.dart';
-import '../helpers/printer_helper.dart'; // <--- IMPORT HELPER PRINTER
+import '../helpers/printer_helper.dart';
 
 class TransactionDetailScreen extends StatefulWidget {
   final Map<String, dynamic> transaction;
@@ -22,21 +23,24 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
   final Color _bgStart = const Color(0xFF0052D4);
   final Color _bgEnd = const Color(0xFF4364F7);
   
+  // Data transaksi yang bisa berubah (Status Lunas)
+  late Map<String, dynamic> _transData; 
+  
   List<Map<String, dynamic>> _items = [];
+  List<Map<String, dynamic>> _payments = []; 
   bool _isLoading = true;
 
-  // Identitas Toko
   String _storeName = "Bos Panglong & TB";
   String _storeAddress = "Jl. Raya Sukses No. 1";
   String? _logoPath;
 
-  // Key untuk Screenshot
   final GlobalKey _printKey = GlobalKey();
-  final PrinterHelper _printerHelper = PrinterHelper(); // Instance Printer
+  final PrinterHelper _printerHelper = PrinterHelper();
 
   @override
   void initState() {
     super.initState();
+    _transData = widget.transaction;
     _loadData();
   }
 
@@ -44,8 +48,10 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     final dbHelper = DatabaseHelper.instance;
     final db = await dbHelper.database;
 
-    // 1. Ambil Barang Transaksi + JOIN ke Produk untuk dapat DIMENSI/UKURAN
-    // Kita pakai rawQuery manual agar bisa ambil kolom 'dimensions' dari tabel products
+    // 1. Ambil data terbaru transaksi (biar status lunas terupdate)
+    final transRefresh = await db.query('transactions', where: 'id = ?', whereArgs: [widget.transaction['id']]);
+    
+    // 2. Ambil barang + dimensi
     final items = await db.rawQuery('''
       SELECT ti.*, p.dimensions 
       FROM transaction_items ti 
@@ -53,14 +59,20 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
       WHERE ti.transaction_id = ?
     ''', [widget.transaction['id']]);
     
-    // 2. Ambil Identitas Toko
+    // 3. Ambil riwayat cicilan
+    final payments = await dbHelper.getDebtPayments(widget.transaction['id']);
+    
     String? name = await dbHelper.getSetting('store_name');
     String? address = await dbHelper.getSetting('store_address');
     String? logo = await dbHelper.getSetting('store_logo');
 
     if (mounted) {
       setState(() {
+        if (transRefresh.isNotEmpty) {
+          _transData = transRefresh.first; 
+        }
         _items = items;
+        _payments = payments;
         if (name != null && name.isNotEmpty) _storeName = name;
         if (address != null && address.isNotEmpty) _storeAddress = address;
         _logoPath = logo;
@@ -69,7 +81,77 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     }
   }
 
-  // --- FUNGSI SHARE DENGAN NAMA FILE & CAPTION CUSTOM ---
+  // --- LOGIKA PEMBAYARAN DENGAN FORMAT RIBUAN ---
+  void _openPaymentDialog() {
+    final TextEditingController amountCtrl = TextEditingController();
+    final TextEditingController noteCtrl = TextEditingController();
+    
+    int totalInv = _transData['total_price'];
+    int totalPaid = _payments.fold(0, (sum, item) => sum + (item['amount_paid'] as int));
+    int remains = totalInv - totalPaid;
+
+    // Auto-fill jumlah bayar (Langsung format ada titiknya)
+    if (remains > 0) {
+      amountCtrl.text = _formatRpNoSymbol(remains);
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Bayar Cicilan"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("Total Nota:"), Text(_formatRp(totalInv))]),
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("Sisa Hutang:", style: TextStyle(color: Colors.red)), Text(_formatRp(remains), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red))]),
+            const Divider(),
+            TextField(
+              controller: amountCtrl,
+              keyboardType: TextInputType.number,
+              // FORMATTER BIAR ADA TITIKNYA
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                CurrencyInputFormatter(),
+              ],
+              decoration: const InputDecoration(
+                labelText: "Jumlah Bayar", 
+                border: OutlineInputBorder(), 
+                prefixText: "Rp "
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: noteCtrl, 
+              decoration: const InputDecoration(labelText: "Catatan (Opsional)", border: OutlineInputBorder())
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Batal")),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            onPressed: () async {
+              // BERSIHKAN TITIK SEBELUM SIMPAN KE DB
+              String cleanAmount = amountCtrl.text.replaceAll('.', '');
+              int val = int.tryParse(cleanAmount) ?? 0;
+              
+              if (val <= 0) return;
+              
+              await DatabaseHelper.instance.addDebtPayment(_transData['id'], val, noteCtrl.text);
+              
+              if (mounted) {
+                Navigator.pop(ctx);
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Pembayaran Berhasil Dicatat!")));
+                _loadData(); // Refresh agar status berubah
+              }
+            }, 
+            child: const Text("SIMPAN PEMBAYARAN", style: TextStyle(color: Colors.white))
+          )
+        ],
+      )
+    );
+  }
+
   Future<void> _captureAndSharePng() async {
     try {
       RenderRepaintBoundary boundary = _printKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
@@ -78,36 +160,27 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
       Uint8List pngBytes = byteData!.buffer.asUint8List();
 
       final directory = await getTemporaryDirectory();
+      String id = _transData['id'].toString();
+      String queue = _transData['queue_number'].toString();
+      String rawName = _transData['customer_name'];
+      String cleanName = rawName.replaceAll(RegExp(r'[^\w\s]+'), ''); 
       
-      // Ambil Data untuk Nama File & Caption
-      String id = widget.transaction['id'].toString();
-      String queue = widget.transaction['queue_number'].toString();
-      String rawName = widget.transaction['customer_name'];
-      String cleanName = rawName.replaceAll(RegExp(r'[^\w\s]+'), ''); // Bersihkan simbol aneh
-      
-      // 1. Buat File
       final File imgFile = File('${directory.path}/Struk Transaksi - $id - $queue - $cleanName.png');
       await imgFile.writeAsBytes(pngBytes);
 
-      // 2. Buat Caption WhatsApp
       String caption = "Struk Transaksi - #$id - Antrian $queue - $rawName";
-
-      // 3. Share
       await Share.shareXFiles([XFile(imgFile.path)], text: caption);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal Share: $e")));
     }
   }
 
-  // --- FUNGSI PRINT (INTEGRASI PRINTER HELPER) ---
   Future<void> _captureAndPrint() async {
     try {
       RenderRepaintBoundary boundary = _printKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
       ui.Image image = await boundary.toImage(pixelRatio: 3.0); 
       ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
       Uint8List pngBytes = byteData!.buffer.asUint8List();
-
-      // Panggil Helper Print
       await _printerHelper.printReceiptImage(context, pngBytes);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal Print: $e")));
@@ -119,9 +192,16 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    bool isLunas = widget.transaction['payment_status'] == 'Lunas';
-    String dateStr = DateFormat('dd MMM yyyy • HH:mm', 'id_ID').format(DateTime.parse(widget.transaction['transaction_date']));
-    int antrian = widget.transaction['queue_number'] ?? 0;
+    bool isLunas = _transData['payment_status'] == 'Lunas';
+    String dateStr = DateFormat('dd MMM yyyy • HH:mm', 'id_ID').format(DateTime.parse(_transData['transaction_date']));
+    int antrian = _transData['queue_number'] ?? 0;
+    
+    int totalInv = _transData['total_price'];
+    int totalPaid = _payments.fold(0, (sum, item) => sum + (item['amount_paid'] as int));
+    int sisaHutang = totalInv - totalPaid;
+    
+    // Safety check visual
+    if (sisaHutang <= 0) isLunas = true;
 
     return Scaffold(
       appBar: AppBar(
@@ -136,72 +216,34 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
             padding: const EdgeInsets.all(20),
             child: Column(
               children: [
-                // --- WRAPPER UNTUK SCREENSHOT ---
+                // --- WRAPPER SCREENSHOT ---
                 RepaintBoundary(
                   key: _printKey,
                   child: Container(
                     width: double.infinity,
-                    constraints: const BoxConstraints(
-                      minHeight: 500, // Minimal panjang kertas
-                      maxWidth: 400   // Maksimal lebar visual
-                    ),
+                    constraints: const BoxConstraints(minHeight: 500, maxWidth: 400),
                     padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 20),
-                    decoration: BoxDecoration(
-                      color: Colors.white, 
-                      borderRadius: BorderRadius.circular(5),
-                      boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 15, offset: Offset(0, 5))]
-                    ),
+                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(5), boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 15, offset: Offset(0, 5))]),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        
-                        // 1. HEADER TOKO (LOGO FULL)
                         if (_logoPath != null && File(_logoPath!).existsSync())
-                          Container(
-                            margin: const EdgeInsets.only(bottom: 10),
-                            height: 100, // Tinggi maksimal logo
-                            width: double.infinity,
-                            child: Image.file(
-                              File(_logoPath!), 
-                              fit: BoxFit.contain // Agar Full tidak terpotong
-                            ),
-                          )
-                        else
-                          const Icon(Icons.store, size: 50, color: Colors.black54),
+                          Container(margin: const EdgeInsets.only(bottom: 10), height: 100, width: double.infinity, child: Image.file(File(_logoPath!), fit: BoxFit.contain))
+                        else const Icon(Icons.store, size: 50, color: Colors.black54),
                         
                         Text(_storeName.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16), textAlign: TextAlign.center),
                         if(_storeAddress.isNotEmpty) Text(_storeAddress, style: const TextStyle(color: Colors.grey, fontSize: 11), textAlign: TextAlign.center),
-                        
                         const Divider(thickness: 1.5, height: 20),
 
-                        // 2. INFO TRANSAKSI
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text("INV-#${widget.transaction['id']} (Antrian: $antrian)", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                            Text(dateStr, style: const TextStyle(fontSize: 12)),
-                          ],
-                        ),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text("Pelanggan:", style: TextStyle(fontSize: 12)),
-                            Text(widget.transaction['customer_name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                          ],
-                        ),
+                        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text("INV-#${_transData['id']} (Antrian: $antrian)", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)), Text(dateStr, style: const TextStyle(fontSize: 12))]),
+                        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("Pelanggan:", style: TextStyle(fontSize: 12)), Text(_transData['customer_name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12))]),
                         const SizedBox(height: 15),
                         
-                        // 3. TABEL BELANJA (FORMAT BARU - 5 KOLOM)
+                        // TABEL ITEMS
                         const Divider(color: Colors.black),
                         Table(
-                          columnWidths: const {
-                            0: FlexColumnWidth(2),   // Item
-                            1: FlexColumnWidth(1.2), // Ukuran
-                            2: FlexColumnWidth(1.2), // Harga
-                            3: FlexColumnWidth(0.6), // Qty
-                            4: FlexColumnWidth(1.5), // Total
-                          },
+                          columnWidths: const {0: FlexColumnWidth(2), 1: FlexColumnWidth(1.2), 2: FlexColumnWidth(1.2), 3: FlexColumnWidth(0.6), 4: FlexColumnWidth(1.5)},
                           children: const [
                             TableRow(children: [
                               Text("Item", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10)),
@@ -213,78 +255,60 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                           ],
                         ),
                         const Divider(color: Colors.black),
-
-                        // ISI TABEL
                         Table(
-                          columnWidths: const {
-                            0: FlexColumnWidth(2),   
-                            1: FlexColumnWidth(1.2), 
-                            2: FlexColumnWidth(1.2), 
-                            3: FlexColumnWidth(0.6), 
-                            4: FlexColumnWidth(1.5), 
-                          },
+                          columnWidths: const {0: FlexColumnWidth(2), 1: FlexColumnWidth(1.2), 2: FlexColumnWidth(1.2), 3: FlexColumnWidth(0.6), 4: FlexColumnWidth(1.5)},
                           children: _items.map((item) {
                             double qty = (item['quantity'] as num).toDouble();
-                            double sell = (item['sell_price'] as num).toDouble();
-                            double subtotal = qty * sell;
-                            
-                            // Logika Ukuran: Ambil dari 'dimensions' (hasil JOIN)
-                            // Jika null, tampilkan "-"
-                            String ukuran = (item['dimensions'] as String?) ?? "-";
-                            
-                            return TableRow(
-                              children: [
+                            double subtotal = qty * (item['sell_price'] as num).toDouble();
+                            return TableRow(children: [
                                 Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Text(item['product_name'], style: const TextStyle(fontSize: 10))),
-                                Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Text(ukuran, style: const TextStyle(fontSize: 10))),
-                                Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Text(_formatRpNoSymbol(sell), textAlign: TextAlign.right, style: const TextStyle(fontSize: 10))),
+                                Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Text((item['dimensions'] as String?) ?? "-", style: const TextStyle(fontSize: 10))),
+                                Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Text(_formatRpNoSymbol(item['sell_price']), textAlign: TextAlign.right, style: const TextStyle(fontSize: 10))),
                                 Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Text(qty % 1 == 0 ? qty.toInt().toString() : qty.toString(), textAlign: TextAlign.center, style: const TextStyle(fontSize: 10))),
                                 Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Text(_formatRp(subtotal), textAlign: TextAlign.right, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold))),
-                              ]
-                            );
+                            ]);
                           }).toList(),
                         ),
                         const Divider(color: Colors.black),
 
-                        // BENSIN (Jika ada)
-                        if(widget.transaction['operational_cost'] > 0) ...[
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween, 
-                            children: [
-                              const Text("Bensin"), 
-                              Text(_formatRp(widget.transaction['operational_cost']), style: const TextStyle(fontWeight: FontWeight.bold))
-                            ]
-                          ),
-                          const SizedBox(height: 5),
-                        ],
+                        if(_transData['operational_cost'] > 0) 
+                          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("Bensin"), Text(_formatRp(_transData['operational_cost']), style: const TextStyle(fontWeight: FontWeight.bold))]),
 
-                        // 4. TOTAL & STATUS
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text("TOTAL", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                            Text(_formatRp(widget.transaction['total_price']), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                          ],
-                        ),
+                        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("TOTAL NOTA", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)), Text(_formatRp(totalInv), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16))]),
                         const SizedBox(height: 5),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text("Status"),
+                            const Text("Status Pembayaran"),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: isLunas ? Colors.green[50] : Colors.red[50],
-                                borderRadius: BorderRadius.circular(5),
-                                border: Border.all(color: isLunas ? Colors.green : Colors.red)
-                              ),
-                              child: Text(widget.transaction['payment_status'].toUpperCase(), 
-                                style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isLunas ? Colors.green : Colors.red)
-                              ),
+                              decoration: BoxDecoration(color: isLunas ? Colors.green[50] : Colors.red[50], borderRadius: BorderRadius.circular(5), border: Border.all(color: isLunas ? Colors.green : Colors.red)),
+                              child: Text(isLunas ? "LUNAS" : "BELUM LUNAS", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isLunas ? Colors.green : Colors.red)),
                             )
                           ],
                         ),
 
-                        const SizedBox(height: 50), 
+                        // INFO CICILAN DI NOTA
+                        if (_payments.isNotEmpty) ...[
+                          const SizedBox(height: 15),
+                          const Align(alignment: Alignment.centerLeft, child: Text("Riwayat Pembayaran:", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, decoration: TextDecoration.underline))),
+                          ..._payments.map((p) => Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                            Text("${DateFormat('dd/MM').format(DateTime.parse(p['payment_date']))} - ${p['note']}", style: const TextStyle(fontSize: 9, color: Colors.grey)),
+                            Text(_formatRp(p['amount_paid']), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold))
+                          ])),
+                          const Divider(height: 10),
+                          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                            const Text("TOTAL DIBAYAR", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                            Text(_formatRp(totalPaid), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold))
+                          ]),
+                          // Jika masih ada sisa, tampilkan merah
+                          if (!isLunas) Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                            const Text("SISA HUTANG", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.red)),
+                            Text(_formatRp(sisaHutang), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.red))
+                          ]),
+                        ],
+
+                        const SizedBox(height: 40), 
                         const Text("Terima Kasih", style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey)),
                         Text("$_storeName", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
                       ],
@@ -292,16 +316,31 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                   ),
                 ),
                 
-                const SizedBox(height: 30),
+                const SizedBox(height: 20),
+
+                // TOMBOL BAYAR (Hanya jika belum lunas)
+                if (!isLunas)
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.payments, color: Colors.white),
+                      label: const Text("BAYAR CICILAN", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.orange[800]),
+                      onPressed: _openPaymentDialog,
+                    ),
+                  ),
+
+                const SizedBox(height: 15),
                 
-                // --- TOMBOL AKSI ---
+                // TOMBOL AKSI BAWAH
                 Row(
                   children: [
                     Expanded(
                       child: ElevatedButton.icon(
                         icon: const Icon(Icons.share, color: Colors.white, size: 18),
                         label: const Text("Bagikan", style: TextStyle(color: Colors.white)),
-                        style: ElevatedButton.styleFrom(backgroundColor: Colors.green), // HIJAU
+                        style: ElevatedButton.styleFrom(backgroundColor: Colors.green), 
                         onPressed: _captureAndSharePng, 
                       ),
                     ),
@@ -310,8 +349,8 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                       child: ElevatedButton.icon(
                         icon: const Icon(Icons.print, color: Colors.black, size: 18),
                         label: const Text("Cetak", style: TextStyle(color: Colors.black)),
-                        style: ElevatedButton.styleFrom(backgroundColor: Colors.amber), // KUNING
-                        onPressed: _captureAndPrint, // INTEGRASI PRINTER
+                        style: ElevatedButton.styleFrom(backgroundColor: Colors.amber), 
+                        onPressed: _captureAndPrint, 
                       ),
                     ),
                   ],
@@ -319,7 +358,6 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                 
                 const SizedBox(height: 10),
 
-                // TOMBOL KEMBALI
                 SizedBox(
                   width: double.infinity,
                   height: 45,
@@ -335,5 +373,25 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
             ),
           ),
     );
+  }
+}
+
+// FORMATTER ANGKA RIBUAN (AGAR ADA TITIKNYA SAAT KETIK)
+class CurrencyInputFormatter extends TextInputFormatter {
+  @override 
+  TextEditingValue formatEditUpdate(TextEditingValue o, TextEditingValue n) { 
+    if(n.selection.baseOffset==0) return n; 
+    
+    // Hapus semua karakter non-angka
+    String c = n.text.replaceAll(RegExp(r'[^0-9]'), ''); 
+    int v = int.tryParse(c) ?? 0; 
+    
+    // Format ulang dengan titik
+    String t = NumberFormat('#,###', 'id_ID').format(v); 
+    
+    return n.copyWith(
+      text: t, 
+      selection: TextSelection.collapsed(offset: t.length)
+    ); 
   }
 }

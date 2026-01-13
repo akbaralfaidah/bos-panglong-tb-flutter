@@ -27,21 +27,16 @@ class DatabaseHelper {
     );
   }
 
-  // --- FUNGSI PENTING UNTUK BACKUP & RESTORE ---
-  
-  // 1. Ambil Lokasi File Database
   Future<String> getDbPath() async {
     final dbPath = await getDatabasesPath();
     return join(dbPath, 'panglong_v5.db');
   }
 
-  // 2. Tutup Koneksi Database (Wajib sebelum Restore)
   Future<void> close() async {
     final db = await instance.database;
     db.close();
-    _database = null; // Reset instance biar nanti buka baru
+    _database = null; 
   }
-  // ----------------------------------------------
 
   Future _createDB(Database db, int version) async {
     await db.execute('''
@@ -99,67 +94,133 @@ class DatabaseHelper {
       )
     ''');
 
+    // TABEL BARU: CICILAN HUTANG
+    await db.execute('''
+      CREATE TABLE debt_payments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        transaction_id INTEGER,
+        amount_paid INTEGER,
+        payment_date TEXT,
+        note TEXT
+      )
+    ''');
+
     await db.execute('CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT)');
     await db.execute('CREATE TABLE customers (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE)');
   }
 
-  // --- QUERY LAPORAN & TRANSAKSI ---
+  // ==========================================
+  // LOGIKA HUTANG & CICILAN (UPDATED FILTER)
+  // ==========================================
 
-  Future<List<Map<String, dynamic>>> getTransactionHistory({required String startDate, required String endDate}) async {
+  // 1. Ambil daftar transaksi yang masih hutang (Belum Lunas)
+  // [REVISI] Sekarang mendukung filter tanggal. Jika tanggal null, ambil semua.
+  Future<List<Map<String, dynamic>>> getAllDebtHistory({String? startDate, String? endDate}) async {
     final db = await instance.database;
-    String start = "$startDate 00:00:00";
-    String end = "$endDate 23:59:59";
     
-    return await db.query(
-      'transactions', 
-      where: 'transaction_date BETWEEN ? AND ?', 
-      whereArgs: [start, end],
-      // REVISI: Urutkan berdasarkan TANGGAL, bukan ID. Biar data 'masa lalu' tampil di bawah.
-      orderBy: 'transaction_date DESC' 
-    );
-  }
+    String whereClause = 'payment_status = ?';
+    List<dynamic> args = ['Belum Lunas'];
 
-  Future<List<Map<String, dynamic>>> getAllDebtHistory() async {
-    final db = await instance.database;
+    // Jika filter tanggal diaktifkan (bukan "Semua")
+    if (startDate != null && endDate != null) {
+      whereClause += ' AND transaction_date BETWEEN ? AND ?';
+      args.add("$startDate 00:00:00");
+      args.add("$endDate 23:59:59");
+    }
+
     return await db.query(
       'transactions',
-      where: 'payment_method = ?',
-      whereArgs: ['HUTANG'],
+      where: whereClause,
+      whereArgs: args,
       orderBy: 'transaction_date DESC'
     );
   }
 
-  Future<List<Map<String, dynamic>>> getTransactionItems(int transactionId) async {
+  // 2. Ambil Riwayat Cicilan
+  Future<List<Map<String, dynamic>>> getDebtPayments(int transactionId) async {
     final db = await instance.database;
     return await db.query(
-      'transaction_items',
+      'debt_payments',
       where: 'transaction_id = ?',
       whereArgs: [transactionId],
+      orderBy: 'payment_date ASC'
     );
   }
 
-  Future<void> updateTransactionStatus(int id, String status) async {
+  // 3. Tambah Bayar Cicilan
+  Future<void> addDebtPayment(int transId, int amount, String note) async {
     final db = await instance.database;
     String dateNow = DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now());
-    
-    await db.update(
-      'transactions', 
-      {
-        'payment_status': status,
-        'transaction_date': dateNow 
-      }, 
-      where: 'id = ?', 
-      whereArgs: [id]
+
+    await db.transaction((txn) async {
+      await txn.insert('debt_payments', {
+        'transaction_id': transId,
+        'amount_paid': amount,
+        'payment_date': dateNow,
+        'note': note
+      });
+
+      // Cek apakah lunas
+      final res = await txn.rawQuery(
+        'SELECT SUM(amount_paid) as total FROM debt_payments WHERE transaction_id = ?',
+        [transId]
+      );
+      int alreadyPaid = (res.first['total'] as int?) ?? 0;
+
+      final trans = await txn.query('transactions', columns: ['total_price'], where: 'id = ?', whereArgs: [transId]);
+      int totalPrice = trans.first['total_price'] as int;
+
+      if (alreadyPaid >= totalPrice) {
+        await txn.update(
+          'transactions',
+          {'payment_status': 'Lunas'},
+          where: 'id = ?',
+          whereArgs: [transId]
+        );
+      }
+    });
+  }
+
+  // 4. Hitung Total Sisa Hutang (Net)
+  Future<int> getTotalPiutangAllTime() async {
+    final db = await instance.database;
+    final resTrans = await db.rawQuery("SELECT SUM(total_price) as total FROM transactions WHERE payment_status = 'Belum Lunas'");
+    int totalHutang = (resTrans.first['total'] as int?) ?? 0;
+
+    final resPaid = await db.rawQuery(
+      "SELECT SUM(p.amount_paid) as total FROM debt_payments p JOIN transactions t ON p.transaction_id = t.id WHERE t.payment_status = 'Belum Lunas'"
+    );
+    int totalSudahDibayar = (resPaid.first['total'] as int?) ?? 0;
+
+    return totalHutang - totalSudahDibayar;
+  }
+
+  // 5. Ambil Laporan Hutang LUNAS (Riwayat Lunas) dengan Filter
+  Future<List<Map<String, dynamic>>> getDebtReport({
+    required String status,
+    required String startDate,
+    required String endDate
+  }) async {
+    final db = await instance.database;
+    String start = "$startDate 00:00:00";
+    String end = "$endDate 23:59:59";
+
+    String whereClause = 'payment_status = ? AND transaction_date BETWEEN ? AND ?';
+    if (status == 'Lunas') {
+      whereClause += " AND payment_method = 'HUTANG'";
+    }
+
+    return await db.query(
+      'transactions',
+      where: whereClause,
+      whereArgs: [status, start, end],
+      orderBy: 'transaction_date DESC'
     );
   }
 
-  Future<int> getTotalPiutangAllTime() async {
-    final db = await instance.database;
-    final result = await db.rawQuery(
-      "SELECT SUM(total_price) as total FROM transactions WHERE payment_status = 'Belum Lunas'"
-    );
-    return (result.first['total'] as int?) ?? 0;
-  }
+  // ==========================================
+  // QUERY LAPORAN LAINNYA
+  // ==========================================
 
   Future<List<Map<String, dynamic>>> getSoldItemsDetail({required String startDate, required String endDate}) async {
     final db = await instance.database;
@@ -189,7 +250,30 @@ class DatabaseHelper {
     ''', [start, end]);
   }
 
-  // --- QUERY KHUSUS LAPORAN EXCEL & ANALISA ---
+  // --- QUERY LAINNYA ---
+
+  Future<List<Map<String, dynamic>>> getTransactionHistory({required String startDate, required String endDate}) async {
+    final db = await instance.database;
+    String start = "$startDate 00:00:00";
+    String end = "$endDate 23:59:59";
+    
+    return await db.query(
+      'transactions', 
+      where: 'transaction_date BETWEEN ? AND ?', 
+      whereArgs: [start, end],
+      orderBy: 'transaction_date DESC' 
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getTransactionItems(int transactionId) async {
+    final db = await instance.database;
+    return await db.query('transaction_items', where: 'transaction_id = ?', whereArgs: [transactionId]);
+  }
+
+  Future<void> updateTransactionStatus(int id, String status) async {
+    final db = await instance.database;
+    await db.update('transactions', {'payment_status': status}, where: 'id = ?', whereArgs: [id]);
+  }
 
   Future<List<Map<String, dynamic>>> getCompleteReportData({required String startDate, required String endDate}) async {
     final db = await instance.database;
@@ -233,13 +317,12 @@ class DatabaseHelper {
     ''', [start, end]);
   }
 
-  // --- FUNGSI TRANSAKSI CORE ---
+  // --- CORE TRANSAKSI & PRODUK ---
 
   Future<int> createTransaction({
     required int totalPrice, required int operational_cost, required String customerName, 
     required String paymentMethod, required String paymentStatus, required int queueNumber, 
-    required List<dynamic> items,
-    String? transaction_date // REVISI: Tambah parameter opsional biar bisa inject tanggal masa lalu
+    required List<dynamic> items, String? transaction_date 
   }) async {
     final db = await instance.database;
     String dateNow = transaction_date ?? DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now());
@@ -268,10 +351,7 @@ class DatabaseHelper {
             'sell_price': item.sellPrice
           });
           
-          await txn.rawUpdate(
-            'UPDATE products SET stock = stock - ? WHERE id = ?', 
-            [item.quantity, item.productId]
-          );
+          await txn.rawUpdate('UPDATE products SET stock = stock - ? WHERE id = ?', [item.quantity, item.productId]);
         }
         return tId;
       });
@@ -282,17 +362,10 @@ class DatabaseHelper {
     final db = await instance.database;
     String todayStart = DateFormat('yyyy-MM-dd').format(DateTime.now()) + " 00:00:00";
     String todayEnd = DateFormat('yyyy-MM-dd').format(DateTime.now()) + " 23:59:59";
-    
-    final result = await db.rawQuery(
-      "SELECT MAX(queue_number) as max_q FROM transactions WHERE transaction_date BETWEEN ? AND ?",
-      [todayStart, todayEnd]
-    );
-    int lastQ = (result.first['max_q'] as int?) ?? 0;
-    return lastQ + 1;
+    final result = await db.rawQuery("SELECT MAX(queue_number) as max_q FROM transactions WHERE transaction_date BETWEEN ? AND ?", [todayStart, todayEnd]);
+    return ((result.first['max_q'] as int?) ?? 0) + 1;
   }
 
-  // --- CRUD PRODUK ---
-  
   Future<int> createProduct(Product p) async {
     final db = await instance.database;
     return await db.insert('products', p.toMap());
@@ -315,7 +388,6 @@ class DatabaseHelper {
     return await db.delete('products', where: 'id = ?', whereArgs: [id]);
   }
   
-  // --- SETTINGS & CUSTOMER ---
   Future<void> saveSetting(String k, String v) async {
     final db = await instance.database;
     await db.insert('settings', {'key': k, 'value': v}, conflictAlgorithm: ConflictAlgorithm.replace);
@@ -335,7 +407,6 @@ class DatabaseHelper {
     return r.map((e) => e['name'] as String).toList();
   }
 
-  // --- STOK LOGIC ---
   Future<void> updateStockQuick(int id, double newStock, int expense) async {
     final db = await instance.database;
     final old = await db.query('products', where: 'id = ?', whereArgs: [id]);
@@ -354,14 +425,6 @@ class DatabaseHelper {
   Future<void> addStockLog(int pid, String type, double qty, int modal, String note) async {
     final db = await instance.database;
     String dateNow = DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now());
-    
-    await db.insert('stock_logs', {
-      'product_id': pid, 
-      'product_type': type, 
-      'quantity_added': qty, 
-      'capital_price': modal, 
-      'date': dateNow,
-      'note': note
-    });
+    await db.insert('stock_logs', {'product_id': pid, 'product_type': type, 'quantity_added': qty, 'capital_price': modal, 'date': dateNow, 'note': note});
   }
 }

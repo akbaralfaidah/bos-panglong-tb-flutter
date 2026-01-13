@@ -158,7 +158,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Scaffold(
         backgroundColor: Colors.transparent,
         appBar: AppBar(
-          toolbarHeight: 70, // Sedikit lebih tinggi biar muat logo
+          toolbarHeight: 70, 
           title: Row(
             children: [
               // LOGO TOKO (Kiri)
@@ -230,7 +230,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 crossAxisCount: 2, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
                 crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: gridRatio,
                 children: [
-                  _statCard("Piutang (Total)", _totalPiutang, Icons.book, Colors.red[700]!, () => _openHistory(HistoryType.piutang, "Daftar Piutang")),
+                  // --- PERUBAHAN DI SINI (Card Piutang arahnya ke ReportScreen Tab 1) ---
+                  _statCard(
+                    "Piutang (Total)", 
+                    _totalPiutang, 
+                    Icons.book, 
+                    Colors.red[700]!, 
+                    // Klik -> Buka Report Screen -> Tab Index 1 (Piutang)
+                    () => _nav(const ReportScreen(initialIndex: 1)) 
+                  ),
                   _statCard("Omset (Hari Ini)", _omsetKotor, Icons.storefront, Colors.blue[800]!, () => _openHistory(HistoryType.transactions, "Riwayat Transaksi")),
                   _statCard("Bensin (Hari Ini)", _uangBensin, Icons.local_gas_station, Colors.orange[800]!, () => _openHistory(HistoryType.bensin, "Pengeluaran Bensin")),
                   _statCard("Stok Masuk (Hari Ini)", _totalBeliStok, Icons.shopping_cart, Colors.purple[800]!, () => _openHistory(HistoryType.stock, "Riwayat Stok Masuk")),
