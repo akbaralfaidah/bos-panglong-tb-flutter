@@ -59,7 +59,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
   String _infoKubikasi = "Vol: -"; 
   String _selectedUkuranReng = "2x3";   
   
-  int _selectedWoodType = 0; // 0=Balok, 1=Reng, 2=Bulat
+  int _selectedWoodType = 0; // 0=Papan/Balok, 1=Reng, 2=Bulat
 
   bool _userEditedTotalManual = false; 
   String _previewNamaKayu = "";
@@ -70,7 +70,8 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
   final List<String> _listWoodClass = ["Kelas 1", "Kelas 2", "Kelas 3"];
   
   final List<String> _listSatuanBangunan = ["Pcs", "Sak", "Kg", "Lusin", "Lembar", "Batang", "Meter", "Roll", "Kaleng", "Dus", "Kotak"];
-  final List<String> _listUkuranReng = ["2x3", "3x4", "4x6"];
+  
+  final List<String> _listUkuranReng = ["2x3", "3x4"];
 
   @override
   void initState() {
@@ -86,7 +87,6 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
     }
   }
 
-  // PENTING: Dispose untuk mencegah memory leak & tabrakan navigasi
   @override
   void dispose() {
     _mainTabController.dispose();
@@ -115,7 +115,17 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
     _inputQtyMasukController.addListener(_recalculateAll);
     _inputKubikController.addListener(_recalculateAll);
     _inputIsiPerDusController.addListener(_recalculateAll);
-    _modalGrosirController.addListener(_calculateMoneyExpense);
+    
+    // Listener untuk Auto-Hitung Harga
+    _modalGrosirController.addListener(() {
+      _calculateMoneyExpense();
+      _autoCalculateFromPackage(isModal: true);
+    });
+    
+    _jualGrosirController.addListener(() {
+      _autoCalculateFromPackage(isModal: false);
+    });
+
     _modalSatuanController.addListener(_calculateMoneyExpense);
     
     _nameController.addListener(_generateName);
@@ -140,6 +150,45 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
     });
   }
 
+  // --- LOGIKA AUTO HITUNG UNTUK PAPAN/BALOK & RENG ---
+  void _autoCalculateFromPackage({required bool isModal}) {
+    if (_mainTabController.index != 0) return; // Hanya untuk Tab Kayu
+
+    // 1. LOGIKA UNTUK PAPAN/BALOK (Berdasarkan Kubikasi)
+    if (_selectedWoodType == 0 && _batangPerKubik > 0) {
+      if (isModal) {
+        int hargaKubik = _parseMoney(_modalGrosirController.text);
+        if (hargaKubik > 0) {
+          int hargaSatuan = (hargaKubik / _batangPerKubik).ceil();
+          _modalSatuanController.text = _formatMoney(hargaSatuan);
+        }
+      } else {
+        int hargaKubik = _parseMoney(_jualGrosirController.text);
+        if (hargaKubik > 0) {
+          double rawPrice = hargaKubik / _batangPerKubik;
+          int hargaSatuan = (rawPrice / 1000).ceil() * 1000; // Pembulatan 1000 ke atas
+          _jualSatuanController.text = _formatMoney(hargaSatuan);
+        }
+      }
+    } 
+    // 2. LOGIKA UNTUK RENG (Berdasarkan Isi per Ikat)
+    else if (_selectedWoodType == 1) {
+      int isiPerIkat = int.tryParse(_inputIsiPerDusController.text) ?? 1;
+      if (isiPerIkat > 0) {
+        if (isModal) {
+          int hargaIkat = _parseMoney(_modalGrosirController.text);
+          int hargaSatuan = (hargaIkat / isiPerIkat).ceil();
+          _modalSatuanController.text = _formatMoney(hargaSatuan);
+        } else {
+          int hargaIkat = _parseMoney(_jualGrosirController.text);
+          double rawPrice = hargaIkat / isiPerIkat;
+          int hargaSatuan = (rawPrice / 1000).ceil() * 1000; // Pembulatan 1000 ke atas
+          _jualSatuanController.text = _formatMoney(hargaSatuan);
+        }
+      }
+    }
+  }
+
   void _clearInputFields() {
     if (widget.product == null) {
         _inputQtyMasukController.clear();
@@ -153,7 +202,6 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
       _selectedUkuranReng = ukuran;
       if (ukuran == "2x3") _inputIsiPerDusController.text = "20"; 
       else if (ukuran == "3x4") _inputIsiPerDusController.text = "10"; 
-      else if (ukuran == "4x6") _inputIsiPerDusController.text = "5";  
     });
     _generateName();
   }
@@ -190,9 +238,8 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
   void _calculateFinalStock() {
     int inputVal = 0;
 
-    if (_mainTabController.index == 0) { // TAB KAYU & RENG
+    if (_mainTabController.index == 0) { 
       if (_selectedWoodType == 0) {
-        // BALOK
         if (!_isInputKubik) {
           inputVal = int.tryParse(_inputQtyMasukController.text.replaceAll('.', '')) ?? 0;
         } else {
@@ -202,17 +249,14 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
           }
         }
       } else if (_selectedWoodType == 1) {
-        // RENG
         int qty = int.tryParse(_inputQtyMasukController.text.replaceAll('.', '')) ?? 0;
         int isi = int.tryParse(_inputIsiPerDusController.text.replaceAll('.', '')) ?? 1;
         inputVal = qty * isi; 
       } else {
-        // BULAT
         inputVal = int.tryParse(_inputQtyMasukController.text.replaceAll('.', '')) ?? 0;
       }
     } 
     else { 
-      // BANGUNAN
       int qty = int.tryParse(_inputQtyMasukController.text.replaceAll('.', '')) ?? 0;
       int isi = int.tryParse(_inputIsiPerDusController.text.replaceAll('.', '')) ?? 1;
       inputVal = _isInputGrosirBangunan ? (qty * isi) : qty;
@@ -227,7 +271,6 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
 
     if (_mainTabController.index == 0) { 
       if (_selectedWoodType == 0) {
-        // BALOK
         if (!_isInputKubik) {
           int qtyBatang = int.tryParse(_inputQtyMasukController.text.replaceAll('.', '')) ?? 0;
           int modalSatuan = _parseMoney(_modalSatuanController.text);
@@ -238,7 +281,6 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
           totalEstimasi = (qtyKubik * modalKubik).round();
         }
       } else if (_selectedWoodType == 1) {
-        // RENG
         int qtyIkat = int.tryParse(_inputQtyMasukController.text.replaceAll('.', '')) ?? 0;
         int hargaIkat = _parseMoney(_modalGrosirController.text);
         if (hargaIkat == 0) {
@@ -248,14 +290,12 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
         }
         totalEstimasi = qtyIkat * hargaIkat;
       } else {
-        // BULAT
         int qtyBatang = int.tryParse(_inputQtyMasukController.text.replaceAll('.', '')) ?? 0;
         int modalSatuan = _parseMoney(_modalSatuanController.text);
         totalEstimasi = qtyBatang * modalSatuan;
       }
     } 
     else { 
-      // BANGUNAN
       int qty = int.tryParse(_inputQtyMasukController.text.replaceAll('.', '')) ?? 0;
       if (_isInputGrosirBangunan) {
         int hargaDus = _parseMoney(_modalGrosirController.text);
@@ -439,7 +479,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
 
     if (p.type == 'KAYU') {
       _mainTabController.index = 0;
-      _selectedWoodType = 0; // Balok
+      _selectedWoodType = 0; 
       if (p.dimensions != null && p.dimensions!.contains('x')) {
         var d = p.dimensions!.split('x');
         if (d.length >= 3) { _tebalController.text = d[0]; _lebarController.text = d[1]; _panjangController.text = d[2]; }
@@ -447,12 +487,12 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
       _recalculateWood(); 
     } else if (p.type == 'RENG') {
       _mainTabController.index = 0; 
-      _selectedWoodType = 1; // Reng
+      _selectedWoodType = 1; 
       _selectedUkuranReng = p.dimensions ?? "2x3"; 
       _updateRengLogic(_selectedUkuranReng);
     } else if (p.type == 'BULAT') {
       _mainTabController.index = 0;
-      _selectedWoodType = 2; // Bulat
+      _selectedWoodType = 2; 
     } else {
       _mainTabController.index = 1;
       if (p.dimensions != null && _listSatuanBangunan.contains(p.dimensions)) _selectedBangunanUnit = p.dimensions!;
@@ -485,6 +525,9 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
 
   @override
   Widget build(BuildContext context) {
+    bool isKayuBalok = (_mainTabController.index == 0 && _selectedWoodType == 0);
+    bool isReng = (_mainTabController.index == 0 && _selectedWoodType == 1);
+
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
@@ -518,10 +561,8 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
                   ),
                 _field("Nama Barang", _nameController, hint: "Cth: Semen", readOnly: _mainTabController.index == 0),
                 
-                // INPUT JENIS KAYU (HANYA MUNCUL DI BALOK) - OPSIONAL
                 if (_selectedWoodType == 0 && _mainTabController.index == 0) ...[
                   const SizedBox(height: 10),
-                  // PERBAIKAN: isOptional: true agar tidak wajib diisi
                   _field("Jenis Kayu (Opsional)", _jenisKayuController, hint: "Cth: Meranti, Kamper", isOptional: true),
                 ],
 
@@ -529,18 +570,16 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
                 TextFormField(controller: _sourceController, decoration: InputDecoration(labelText: "Supplier (Opsional)", hintText: "Cth: Gudang A", filled: true, fillColor: Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14))),
               ])),
 
-              // === TAB KAYU & RENG ===
               if (_mainTabController.index == 0) ...[
                 const SizedBox(height: 20), _header("JENIS & UKURAN"),
                 _box(Column(children: [
                   Row(children: [
-                    Expanded(child: RadioListTile<int>(title: const Text("Balok", style: TextStyle(fontSize: 12)), value: 0, groupValue: _selectedWoodType, contentPadding: EdgeInsets.zero, onChanged: (v)=>setState((){_selectedWoodType=v!; _generateName();}))), 
+                    Expanded(child: RadioListTile<int>(title: const Text("Papan/Balok", style: TextStyle(fontSize: 12)), value: 0, groupValue: _selectedWoodType, contentPadding: EdgeInsets.zero, onChanged: (v)=>setState((){_selectedWoodType=v!; _generateName();}))), 
                     Expanded(child: RadioListTile<int>(title: const Text("Reng", style: TextStyle(fontSize: 12)), value: 1, groupValue: _selectedWoodType, contentPadding: EdgeInsets.zero, onChanged: (v)=>setState((){_selectedWoodType=v!; _generateName();}))),
                     Expanded(child: RadioListTile<int>(title: const Text("Bulat", style: TextStyle(fontSize: 12)), value: 2, groupValue: _selectedWoodType, contentPadding: EdgeInsets.zero, onChanged: (v)=>setState((){_selectedWoodType=v!; _nameController.text="Kayu Tunjang"; _generateName();}))),
                   ]),
                   
                   if (_selectedWoodType == 0) ...[
-                    // --- FORM BALOK ---
                     const Divider(),
                     DropdownButtonFormField<String>(
                       value: _selectedWoodClass,
@@ -553,19 +592,16 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
                     const SizedBox(height: 10), 
                     Container(padding: const EdgeInsets.all(10), width: double.infinity, decoration: BoxDecoration(color: Colors.blue[50], borderRadius: BorderRadius.circular(8)), child: Text(_infoKubikasi, style: TextStyle(color: _bgStart, fontWeight: FontWeight.bold, fontSize: 12))),
                   ] else if (_selectedWoodType == 1) ...[
-                    // FORM RENG
                     const Divider(), 
                     const Text("Pilih Ukuran Reng:", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)), 
                     const SizedBox(height: 5),
                     DropdownButtonFormField<String>(value: _selectedUkuranReng, decoration: InputDecoration(border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12)), items: _listUkuranReng.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(), onChanged: (val) { if(val != null) _updateRengLogic(val); }),
                   ] else ...[
-                    // FORM BULAT
                     const Divider(),
                     const Text("Produk: Kayu Tunjang", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                   ]
                 ])),
               ] else ...[
-                // === TAB BANGUNAN ===
                 const SizedBox(height: 20), _header("SATUAN PRODUK"),
                 _box(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   const Text("Pilih Satuan Jual:", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)), const SizedBox(height: 5),
@@ -577,7 +613,6 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
               _box(Column(children: [
                 if (_mainTabController.index == 0) ...[
                    if (_selectedWoodType == 0) ...[
-                     // BALOK
                      Row(children: [
                        _customTabButton(label: "Input Satuan (Btg)", isSelected: !_isInputKubik, onTap: () { setState(() { _isInputKubik = false; _calculateFinalStock(); _calculateMoneyExpense(); }); }),
                        const SizedBox(width: 10),
@@ -587,7 +622,6 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
                      if (!_isInputKubik) _field("Jumlah Batang", _inputQtyMasukController, isNum: true)
                      else _field("Jumlah Kubik (m³)", _inputKubikController, isNum: true, hint: "1.5"),
                    ] else if (_selectedWoodType == 1) ...[
-                     // RENG
                      Row(children: [
                        _customTabButton(label: "Satuan", isSelected: !_isInputGrosirBangunan, onTap: () { setState(() { _isInputGrosirBangunan = false; _calculateFinalStock(); _calculateMoneyExpense(); }); }),
                        const SizedBox(width: 10),
@@ -599,11 +633,9 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
                        if (_isInputGrosirBangunan) ...[ const SizedBox(width: 15), Expanded(child: _field("Isi per Ikat", _inputIsiPerDusController, isNum: true)), ]
                      ])
                    ] else ...[
-                     // BULAT
                      _field("Jumlah Batang (Bulat)", _inputQtyMasukController, isNum: true),
                    ]
                 ] else ...[
-                   // BANGUNAN
                    Row(children: [
                      _customTabButton(label: "Satuan", isSelected: !_isInputGrosirBangunan, onTap: () { setState(() { _isInputGrosirBangunan = false; _calculateFinalStock(); _calculateMoneyExpense(); }); }),
                      const SizedBox(width: 10),
@@ -620,17 +652,50 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
                 _field("Total Stok Akhir (Otomatis)", _stockController, isNum: true, readOnly: true, suffix: "Pcs/Btg"),
                 
                 const Divider(height: 30),
-                // FORM HARGA
-                Row(children: [Expanded(child: _moneyField("Modal Eceran", _modalSatuanController)), const SizedBox(width: 15), Expanded(child: _moneyField("Jual Eceran", _jualSatuanController))]),
                 
-                if (_selectedWoodType != 2 || _mainTabController.index == 1) ...[
+                // === FORM HARGA ===
+                
+                // 1. PAPAN/BALOK (Pilih Kubik)
+                if (isKayuBalok) ...[
+                   Row(children: [
+                    Expanded(child: _moneyField("Modal per Kubik", _modalGrosirController)), 
+                    const SizedBox(width: 15), 
+                    Expanded(child: _moneyField("Jual per Kubik", _jualGrosirController))
+                  ]),
                   const SizedBox(height: 15),
                   Row(children: [
-                    Expanded(child: _moneyField(_selectedWoodType==0 ? "Modal per Kubik" : "Modal Grosir", _modalGrosirController)), 
+                    Expanded(child: _moneyField("Modal Satuan (Auto)", _modalSatuanController)), 
                     const SizedBox(width: 15), 
-                    Expanded(child: _moneyField(_selectedWoodType==0 ? "Jual per Kubik" : "Jual Grosir", _jualGrosirController))
+                    Expanded(child: _moneyField("Jual Satuan (Auto)", _jualSatuanController))
                   ]),
                 ]
+                // 2. RENG (Pilih Ikat)
+                else if (isReng) ...[
+                  Row(children: [
+                    Expanded(child: _moneyField("Modal per Ikat", _modalGrosirController)), 
+                    const SizedBox(width: 15), 
+                    Expanded(child: _moneyField("Jual per Ikat", _jualGrosirController))
+                  ]),
+                  const SizedBox(height: 15),
+                  Row(children: [
+                    Expanded(child: _moneyField("Modal Satuan (Auto)", _modalSatuanController)), 
+                    const SizedBox(width: 15), 
+                    Expanded(child: _moneyField("Jual Satuan (Auto)", _jualSatuanController))
+                  ]),
+                ]
+                // 3. LAINNYA (Toko Bangunan / Bulat)
+                else ...[
+                  Row(children: [Expanded(child: _moneyField("Modal Eceran", _modalSatuanController)), const SizedBox(width: 15), Expanded(child: _moneyField("Jual Eceran", _jualSatuanController))]),
+                  if (_mainTabController.index == 1 || _selectedWoodType == 1) ...[ // Menampilkan Grosir untuk Bangunan
+                    const SizedBox(height: 15),
+                    Row(children: [
+                      Expanded(child: _moneyField("Modal Grosir", _modalGrosirController)), 
+                      const SizedBox(width: 15), 
+                      Expanded(child: _moneyField("Jual Grosir", _jualGrosirController))
+                    ]),
+                  ]
+                ]
+
               ])),
 
               const SizedBox(height: 30),
@@ -648,7 +713,6 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
   Widget _header(String title) => Padding(padding: const EdgeInsets.only(bottom: 8, left: 4), child: Text(title, style: TextStyle(fontWeight: FontWeight.bold, color: _bgStart)));
   Widget _box(Widget child) => Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 5)]), child: child);
   
-  // REVISI VALIDATOR: Tambahkan parameter isOptional
   Widget _field(String label, TextEditingController c, {bool isNum = false, bool readOnly = false, String? hint, String? suffix, bool isOptional = false}) => TextFormField(controller: c, readOnly: readOnly, keyboardType: isNum ? TextInputType.number : TextInputType.text, decoration: InputDecoration(labelText: label, hintText: hint, suffixText: suffix, filled: readOnly, fillColor: readOnly ? Colors.grey[100] : Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14)), validator: (v) => (!isOptional && v!.isEmpty && !readOnly) ? "Wajib" : null);
   
   Widget _moneyField(String label, TextEditingController c) => TextFormField(controller: c, keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly, CurrencyInputFormatter()], decoration: InputDecoration(labelText: label, prefixText: "Rp ", border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14)));
