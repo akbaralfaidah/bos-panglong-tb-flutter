@@ -164,21 +164,24 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // --- LOGO DINAMIS ---
+                  // --- REVISI: LOGO FULL SIZE (TIDAK BULAT) ---
                   Container(
-                    padding: const EdgeInsets.all(15),
+                    // Ukuran Container Logo
+                    height: 150, 
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      shape: BoxShape.circle,
+                      color: Colors.white.withOpacity(0.1), // Background transparan tipis
+                      borderRadius: BorderRadius.circular(15), // Sudut tumpul sedikit
                     ),
                     child: (_logoPath != null && File(_logoPath!).existsSync())
-                      ? CircleAvatar(
-                          radius: 60,
-                          backgroundColor: Colors.transparent,
-                          backgroundImage: FileImage(File(_logoPath!)),
+                      ? Image.file(
+                          File(_logoPath!),
+                          fit: BoxFit.contain, // Fit contain agar gambar UTUH (Full Size) tidak terpotong
                         )
                       : const Icon(Icons.store_mall_directory, size: 80, color: Colors.white),
                   ),
+                  
                   const SizedBox(height: 20),
                   
                   // --- NAMA TOKO DINAMIS ---
@@ -251,7 +254,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   
                   const SizedBox(height: 30),
-                  const Text("Versi 5.2 - Role Based Security", style: TextStyle(color: Colors.white54, fontSize: 10))
+                  const Text("Versi 5.3 - Role Based Security", style: TextStyle(color: Colors.white54, fontSize: 10))
                 ],
               ),
             ),

@@ -376,6 +376,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         productName: c.product.name, 
         productType: c.product.type, 
         quantity: c.stockDeduction, 
+        requestQty: c.qty, // <--- REVISI UTAMA: SIMPAN QTY ASLI (INPUTAN)
         unitType: c.unitName, 
         capitalPrice: realCapitalPerUnit, 
         sellPrice: realSellPricePerUnit
@@ -412,7 +413,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     }
   }
 
-  // --- REVISI: FONT LEBIH BESAR & FORMAT RP DIHAPUS DI ITEM ---
+  // --- REVISI: LAYOUT NOTA & FORMAT ANGKA ---
   void _showReceiptDialog(int q, int finalTotal, int bensin, int tId, int discount) {
     showDialog(
       context: context, 
@@ -428,6 +429,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 child: RepaintBoundary(
                   key: _printKey,
                   child: Container(
+                    // WIDTH 380 + PIXEL RATIO 1.5 = 570px (Pas 80mm)
                     constraints: const BoxConstraints(maxWidth: 380, minHeight: 300),
                     decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(0)),
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 20),
@@ -446,6 +448,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text("INV-#$tId (No: $q)", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)), Text(DateFormat('dd/MM HH:mm').format(DateTime.now()), style: const TextStyle(fontSize: 14))]),
                         const SizedBox(height: 10),
 
+                        // TABEL PELANGGAN (Font 14)
                         Table(
                           columnWidths: const {0: FixedColumnWidth(80), 1: FixedColumnWidth(10), 2: FlexColumnWidth()},
                           children: [
@@ -472,34 +475,36 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         const SizedBox(height: 10),
                         const Divider(color: Colors.black, thickness: 1.5),
                         
-                        // HEADER TABLE (FONT 16 BOLD)
+                        // REVISI: Header Tabel (Item Dikecilkan, Harga & Total Dilebarkan)
+                        // "Hrg" -> "Harga", "Q" -> "B"
                         Table(
-                          columnWidths: const { 0: FlexColumnWidth(2.8), 1: FlexColumnWidth(1.1), 2: FlexColumnWidth(1.2), 3: FlexColumnWidth(0.7), 4: FlexColumnWidth(1.5) },
+                          columnWidths: const { 0: FlexColumnWidth(1.8), 1: FlexColumnWidth(0.7), 2: FlexColumnWidth(1.4), 3: FlexColumnWidth(0.5), 4: FlexColumnWidth(1.6) },
                           children: const [
                             TableRow(children: [
                               Text("Item", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                               Text("Uk", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                              Text("Hrg", textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                              Text("Q", textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                              Text("Harga", textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                              Text("B", textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                               Text("Total", textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                             ])
                           ],
                         ),
                         const Divider(color: Colors.black, thickness: 1.5),
 
-                        // ISI TABLE (FONT 14 BOLD)
+                        // REVISI: Isi Tabel (Format Tanpa Rp)
                         Table(
-                          columnWidths: const { 0: FlexColumnWidth(2.8), 1: FlexColumnWidth(1.1), 2: FlexColumnWidth(1.2), 3: FlexColumnWidth(0.7), 4: FlexColumnWidth(1.5) },
+                          columnWidths: const { 0: FlexColumnWidth(1.8), 1: FlexColumnWidth(0.7), 2: FlexColumnWidth(1.4), 3: FlexColumnWidth(0.5), 4: FlexColumnWidth(1.6) },
                           children: widget.cartItems.map((i) {
                             String ukuran = i.product.dimensions ?? "-";
                             return TableRow(
                               children: [
-                                Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text(i.product.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600))),
-                                Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text(ukuran, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600))),
-                                // Hrg Satuan (Tanpa Rp)
-                                Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text(_formatRpNoSymbol(i.sellPrice), textAlign: TextAlign.right, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600))),
-                                Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text(i.qty % 1 == 0 ? i.qty.toInt().toString() : i.qty.toString(), textAlign: TextAlign.center, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600))),
-                                // REVISI: Total Per Item (Tanpa Rp)
+                                Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text(i.product.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
+                                Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text(ukuran, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
+                                // Hapus Rp di Harga Satuan
+                                Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text(_formatRpNoSymbol(i.sellPrice), textAlign: TextAlign.right, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
+                                // Tampilkan Qty Asli (Inputan)
+                                Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text(i.qty % 1 == 0 ? i.qty.toInt().toString() : i.qty.toString(), textAlign: TextAlign.center, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
+                                // Hapus Rp di Total Per Item
                                 Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text(_formatRpNoSymbol(i.agreedPriceTotal), textAlign: TextAlign.right, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
                               ]
                             );
@@ -521,14 +526,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                            const Divider(),
                         ],
                         
-                        // TOTAL AKHIR (FONT 32 SANGAT BESAR)
+                        // TOTAL AKHIR (FONT 32)
                         const SizedBox(height: 10),
                         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("TOTAL", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24)), Text(_formatRp(finalTotal), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 32))]), 
                         
                         const SizedBox(height: 30), 
                         const Text("Terima Kasih", style: TextStyle(color: Colors.black, fontStyle: FontStyle.italic, fontSize: 16)),
                         
-                        const SizedBox(height: 100), // SPACER
+                        const SizedBox(height: 100), // SPACER BAWAH
                       ],
                     ),
                   ),
@@ -580,6 +585,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   Future<void> _captureAndPrint() async {
     try {
       RenderRepaintBoundary boundary = _printKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
+      // Pixel Ratio 1.5 untuk Printer 80mm
       ui.Image image = await boundary.toImage(pixelRatio: 1.5); 
       ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
       Uint8List pngBytes = byteData!.buffer.asUint8List();
@@ -592,6 +598,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   Future<void> _captureAndSharePng(int tId, int queue, String custName) async {
     try {
       RenderRepaintBoundary boundary = _printKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
+      // Share ke WA tetap High Res (3.0)
       ui.Image image = await boundary.toImage(pixelRatio: 3.0); 
       ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
       Uint8List pngBytes = byteData!.buffer.asUint8List();

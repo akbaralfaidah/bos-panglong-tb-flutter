@@ -22,8 +22,8 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      // VERSI NAIK JADI 3 (Untuk fitur Diskon/Nego)
-      version: 3, 
+      // VERSI NAIK JADI 4 (Untuk fitur Request Qty / Konsistensi History)
+      version: 4, 
       onCreate: _createDB,
       onUpgrade: _onUpgrade, 
     );
@@ -59,7 +59,6 @@ class DatabaseHelper {
       )
     ''');
 
-    // TABEL TRANSAKSI (Sudah ada kolom discount untuk install baru)
     await db.execute('''
       CREATE TABLE transactions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -74,6 +73,7 @@ class DatabaseHelper {
       )
     ''');
 
+    // REVISI: Tambah request_qty
     await db.execute('''
       CREATE TABLE transaction_items (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -82,6 +82,7 @@ class DatabaseHelper {
         product_name TEXT,
         product_type TEXT,
         quantity INTEGER,
+        request_qty REAL DEFAULT 0, 
         unit_type TEXT,
         capital_price INTEGER,
         sell_price INTEGER
@@ -119,9 +120,12 @@ class DatabaseHelper {
     if (oldVersion < 2) {
       await db.execute('ALTER TABLE products ADD COLUMN wood_class TEXT');
     }
-    // MIGRASI KE VERSI 3 (Tambah Kolom Discount)
     if (oldVersion < 3) {
       await db.execute('ALTER TABLE transactions ADD COLUMN discount INTEGER DEFAULT 0');
+    }
+    // MIGRASI KE VERSI 4 (Tambah Kolom request_qty)
+    if (oldVersion < 4) {
+      await db.execute('ALTER TABLE transaction_items ADD COLUMN request_qty REAL DEFAULT 0');
     }
   }
 
@@ -184,24 +188,16 @@ class DatabaseHelper {
         'note': note
       });
 
-      // Hitung total bayar
       final res = await txn.rawQuery(
         'SELECT SUM(amount_paid) as total FROM debt_payments WHERE transaction_id = ?',
         [transId]
       );
       int alreadyPaid = (res.first['total'] as int?) ?? 0;
 
-      // Ambil total tagihan sebenarnya (Total Barang + Bensin - Diskon)
-      // Diskon mengurangi total tagihan yang harus dibayar
       final trans = await txn.query('transactions', columns: ['total_price', 'operational_cost', 'discount'], where: 'id = ?', whereArgs: [transId]);
       
       if (trans.isNotEmpty) {
         int totalPrice = (trans.first['total_price'] as int?) ?? 0;
-        // Total yang harus dibayar sebenarnya sudah tersimpan rapi di total_price 
-        // (Logika: total_price di DB nanti adalah Net setelah diskon? 
-        // TUNGGU: Agar konsisten, kita sepakati: total_price di DB adalah FINAL PRICE (Net).
-        // Jadi logic pelunasan tetap sama: if alreadyPaid >= total_price -> Lunas.
-        // Kolom discount hanya pencatatan history bahwa ada potongan).
         
         if (alreadyPaid >= totalPrice) {
           await txn.update(
@@ -348,7 +344,7 @@ class DatabaseHelper {
     ''', [start, end]);
   }
 
-  // --- REVISI: Tambah Parameter discount ---
+  // --- REVISI: Update createTransaction untuk simpan request_qty ---
   Future<int> createTransaction({
     required int totalPrice, 
     required int operational_cost, 
@@ -358,7 +354,7 @@ class DatabaseHelper {
     required int queueNumber, 
     required List<dynamic> items, 
     String? transaction_date,
-    int discount = 0, // NEW PARAMETER
+    int discount = 0, 
   }) async {
     final db = await instance.database;
     String dateNow = transaction_date ?? DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now());
@@ -368,7 +364,7 @@ class DatabaseHelper {
         int tId = await txn.insert('transactions', {
           'total_price': totalPrice, 
           'operational_cost': operational_cost, 
-          'discount': discount, // SIMPAN DISKON
+          'discount': discount, 
           'customer_name': customerName,
           'payment_method': paymentMethod, 
           'payment_status': paymentStatus, 
@@ -377,18 +373,22 @@ class DatabaseHelper {
         });
 
         for (var item in items) {
+          // Cast ke CartItemModel agar field requestQty terbaca dengan aman
+          CartItemModel cartItem = item as CartItemModel;
+          
           await txn.insert('transaction_items', {
             'transaction_id': tId, 
-            'product_id': item.productId, 
-            'product_name': item.productName,
-            'product_type': item.productType, 
-            'quantity': item.quantity, 
-            'unit_type': item.unitType,
-            'capital_price': item.capitalPrice, 
-            'sell_price': item.sellPrice
+            'product_id': cartItem.productId, 
+            'product_name': cartItem.productName,
+            'product_type': cartItem.productType, 
+            'quantity': cartItem.quantity, // Ini qty pengurangan stok (misal 350 batang)
+            'request_qty': cartItem.requestQty, // REVISI: Ini qty input asli (misal 5 kubik)
+            'unit_type': cartItem.unitType,
+            'capital_price': cartItem.capitalPrice, 
+            'sell_price': cartItem.sellPrice
           });
           
-          await txn.rawUpdate('UPDATE products SET stock = stock - ? WHERE id = ?', [item.quantity, item.productId]);
+          await txn.rawUpdate('UPDATE products SET stock = stock - ? WHERE id = ?', [cartItem.quantity, cartItem.productId]);
         }
         return tId;
       });

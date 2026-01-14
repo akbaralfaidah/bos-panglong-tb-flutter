@@ -26,7 +26,7 @@ class Product {
     required this.type,
     this.dimensions,
     this.source = '',
-    this.woodClass, // <--- Tambahkan di Constructor
+    this.woodClass, 
     required this.stock,
     required this.buyPriceUnit,
     this.buyPriceCubic = 0,
@@ -42,7 +42,7 @@ class Product {
     type: json['type'],
     dimensions: json['dimensions'],
     source: json['source'] ?? '',
-    woodClass: json['wood_class'], // <--- Baca kolom baru dari DB
+    woodClass: json['wood_class'], 
     stock: json['stock'],
     buyPriceUnit: json['buy_price_unit'],
     buyPriceCubic: json['buy_price_cubic'] ?? 0,
@@ -58,7 +58,7 @@ class Product {
     'type': type,
     'dimensions': dimensions,
     'source': source,
-    'wood_class': woodClass, // <--- Simpan kolom baru ke DB
+    'wood_class': woodClass, 
     'stock': stock,
     'buy_price_unit': buyPriceUnit,
     'buy_price_cubic': buyPriceCubic,
@@ -73,6 +73,11 @@ class CartItemModel {
   final String productName;
   final String productType; // KAYU / RENG / BANGUNAN
   final int quantity;       // Jumlah Final (Batang/Pcs) yang mengurangi stok
+  
+  // FIELD PENTING: Menyimpan input asli (misal 5 Kubik) 
+  // agar di history tidak berubah jadi 350 Batang
+  final double requestQty;  
+  
   final String unitType;    // Satuan Label di Struk (Ikat, Kubik, Dus, Pcs)
   final int capitalPrice;   // Modal per unit (sesuai unitType)
   final int sellPrice;      // Harga Jual per unit (sesuai unitType)
@@ -82,6 +87,7 @@ class CartItemModel {
     required this.productName, 
     required this.productType,
     required this.quantity, 
+    required this.requestQty, // Wajib diisi
     required this.unitType, 
     required this.capitalPrice, 
     required this.sellPrice

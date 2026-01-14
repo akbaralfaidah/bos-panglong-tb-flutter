@@ -48,6 +48,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
 
     final transRefresh = await db.query('transactions', where: 'id = ?', whereArgs: [widget.transaction['id']]);
     
+    // Select semua kolom termasuk request_qty
     final items = await db.rawQuery('''
       SELECT ti.*, p.dimensions 
       FROM transaction_items ti 
@@ -169,6 +170,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     );
   }
 
+  // --- SETTINGAN PRINTER 80MM (Sama dengan Checkout) ---
   Future<void> _captureAndPrint() async {
     try {
       RenderRepaintBoundary boundary = _printKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
@@ -184,6 +186,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
   Future<void> _captureAndSharePng() async {
     try {
       RenderRepaintBoundary boundary = _printKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
+      // Share ke WA tetap High Res
       ui.Image image = await boundary.toImage(pixelRatio: 3.0); 
       ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
       Uint8List pngBytes = byteData!.buffer.asUint8List();
@@ -242,6 +245,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                 RepaintBoundary(
                   key: _printKey,
                   child: Container(
+                    // MAX WIDTH 380 agar sama dengan checkout
                     constraints: const BoxConstraints(maxWidth: 380, minHeight: 300),
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 20),
                     decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(0)),
@@ -287,34 +291,46 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                         
                         const Divider(color: Colors.black, thickness: 1.5),
                         
-                        // HEADER TABLE (FONT 16 BOLD)
+                        // REVISI: Header Tabel (Item Dikecilkan, Harga & Total Dilebarkan)
+                        // "Hrg" -> "Harga", "Q" -> "B"
                         Table(
-                          columnWidths: const { 0: FlexColumnWidth(2.8), 1: FlexColumnWidth(1.1), 2: FlexColumnWidth(1.2), 3: FlexColumnWidth(0.7), 4: FlexColumnWidth(1.5) },
+                          columnWidths: const { 0: FlexColumnWidth(1.8), 1: FlexColumnWidth(0.7), 2: FlexColumnWidth(1.4), 3: FlexColumnWidth(0.5), 4: FlexColumnWidth(1.6) },
                           children: const [
                             TableRow(children: [
                               Text("Item", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                               Text("Uk", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                              Text("Hrg", textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                              Text("Q", textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                              Text("Harga", textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                              Text("B", textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                               Text("Total", textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                             ])
                           ],
                         ),
                         const Divider(color: Colors.black, thickness: 1.5),
 
-                        // ISI TABLE (FONT 14 BOLD)
+                        // REVISI: Isi Tabel (Logika RequestQty & Tanpa Rp)
                         Table(
-                          columnWidths: const { 0: FlexColumnWidth(2.8), 1: FlexColumnWidth(1.1), 2: FlexColumnWidth(1.2), 3: FlexColumnWidth(0.7), 4: FlexColumnWidth(1.5) },
+                          columnWidths: const { 0: FlexColumnWidth(1.8), 1: FlexColumnWidth(0.7), 2: FlexColumnWidth(1.4), 3: FlexColumnWidth(0.5), 4: FlexColumnWidth(1.6) },
                           children: _items.map((item) {
-                            double qty = (item['quantity'] as num).toDouble();
-                            double subtotal = qty * (item['sell_price'] as num).toDouble();
+                            
+                            // LOGIKA: Gunakan request_qty jika ada (transaksi baru), jika 0 gunakan quantity (lama)
+                            double reqQty = (item['request_qty'] as num?)?.toDouble() ?? 0;
+                            double stockQty = (item['quantity'] as num).toDouble();
+                            double finalDisplayQty = reqQty > 0 ? reqQty : stockQty;
+
+                            // Hitung subtotal tampilan
+                            double subtotal = (item['sell_price'] as num).toDouble() * finalDisplayQty;
+
                             return TableRow(children: [
-                                Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text(item['product_name'], style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600))),
-                                Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text((item['dimensions'] as String?) ?? "-", style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600))),
-                                // Hrg Satuan (Tanpa Rp)
-                                Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text(_formatRpNoSymbol(item['sell_price']), textAlign: TextAlign.right, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600))),
-                                Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text(qty % 1 == 0 ? qty.toInt().toString() : qty.toString(), textAlign: TextAlign.center, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600))),
-                                // REVISI: Total Per Item (Tanpa Rp)
+                                Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text(item['product_name'], style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
+                                Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text((item['dimensions'] as String?) ?? "-", style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
+                                
+                                // Harga Satuan (Tanpa Rp)
+                                Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text(_formatRpNoSymbol(item['sell_price']), textAlign: TextAlign.right, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
+                                
+                                // Qty (Tampilkan Final Display)
+                                Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text(finalDisplayQty % 1 == 0 ? finalDisplayQty.toInt().toString() : finalDisplayQty.toString(), textAlign: TextAlign.center, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
+                                
+                                // Total (Tanpa Rp)
                                 Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text(_formatRpNoSymbol(subtotal), textAlign: TextAlign.right, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
                             ]);
                           }).toList(),
@@ -338,7 +354,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                           const Divider(),
                         ],
 
-                        // TOTAL AKHIR (FONT 32 SANGAT BESAR)
+                        // TOTAL AKHIR BESAR (32)
                         const SizedBox(height: 10),
                         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("TOTAL", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24)), Text(_formatRp(totalNet), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 32))]),
                         
@@ -377,7 +393,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                         const Text("Terima Kasih", style: TextStyle(color: Colors.black, fontStyle: FontStyle.italic, fontSize: 16)),
                         Text("$_storeName", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey, fontSize: 14)),
                         
-                        const SizedBox(height: 100),
+                        const SizedBox(height: 100), // SPACER BAWAH
                       ],
                     ),
                   ),
