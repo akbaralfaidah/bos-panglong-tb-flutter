@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // Wajib untuk Formatter input
+import 'package:flutter/services.dart'; 
 import 'package:intl/intl.dart';
 import 'dart:io'; 
 import 'dart:ui' as ui; 
@@ -23,9 +23,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
   final Color _bgStart = const Color(0xFF0052D4);
   final Color _bgEnd = const Color(0xFF4364F7);
   
-  // Data transaksi yang bisa berubah (Status Lunas)
   late Map<String, dynamic> _transData; 
-  
   List<Map<String, dynamic>> _items = [];
   List<Map<String, dynamic>> _payments = []; 
   bool _isLoading = true;
@@ -78,8 +76,6 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     }
   }
 
-  // --- PARSE DATA PELANGGAN YANG DISIMPAN GABUNGAN ---
-  // Format di DB: "Nama (NoHP) \n Alamat"
   Map<String, String> _parseCustomerInfo(String raw) {
     String name = raw;
     String phone = "-";
@@ -88,26 +84,21 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     try {
       List<String> lines = raw.split('\n');
       if (lines.isNotEmpty) {
-        String line1 = lines[0]; // Isinya "Nama (NoHP)"
+        String line1 = lines[0]; 
         if (lines.length > 1) {
-          // Sisanya adalah alamat (digabung kembali jika ada enter)
           address = lines.sublist(1).join(' ');
         }
         
-        // Ambil NoHP di dalam kurung terakhir pada baris 1
         RegExp exp = RegExp(r'\(([^)]+)\)$'); 
         Match? match = exp.firstMatch(line1);
         if (match != null) {
           phone = match.group(1) ?? "-";
-          // Nama adalah teks sebelum kurung buka
           name = line1.substring(0, match.start).trim();
         } else {
-          name = line1; // Tidak ada kurung HP
+          name = line1; 
         }
       }
-    } catch (_) {
-      // Jika error parsing, kembalikan raw
-    }
+    } catch (_) {}
     return {'name': name, 'phone': phone, 'address': address};
   }
 
@@ -130,7 +121,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("Total Tagihan (Net):"), Text(_formatRp(totalInv))]),
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("Total Nota:"), Text(_formatRp(totalInv))]),
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("Sisa Hutang:", style: TextStyle(color: Colors.red)), Text(_formatRp(remains), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red))]),
             const Divider(),
             TextField(
@@ -178,6 +169,18 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     );
   }
 
+  Future<void> _captureAndPrint() async {
+    try {
+      RenderRepaintBoundary boundary = _printKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
+      ui.Image image = await boundary.toImage(pixelRatio: 1.5); 
+      ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      Uint8List pngBytes = byteData!.buffer.asUint8List();
+      await _printerHelper.printReceiptImage(context, pngBytes);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal Print: $e")));
+    }
+  }
+
   Future<void> _captureAndSharePng() async {
     try {
       RenderRepaintBoundary boundary = _printKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
@@ -201,18 +204,6 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     }
   }
 
-  Future<void> _captureAndPrint() async {
-    try {
-      RenderRepaintBoundary boundary = _printKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
-      ui.Image image = await boundary.toImage(pixelRatio: 3.0); 
-      ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-      Uint8List pngBytes = byteData!.buffer.asUint8List();
-      await _printerHelper.printReceiptImage(context, pngBytes);
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal Print: $e")));
-    }
-  }
-
   String _formatRp(dynamic number) => NumberFormat.currency(locale: 'id', symbol: 'Rp ', decimalDigits: 0).format(number);
   String _formatRpNoSymbol(dynamic number) => NumberFormat.currency(locale: 'id', symbol: '', decimalDigits: 0).format(number);
 
@@ -233,7 +224,6 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     
     if (sisaHutang <= 0) isLunas = true;
 
-    // PARSE INFO CUSTOMER DULU
     Map<String, String> custInfo = _parseCustomerInfo(_transData['customer_name']);
 
     return Scaffold(
@@ -249,138 +239,145 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
             padding: const EdgeInsets.all(20),
             child: Column(
               children: [
-                // --- WRAPPER SCREENSHOT ---
                 RepaintBoundary(
                   key: _printKey,
                   child: Container(
-                    width: double.infinity,
-                    constraints: const BoxConstraints(minHeight: 500, maxWidth: 400),
-                    padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 20),
-                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(5), boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 15, offset: Offset(0, 5))]),
+                    constraints: const BoxConstraints(maxWidth: 380, minHeight: 300),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 20),
+                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(0)),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         if (_logoPath != null && File(_logoPath!).existsSync())
-                          Container(margin: const EdgeInsets.only(bottom: 10), height: 100, width: double.infinity, child: Image.file(File(_logoPath!), fit: BoxFit.contain))
-                        else const Icon(Icons.store, size: 50, color: Colors.black54),
+                          Container(margin: const EdgeInsets.only(bottom: 5), height: 80, width: double.infinity, child: Image.file(File(_logoPath!), fit: BoxFit.contain))
+                        else const Icon(Icons.store, size: 40, color: Colors.black54),
                         
-                        Text(_storeName.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16), textAlign: TextAlign.center),
-                        if(_storeAddress.isNotEmpty) Text(_storeAddress, style: const TextStyle(color: Colors.grey, fontSize: 11), textAlign: TextAlign.center),
-                        const Divider(thickness: 1.5, height: 20),
+                        Text(_storeName.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 24, color: Colors.black), textAlign: TextAlign.center),
+                        if(_storeAddress.isNotEmpty) Text(_storeAddress, style: const TextStyle(color: Colors.black, fontSize: 14), textAlign: TextAlign.center),
+                        const Divider(thickness: 2, height: 20, color: Colors.black),
 
-                        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text("INV-#${_transData['id']} (Antrian: $antrian)", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)), Text(dateStr, style: const TextStyle(fontSize: 12))]),
+                        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text("INV-#${_transData['id']} (No: $antrian)", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)), Text(dateStr, style: const TextStyle(fontSize: 14))]),
                         const SizedBox(height: 10),
 
-                        // --- REVISI TAMPILAN PELANGGAN DI DETAIL HISTORY ---
                         Table(
-                          columnWidths: const {0: FixedColumnWidth(70), 1: FixedColumnWidth(10), 2: FlexColumnWidth()},
+                          columnWidths: const {0: FixedColumnWidth(80), 1: FixedColumnWidth(10), 2: FlexColumnWidth()},
                           children: [
                             TableRow(children: [
-                              const Text("Pelanggan", style: TextStyle(fontSize: 12)),
-                              const Text(":", style: TextStyle(fontSize: 12)),
-                              Text(custInfo['name']!, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12), textAlign: TextAlign.right),
+                              const Text("Pelanggan", style: TextStyle(fontSize: 14)),
+                              const Text(":", style: TextStyle(fontSize: 14)),
+                              Text(custInfo['name']!, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14), textAlign: TextAlign.right),
                             ]),
                             if (custInfo['phone'] != '-' && custInfo['phone']!.isNotEmpty)
                             TableRow(children: [
-                              const Text("Nomor HP", style: TextStyle(fontSize: 12)),
-                              const Text(":", style: TextStyle(fontSize: 12)),
-                              Text(custInfo['phone']!, style: const TextStyle(fontSize: 12), textAlign: TextAlign.right),
+                              const Text("Nomor HP", style: TextStyle(fontSize: 14)),
+                              const Text(":", style: TextStyle(fontSize: 14)),
+                              Text(custInfo['phone']!, style: const TextStyle(fontSize: 14), textAlign: TextAlign.right),
                             ]),
                             if (custInfo['address'] != '-' && custInfo['address']!.isNotEmpty)
                             TableRow(children: [
-                              const Text("Alamat", style: TextStyle(fontSize: 12)),
-                              const Text(":", style: TextStyle(fontSize: 12)),
-                              Text(custInfo['address']!, style: const TextStyle(fontSize: 12), textAlign: TextAlign.right),
+                              const Text("Alamat", style: TextStyle(fontSize: 14)),
+                              const Text(":", style: TextStyle(fontSize: 14)),
+                              Text(custInfo['address']!, style: const TextStyle(fontSize: 14), textAlign: TextAlign.right),
                             ]),
                           ],
                         ),
-                        // --------------------------------------------------
                         
-                        const SizedBox(height: 15),
+                        const SizedBox(height: 10),
                         
-                        const Divider(color: Colors.black),
+                        const Divider(color: Colors.black, thickness: 1.5),
+                        
+                        // HEADER TABLE (FONT 16 BOLD)
                         Table(
-                          columnWidths: const {0: FlexColumnWidth(2), 1: FlexColumnWidth(1.2), 2: FlexColumnWidth(1.2), 3: FlexColumnWidth(0.6), 4: FlexColumnWidth(1.5)},
+                          columnWidths: const { 0: FlexColumnWidth(2.8), 1: FlexColumnWidth(1.1), 2: FlexColumnWidth(1.2), 3: FlexColumnWidth(0.7), 4: FlexColumnWidth(1.5) },
                           children: const [
                             TableRow(children: [
-                              Text("Item", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10)),
-                              Text("Ukuran", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10)),
-                              Text("Harga", textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10)),
-                              Text("Qty", textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10)),
-                              Text("Total", textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10)),
+                              Text("Item", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                              Text("Uk", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                              Text("Hrg", textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                              Text("Q", textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                              Text("Total", textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                             ])
                           ],
                         ),
-                        const Divider(color: Colors.black),
+                        const Divider(color: Colors.black, thickness: 1.5),
+
+                        // ISI TABLE (FONT 14 BOLD)
                         Table(
-                          columnWidths: const {0: FlexColumnWidth(2), 1: FlexColumnWidth(1.2), 2: FlexColumnWidth(1.2), 3: FlexColumnWidth(0.6), 4: FlexColumnWidth(1.5)},
+                          columnWidths: const { 0: FlexColumnWidth(2.8), 1: FlexColumnWidth(1.1), 2: FlexColumnWidth(1.2), 3: FlexColumnWidth(0.7), 4: FlexColumnWidth(1.5) },
                           children: _items.map((item) {
                             double qty = (item['quantity'] as num).toDouble();
                             double subtotal = qty * (item['sell_price'] as num).toDouble();
                             return TableRow(children: [
-                                Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Text(item['product_name'], style: const TextStyle(fontSize: 10))),
-                                Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Text((item['dimensions'] as String?) ?? "-", style: const TextStyle(fontSize: 10))),
-                                Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Text(_formatRpNoSymbol(item['sell_price']), textAlign: TextAlign.right, style: const TextStyle(fontSize: 10))),
-                                Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Text(qty % 1 == 0 ? qty.toInt().toString() : qty.toString(), textAlign: TextAlign.center, style: const TextStyle(fontSize: 10))),
-                                Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Text(_formatRp(subtotal), textAlign: TextAlign.right, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold))),
+                                Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text(item['product_name'], style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600))),
+                                Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text((item['dimensions'] as String?) ?? "-", style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600))),
+                                // Hrg Satuan (Tanpa Rp)
+                                Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text(_formatRpNoSymbol(item['sell_price']), textAlign: TextAlign.right, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600))),
+                                Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text(qty % 1 == 0 ? qty.toInt().toString() : qty.toString(), textAlign: TextAlign.center, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600))),
+                                // REVISI: Total Per Item (Tanpa Rp)
+                                Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text(_formatRpNoSymbol(subtotal), textAlign: TextAlign.right, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
                             ]);
                           }).toList(),
                         ),
-                        const Divider(color: Colors.black),
+                        const Divider(color: Colors.black, thickness: 1.5),
 
                         if(bensin > 0) 
-                          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("Bensin"), Text(_formatRp(bensin), style: const TextStyle(fontWeight: FontWeight.bold))]),
+                          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("Bensin", style: TextStyle(fontSize: 14)), Text(_formatRp(bensin), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14))]),
 
                         if (discount > 0)
                           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                             const Text("Subtotal"), 
-                             Text(_formatRp(totalGross), style: const TextStyle(fontSize: 12))
+                             const Text("Subtotal", style: TextStyle(fontSize: 14)), 
+                             Text(_formatRp(totalGross), style: const TextStyle(fontSize: 14))
                           ]),
 
                         if (discount > 0) ...[
                           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                             const Text("Potongan / Diskon", style: TextStyle(fontStyle: FontStyle.italic)), 
-                             Text("- ${_formatRp(discount)}", style: const TextStyle(fontStyle: FontStyle.italic))
+                             const Text("Potongan / Diskon", style: TextStyle(fontSize: 14, fontStyle: FontStyle.italic)), 
+                             Text("- ${_formatRp(discount)}", style: const TextStyle(fontSize: 14, fontStyle: FontStyle.italic))
                           ]),
                           const Divider(),
                         ],
 
-                        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("TOTAL NOTA", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)), Text(_formatRp(totalNet), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16))]),
+                        // TOTAL AKHIR (FONT 32 SANGAT BESAR)
+                        const SizedBox(height: 10),
+                        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("TOTAL", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24)), Text(_formatRp(totalNet), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 32))]),
+                        
                         const SizedBox(height: 5),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text("Status Pembayaran"),
+                            const Text("Status Pembayaran", style: TextStyle(fontSize: 14)),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                               decoration: BoxDecoration(color: isLunas ? Colors.green[50] : Colors.red[50], borderRadius: BorderRadius.circular(5), border: Border.all(color: isLunas ? Colors.green : Colors.red)),
-                              child: Text(isLunas ? "LUNAS" : "BELUM LUNAS", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isLunas ? Colors.green : Colors.red)),
+                              child: Text(isLunas ? "LUNAS" : "BELUM LUNAS", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isLunas ? Colors.green : Colors.red)),
                             )
                           ],
                         ),
 
                         if (_payments.isNotEmpty) ...[
                           const SizedBox(height: 15),
-                          const Align(alignment: Alignment.centerLeft, child: Text("Riwayat Pembayaran:", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, decoration: TextDecoration.underline))),
+                          const Align(alignment: Alignment.centerLeft, child: Text("Riwayat Pembayaran:", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, decoration: TextDecoration.underline))),
                           ..._payments.map((p) => Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                            Text("${DateFormat('dd/MM').format(DateTime.parse(p['payment_date']))} - ${p['note']}", style: const TextStyle(fontSize: 9, color: Colors.grey)),
-                            Text(_formatRp(p['amount_paid']), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold))
+                            Text("${DateFormat('dd/MM').format(DateTime.parse(p['payment_date']))} - ${p['note']}", style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                            Text(_formatRp(p['amount_paid']), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold))
                           ])),
                           const Divider(height: 10),
                           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                            const Text("TOTAL DIBAYAR", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
-                            Text(_formatRp(totalPaid), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold))
+                            const Text("TOTAL DIBAYAR", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                            Text(_formatRp(totalPaid), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold))
                           ]),
                           if (!isLunas) Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                            const Text("SISA HUTANG", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.red)),
-                            Text(_formatRp(sisaHutang), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.red))
+                            const Text("SISA HUTANG", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.red)),
+                            Text(_formatRp(sisaHutang), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.red))
                           ]),
                         ],
 
-                        const SizedBox(height: 40), 
-                        const Text("Terima Kasih", style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey)),
-                        Text("$_storeName", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+                        const SizedBox(height: 30), 
+                        const Text("Terima Kasih", style: TextStyle(color: Colors.black, fontStyle: FontStyle.italic, fontSize: 16)),
+                        Text("$_storeName", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey, fontSize: 14)),
+                        
+                        const SizedBox(height: 100),
                       ],
                     ),
                   ),

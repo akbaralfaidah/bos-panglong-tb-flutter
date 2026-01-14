@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:io'; // Wajib untuk menampilkan File Gambar Logo
 import '../helpers/database_helper.dart';
 import '../helpers/session_manager.dart';
 import 'dashboard_screen.dart';
@@ -18,14 +19,34 @@ class _LoginScreenState extends State<LoginScreen> {
   
   bool _isLoading = false;
 
+  // Variabel Identitas Toko (Default)
+  String _storeName = "Bos Panglong & TB";
+  String? _logoPath;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStoreIdentity(); // Load data saat masuk halaman login
+  }
+
+  // --- 1. LOAD NAMA & LOGO TOKO DARI DB ---
+  Future<void> _loadStoreIdentity() async {
+    String? name = await DatabaseHelper.instance.getSetting('store_name');
+    String? logo = await DatabaseHelper.instance.getSetting('store_logo');
+
+    if (mounted) {
+      setState(() {
+        if (name != null && name.isNotEmpty) _storeName = name;
+        _logoPath = logo;
+      });
+    }
+  }
+
   // --- LOGIKA LOGIN KARYAWAN ---
   void _loginAsEmployee() {
     setState(() => _isLoading = true);
-    
-    // Simpan sesi sebagai KARYAWAN
     SessionManager().loginAsEmployee();
 
-    // Beri jeda dikit biar ada efek loading
     Future.delayed(const Duration(milliseconds: 800), () {
       if (mounted) {
         Navigator.pushReplacement(
@@ -86,16 +107,14 @@ class _LoginScreenState extends State<LoginScreen> {
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(backgroundColor: _bgStart),
                   onPressed: () async {
-                    setStateDialog(() => errorText = ""); // Reset error
+                    setStateDialog(() => errorText = ""); 
                     
-                    // 1. Ambil PIN dari Database (atau Default 123456)
                     String? savedPin = await DatabaseHelper.instance.getSetting('owner_pin');
                     String realPin = savedPin ?? "123456"; 
 
-                    // 2. Cek PIN
                     if (pinController.text == realPin) {
-                      Navigator.pop(context); // Tutup Dialog
-                      _processOwnerLogin();   // Lanjut Masuk
+                      Navigator.pop(context); 
+                      _processOwnerLogin();   
                     } else {
                       setStateDialog(() => errorText = "PIN Salah!");
                     }
@@ -112,8 +131,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _processOwnerLogin() {
     setState(() => _isLoading = true);
-    
-    // Simpan sesi sebagai PEMILIK
     SessionManager().loginAsOwner();
 
     Future.delayed(const Duration(milliseconds: 800), () {
@@ -147,24 +164,33 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // --- LOGO / ICON ---
+                  // --- LOGO DINAMIS ---
                   Container(
-                    padding: const EdgeInsets.all(20),
+                    padding: const EdgeInsets.all(15),
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.2),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.store_mall_directory, size: 80, color: Colors.white),
+                    child: (_logoPath != null && File(_logoPath!).existsSync())
+                      ? CircleAvatar(
+                          radius: 60,
+                          backgroundColor: Colors.transparent,
+                          backgroundImage: FileImage(File(_logoPath!)),
+                        )
+                      : const Icon(Icons.store_mall_directory, size: 80, color: Colors.white),
                   ),
                   const SizedBox(height: 20),
                   
-                  const Text(
-                    "PANGLONG & TOKO BANGUNAN",
-                    style: TextStyle(
+                  // --- NAMA TOKO DINAMIS ---
+                  Text(
+                    _storeName.toUpperCase(),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
                       fontSize: 24, 
                       fontWeight: FontWeight.bold, 
                       color: Colors.white,
-                      letterSpacing: 1.5
+                      letterSpacing: 1.5,
+                      shadows: [Shadow(color: Colors.black26, blurRadius: 10, offset: Offset(0, 2))]
                     ),
                   ),
                   const Text(
@@ -225,7 +251,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   
                   const SizedBox(height: 30),
-                  const Text("Versi 1.0", style: TextStyle(color: Colors.white54, fontSize: 10))
+                  const Text("Versi 5.2 - Role Based Security", style: TextStyle(color: Colors.white54, fontSize: 10))
                 ],
               ),
             ),

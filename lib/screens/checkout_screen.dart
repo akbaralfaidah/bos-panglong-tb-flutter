@@ -10,7 +10,7 @@ import 'package:share_plus/share_plus.dart';
 import '../models/product.dart';
 import '../helpers/database_helper.dart';
 import '../helpers/printer_helper.dart';
-import '../helpers/session_manager.dart'; // REVISI: Import SessionManager
+import '../helpers/session_manager.dart'; 
 import 'cashier_screen.dart'; 
 
 class CheckoutScreen extends StatefulWidget {
@@ -30,8 +30,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   final TextEditingController _phoneController = TextEditingController(); 
   final TextEditingController _addressController = TextEditingController(); 
   final TextEditingController _bensinController = TextEditingController();
-  
-  // Controller untuk Total Akhir (Bisa Nego)
   final TextEditingController _totalFinalController = TextEditingController(); 
   
   List<String> _savedCustomers = [];
@@ -42,7 +40,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   String _storeAddress = ""; 
   String? _logoPath;
   
-  // Variabel untuk Indikator Laba/Rugi Nego
   String _profitAlertText = "";
   Color _profitAlertColor = Colors.transparent;
   int _totalCapitalAllItems = 0; 
@@ -50,7 +47,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   final GlobalKey _printKey = GlobalKey();
   final PrinterHelper _printerHelper = PrinterHelper(); 
 
-  // Helper Cek Role
   bool get _isOwner => SessionManager().isOwner;
 
   @override
@@ -62,39 +58,28 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   void _calculateInitialTotal() {
     int itemTotal = widget.cartItems.fold(0, (sum, item) => sum + item.agreedPriceTotal);
-    
-    // Hitung Total Modal Dasar (Qty * Modal Satuan)
     _totalCapitalAllItems = widget.cartItems.fold(0, (sum, item) {
       return sum + (item.qty * item.capitalPrice).round();
     });
-
-    // Set nilai awal ke controller total (Harga Normal)
     _totalFinalController.text = _formatRpNoSymbol(itemTotal);
-    
-    // Trigger perhitungan profit awal
     _calculateProfitOnNego(_totalFinalController.text);
   }
 
-  // REVISI: Logika Sembunyikan Profit untuk Karyawan
   void _calculateProfitOnNego(String negoTotalStr) {
     int negoTotal = int.tryParse(negoTotalStr.replaceAll('.', '')) ?? 0;
     int bensin = int.tryParse(_bensinController.text.replaceAll('.', '')) ?? 0;
-    
     int totalCost = _totalCapitalAllItems + bensin;
     int margin = negoTotal - totalCost;
 
     setState(() {
       if (margin < 0) {
-        // SAFETY NET: Rugi selalu muncul untuk siapapun
         _profitAlertText = "⚠️ AWAS RUGI: ${_formatRp(margin)} (Di bawah modal)";
         _profitAlertColor = Colors.red;
       } else {
-        // Jika Untung, Cek Role dulu
         if (_isOwner) {
           _profitAlertText = "✅ Aman! Estimasi Untung: ${_formatRp(margin)}";
           _profitAlertColor = Colors.green[700]!;
         } else {
-          // Karyawan tidak boleh lihat modal/untung
           _profitAlertText = ""; 
         }
       }
@@ -105,7 +90,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     int itemTotal = widget.cartItems.fold(0, (sum, item) => sum + item.agreedPriceTotal);
     int bensin = int.tryParse(bensinVal.replaceAll('.', '')) ?? 0;
     int grandTotal = itemTotal + bensin;
-    
     _totalFinalController.text = _formatRpNoSymbol(grandTotal);
     _calculateProfitOnNego(_totalFinalController.text);
   }
@@ -159,11 +143,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       barrierDismissible: false,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDialogState) {
-          
           void updateCalculations() {
             double q = double.tryParse(qtyCtrl.text.replaceAll(',', '.')) ?? 0;
             int pricePerUnit = isGrosirMode ? product.sellPriceCubic : product.sellPriceUnit;
-            
             int total = (q * pricePerUnit).round();
             totalPriceCtrl.text = NumberFormat('#,###', 'id_ID').format(total);
             
@@ -177,7 +159,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             int totalModal = (q * modalPerUnit).round();
             int margin = inputTotal - totalModal;
 
-            // REVISI: Logika Hide Profit di Dialog
             if (margin < 0) {
               profitInfo = "AWAS RUGI: ${_formatRp(margin)}";
               profitColor = Colors.red;
@@ -186,7 +167,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 profitInfo = "Estimasi Untung: ${_formatRp(margin)}";
                 profitColor = Colors.green[700]!;
               } else {
-                profitInfo = ""; // Hide untuk Karyawan
+                profitInfo = "";
               }
             }
 
@@ -287,8 +268,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                          }
                          int totalModal = (q * modalPerUnit).round();
                          int margin = inputTotal - totalModal;
-                         
-                         // Logic hide profit di dialog edit
                          if (margin < 0) {
                            profitInfo = "AWAS RUGI: ${_formatRp(margin)}";
                            profitColor = Colors.red;
@@ -327,7 +306,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                               }
                               return;
                             }
-                            
                             int activeCapital = isGrosirMode ? product.buyPriceCubic : product.buyPriceUnit;
                             
                             setState(() {
@@ -434,6 +412,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     }
   }
 
+  // --- REVISI: FONT LEBIH BESAR & FORMAT RP DIHAPUS DI ITEM ---
   void _showReceiptDialog(int q, int finalTotal, int bensin, int tId, int discount) {
     showDialog(
       context: context, 
@@ -449,26 +428,26 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 child: RepaintBoundary(
                   key: _printKey,
                   child: Container(
-                    constraints: const BoxConstraints(maxWidth: 450, minHeight: 500),
-                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(5)),
-                    padding: const EdgeInsets.all(15),
+                    constraints: const BoxConstraints(maxWidth: 380, minHeight: 300),
+                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(0)),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 20),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         if (_logoPath != null && File(_logoPath!).existsSync())
-                          Container(margin: const EdgeInsets.only(bottom: 10), height: 100, width: double.infinity, child: Image.file(File(_logoPath!), fit: BoxFit.contain))
+                          Container(margin: const EdgeInsets.only(bottom: 5), height: 80, width: double.infinity, child: Image.file(File(_logoPath!), fit: BoxFit.contain))
                         else const Icon(Icons.store, size: 50), 
 
-                        Text(_storeName.toUpperCase(), textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 24)), 
-                        if(_storeAddress.isNotEmpty) Text(_storeAddress, textAlign: TextAlign.center, style: const TextStyle(fontSize: 14, color: Colors.grey)), 
+                        Text(_storeName.toUpperCase(), textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 24, color: Colors.black)), 
+                        if(_storeAddress.isNotEmpty) Text(_storeAddress, textAlign: TextAlign.center, style: const TextStyle(fontSize: 14, color: Colors.black)), 
 
-                        const Divider(thickness: 2, height: 25),
+                        const Divider(thickness: 2, height: 20, color: Colors.black),
                         
-                        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text("INV-#$tId (Antrian: $q)", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)), Text(DateFormat('dd/MM HH:mm').format(DateTime.now()), style: const TextStyle(fontSize: 16))]),
+                        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text("INV-#$tId (No: $q)", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)), Text(DateFormat('dd/MM HH:mm').format(DateTime.now()), style: const TextStyle(fontSize: 14))]),
                         const SizedBox(height: 10),
 
                         Table(
-                          columnWidths: const {0: FixedColumnWidth(90), 1: FixedColumnWidth(10), 2: FlexColumnWidth()},
+                          columnWidths: const {0: FixedColumnWidth(80), 1: FixedColumnWidth(10), 2: FlexColumnWidth()},
                           children: [
                             TableRow(children: [
                               const Text("Pelanggan", style: TextStyle(fontSize: 14)),
@@ -490,34 +469,38 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                           ],
                         ),
                         
-                        const SizedBox(height: 15),
+                        const SizedBox(height: 10),
                         const Divider(color: Colors.black, thickness: 1.5),
                         
+                        // HEADER TABLE (FONT 16 BOLD)
                         Table(
-                          columnWidths: const { 0: FlexColumnWidth(2.5), 1: FlexColumnWidth(1.2), 2: FlexColumnWidth(1.3), 3: FlexColumnWidth(0.7), 4: FlexColumnWidth(1.5) },
+                          columnWidths: const { 0: FlexColumnWidth(2.8), 1: FlexColumnWidth(1.1), 2: FlexColumnWidth(1.2), 3: FlexColumnWidth(0.7), 4: FlexColumnWidth(1.5) },
                           children: const [
                             TableRow(children: [
-                              Text("Item", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                              Text("Ukuran", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                              Text("Harga", textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                              Text("Qty", textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                              Text("Total", textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                              Text("Item", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                              Text("Uk", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                              Text("Hrg", textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                              Text("Q", textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                              Text("Total", textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                             ])
                           ],
                         ),
                         const Divider(color: Colors.black, thickness: 1.5),
 
+                        // ISI TABLE (FONT 14 BOLD)
                         Table(
-                          columnWidths: const { 0: FlexColumnWidth(2.5), 1: FlexColumnWidth(1.2), 2: FlexColumnWidth(1.3), 3: FlexColumnWidth(0.7), 4: FlexColumnWidth(1.5) },
+                          columnWidths: const { 0: FlexColumnWidth(2.8), 1: FlexColumnWidth(1.1), 2: FlexColumnWidth(1.2), 3: FlexColumnWidth(0.7), 4: FlexColumnWidth(1.5) },
                           children: widget.cartItems.map((i) {
                             String ukuran = i.product.dimensions ?? "-";
                             return TableRow(
                               children: [
-                                Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Text(i.product.name, style: const TextStyle(fontSize: 14))),
-                                Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Text(ukuran, style: const TextStyle(fontSize: 14))),
-                                Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Text(_formatRpNoSymbol(i.sellPrice), textAlign: TextAlign.right, style: const TextStyle(fontSize: 14))),
-                                Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Text(i.qty % 1 == 0 ? i.qty.toInt().toString() : i.qty.toString(), textAlign: TextAlign.center, style: const TextStyle(fontSize: 14))),
-                                Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Text(_formatRp(i.agreedPriceTotal), textAlign: TextAlign.right, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
+                                Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text(i.product.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600))),
+                                Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text(ukuran, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600))),
+                                // Hrg Satuan (Tanpa Rp)
+                                Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text(_formatRpNoSymbol(i.sellPrice), textAlign: TextAlign.right, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600))),
+                                Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text(i.qty % 1 == 0 ? i.qty.toInt().toString() : i.qty.toString(), textAlign: TextAlign.center, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600))),
+                                // REVISI: Total Per Item (Tanpa Rp)
+                                Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text(_formatRpNoSymbol(i.agreedPriceTotal), textAlign: TextAlign.right, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
                               ]
                             );
                           }).toList(),
@@ -538,10 +521,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                            const Divider(),
                         ],
                         
-                        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("TOTAL AKHIR", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24)), Text(_formatRp(finalTotal), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 28))]), 
+                        // TOTAL AKHIR (FONT 32 SANGAT BESAR)
+                        const SizedBox(height: 10),
+                        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("TOTAL", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24)), Text(_formatRp(finalTotal), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 32))]), 
                         
-                        const SizedBox(height: 50), 
-                        const Text("Terima Kasih", style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic, fontSize: 16)),
+                        const SizedBox(height: 30), 
+                        const Text("Terima Kasih", style: TextStyle(color: Colors.black, fontStyle: FontStyle.italic, fontSize: 16)),
+                        
+                        const SizedBox(height: 100), // SPACER
                       ],
                     ),
                   ),
@@ -590,6 +577,18 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     );
   }
 
+  Future<void> _captureAndPrint() async {
+    try {
+      RenderRepaintBoundary boundary = _printKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
+      ui.Image image = await boundary.toImage(pixelRatio: 1.5); 
+      ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      Uint8List pngBytes = byteData!.buffer.asUint8List();
+      await _printerHelper.printReceiptImage(context, pngBytes);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal Print: $e")));
+    }
+  }
+
   Future<void> _captureAndSharePng(int tId, int queue, String custName) async {
     try {
       RenderRepaintBoundary boundary = _printKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
@@ -610,23 +609,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     }
   }
 
-  Future<void> _captureAndPrint() async {
-    try {
-      RenderRepaintBoundary boundary = _printKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
-      ui.Image image = await boundary.toImage(pixelRatio: 3.0); 
-      ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-      Uint8List pngBytes = byteData!.buffer.asUint8List();
-      await _printerHelper.printReceiptImage(context, pngBytes);
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal Print: $e")));
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     int itemTotal = widget.cartItems.fold(0, (sum, item) => sum + item.agreedPriceTotal);
     int bensin = int.tryParse(_bensinController.text.replaceAll('.', '')) ?? 0;
-    
     int grossTotal = itemTotal + bensin;
 
     return Scaffold(
@@ -730,10 +716,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.green, width: 3)),
                     contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 20)
                   ),
-                  onChanged: (v) => _calculateProfitOnNego(v), // Listener Hitung Profit Saat Nego
+                  onChanged: (v) => _calculateProfitOnNego(v),
                 ),
                 
-                // Indikator Profit
                 if (_profitAlertText.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 8),
@@ -764,7 +749,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     );
   }
 
-  String _formatRp(dynamic number) => NumberFormat.currency(locale: 'id', symbol: '', decimalDigits: 0).format(number);
+  String _formatRp(dynamic number) => NumberFormat.currency(locale: 'id', symbol: 'Rp ', decimalDigits: 0).format(number);
   String _formatRpNoSymbol(dynamic number) => NumberFormat.currency(locale: 'id', symbol: '', decimalDigits: 0).format(number);
 }
 

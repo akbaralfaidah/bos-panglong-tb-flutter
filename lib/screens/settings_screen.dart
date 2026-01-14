@@ -4,8 +4,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:flutter/services.dart'; // Untuk InputFormatter
+import 'package:flutter/services.dart'; 
 import 'package:sqflite/sqflite.dart'; 
+import 'package:permission_handler/permission_handler.dart'; // Wajib untuk izin simpan
 import 'dart:io';
 import 'dart:math'; 
 import '../helpers/database_helper.dart';
@@ -23,7 +24,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final Color _bgEnd = const Color(0xFF4364F7);
   bool _isLoading = false;
 
-  // Controller untuk Identitas Toko
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _addressController = TextEditingController();
   File? _logoFile;
@@ -32,10 +32,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void initState() {
     super.initState();
-    _loadStoreSettings(); // Muat data toko saat dibuka
+    _loadStoreSettings();
   }
 
-  // --- 0. LOAD & SAVE IDENTITAS TOKO ---
   Future<void> _loadStoreSettings() async {
     String? name = await DatabaseHelper.instance.getSetting('store_name');
     String? address = await DatabaseHelper.instance.getSetting('store_address');
@@ -72,7 +71,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Pengaturan Disimpan!")));
   }
 
-  // --- 1. FITUR GANTI PIN PEMILIK (KEAMANAN) ---
   Future<void> _showChangePinDialog() async {
     final TextEditingController oldPinCtrl = TextEditingController();
     final TextEditingController newPinCtrl = TextEditingController();
@@ -114,7 +112,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ElevatedButton(
                   onPressed: () async {
                     String? savedPin = await DatabaseHelper.instance.getSetting('owner_pin');
-                    String currentPin = savedPin ?? "123456"; // Default PIN
+                    String currentPin = savedPin ?? "123456"; 
 
                     if (oldPinCtrl.text != currentPin) {
                       setDialogState(() => errorMsg = "PIN Lama Salah!");
@@ -125,7 +123,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       return;
                     }
 
-                    // Simpan PIN Baru
                     await DatabaseHelper.instance.saveSetting('owner_pin', newPinCtrl.text);
                     
                     if (mounted) {
@@ -143,29 +140,68 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  // --- 2. BACKUP DATABASE ---
+  // --- REVISI: BACKUP KE FOLDER DOWNLOAD ---
   Future<void> _backupDatabase() async {
+    // 1. Minta Izin Penyimpanan (Untuk Android 11+ butuh Manage External Storage agar bisa tulis ke Download)
+    var status = await Permission.manageExternalStorage.status;
+    if (!status.isGranted) {
+      await Permission.manageExternalStorage.request();
+    }
+    
+    // Cek lagi (Fallback untuk Android lama)
+    if (!await Permission.storage.isGranted) {
+      await Permission.storage.request();
+    }
+
     setState(() => _isLoading = true);
     try {
-      final dbFolder = await getApplicationDocumentsDirectory();
       final dbPath = await DatabaseHelper.instance.getDbPath();
       final File dbFile = File(dbPath);
 
-      String dateStr = DateFormat('yyyy-MM-dd_HHmm').format(DateTime.now());
-      String backupFileName = "panglong_backup_$dateStr.db";
+      String dateStr = DateFormat('yyyy-MM-dd_HH-mm').format(DateTime.now());
+      String backupFileName = "Backup_Panglong_$dateStr.db";
       
-      final newPath = "${dbFolder.path}/$backupFileName";
+      // Target Folder: Download di Internal Storage
+      // Path Hardcode agar pasti masuk ke folder Download HP
+      Directory downloadDir = Directory('/storage/emulated/0/Download');
+      
+      if (!await downloadDir.exists()) {
+        // Fallback jika path beda
+        downloadDir = (await getExternalStorageDirectory())!;
+      }
+
+      String newPath = "${downloadDir.path}/$backupFileName";
+      
+      // Copy File
       await dbFile.copy(newPath);
 
-      await Share.shareXFiles([XFile(newPath)], text: 'Backup Database Bos Panglong');
+      if (mounted) {
+        // Tampilkan Sukses + Path
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text("Backup Berhasil!", style: TextStyle(color: Colors.green)),
+            content: Text("File tersimpan di:\n\nFolder Download\nNama: $backupFileName\n\nAnda juga bisa membagikannya ke WA sekarang."),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Tutup")),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  Share.shareXFiles([XFile(newPath)], text: 'Backup Database Bos Panglong $dateStr');
+                }, 
+                child: const Text("Bagikan ke WA")
+              )
+            ],
+          )
+        );
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal Backup: $e")));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal Backup: $e. Pastikan izin penyimpanan aktif.")));
     } finally {
       setState(() => _isLoading = false);
     }
   }
 
-  // --- 3. RESTORE DATABASE ---
   Future<void> _restoreDatabase() async {
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles();
@@ -191,7 +227,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  // --- 4. RESET DATABASE (BAHAYA) ---
   Future<void> _resetDatabase() async {
     bool confirm = await showDialog(
       context: context, 
@@ -215,7 +250,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  // --- 5. GENERATE DUMMY DATA ---
   Future<void> _generateDummyData() async {
     setState(() => _isLoading = true);
     
@@ -348,7 +382,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         padding: const EdgeInsets.all(20),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           
-          // --- IDENTITAS TOKO ---
           const Text("Identitas Toko", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.blue)),
           const SizedBox(height: 15),
           GestureDetector(
@@ -373,7 +406,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           
           const Divider(height: 40, thickness: 2),
 
-          // --- KEAMANAN AKUN (BARU) ---
           const Text("Keamanan Akun", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.blue)),
           const SizedBox(height: 15),
           Card(
@@ -383,16 +415,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
               title: const Text("Ganti PIN Pemilik", style: TextStyle(fontWeight: FontWeight.bold)), 
               subtitle: const Text("Default: 123456"), 
               trailing: const Icon(Icons.arrow_forward_ios, size: 14),
-              onTap: _showChangePinDialog, // Buka Dialog Ganti PIN
+              onTap: _showChangePinDialog, 
             )
           ),
 
           const Divider(height: 40, thickness: 2),
 
-          // --- MANAJEMEN DATA ---
           const Text("Manajemen Database", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.blue)),
           const SizedBox(height: 15),
-          Card(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)), child: ListTile(leading: const Icon(Icons.download, color: Colors.green), title: const Text("Backup Database", style: TextStyle(fontWeight: FontWeight.bold)), subtitle: const Text("Simpan/Share data ke WA/Drive"), onTap: _backupDatabase)),
+          // REVISI ICON DISINI UNTUK BACKUP (Save)
+          Card(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)), child: ListTile(leading: const Icon(Icons.save, color: Colors.green), title: const Text("Backup ke Download", style: TextStyle(fontWeight: FontWeight.bold)), subtitle: const Text("Simpan data ke folder Download"), onTap: _backupDatabase)),
           const SizedBox(height: 10),
           Card(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)), child: ListTile(leading: const Icon(Icons.upload, color: Colors.orange), title: const Text("Restore Database", style: TextStyle(fontWeight: FontWeight.bold)), subtitle: const Text("Kembalikan data lama"), onTap: _restoreDatabase)),
           const SizedBox(height: 30), 
@@ -400,7 +432,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const Text("Testing & Reset", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)), 
           const SizedBox(height: 10),
           
-          // TOMBOL DATA TESTING
           Card(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)), 
             child: ListTile(
