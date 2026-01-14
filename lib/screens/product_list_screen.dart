@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/product.dart';
 import '../helpers/database_helper.dart';
+import '../helpers/session_manager.dart'; // REVISI: Import SessionManager
 import 'product_form_screen.dart'; 
-// REVISI: Import file baru
 import 'stock_in_bulk_screen.dart'; 
 
 class ProductListScreen extends StatefulWidget {
@@ -25,6 +25,9 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
   List<Product> _bangunanList = [];
   String _searchQuery = "";
   bool _isSearching = false;
+
+  // Helper Cek Role
+  bool get _isOwner => SessionManager().isOwner;
 
   @override
   void initState() {
@@ -83,8 +86,8 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
           foregroundColor: Colors.white,
           elevation: 0,
           actions: [
-            // REVISI: Tombol Navigasi ke Tambah Stok Banyak (Bulk)
-            if (!_isSearching)
+            // REVISI: Sembunyikan Tombol Stok Bulk jika bukan Pemilik
+            if (!_isSearching && _isOwner)
               IconButton(
                 tooltip: "Tambah Stok Banyak",
                 icon: const Icon(Icons.library_add_check),
@@ -93,7 +96,7 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
                     context, 
                     MaterialPageRoute(builder: (_) => const StockInBulkScreen())
                   );
-                  _loadProducts(); // Refresh data saat kembali
+                  _loadProducts(); 
                 },
               ),
             IconButton(
@@ -128,7 +131,9 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
           controller: _tabController,
           children: [_buildList(_kayuList), _buildList(_bangunanList)],
         ),
-        floatingActionButton: FloatingActionButton.extended(
+        
+        // REVISI: Sembunyikan FAB "Produk Baru" jika bukan Pemilik
+        floatingActionButton: _isOwner ? FloatingActionButton.extended(
           backgroundColor: Colors.white,
           onPressed: () async {
             final res = await Navigator.push(context, MaterialPageRoute(builder: (_) => const ProductFormScreen()));
@@ -136,7 +141,7 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
           },
           icon: Icon(Icons.add, color: _bgStart),
           label: Text("PRODUK BARU", style: TextStyle(color: _bgStart, fontWeight: FontWeight.bold)),
-        ),
+        ) : null,
       ),
     );
   }
@@ -193,6 +198,7 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Column(
                   children: [
+                    // INFO HARGA JUAL (Tampil untuk Semua)
                     Row(
                       children: [
                         _priceInfo("Jual Satuan", _formatRp(p.sellPriceUnit), Colors.blue),
@@ -204,28 +210,34 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
                       ],
                     ),
                     const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        _priceInfo("Modal Satuan", _formatRp(p.buyPriceUnit), Colors.red),
-                        const SizedBox(width: 8),
-                        if (!isBulat)
-                          _priceInfo(labelModalGrosir, _formatRp(p.buyPriceCubic), Colors.red)
-                        else 
-                          const Expanded(child: SizedBox()), 
-                      ],
-                    ),
-                    const Divider(),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        _actionButton(Icons.add_circle, "Tambah Stok", Colors.green, () => _showQuickAddStock(p)),
-                        _actionButton(Icons.edit, "Edit", Colors.orange, () async {
-                          final res = await Navigator.push(context, MaterialPageRoute(builder: (_) => ProductFormScreen(product: p)));
-                          if (res == true) _loadProducts();
-                        }),
-                        _actionButton(Icons.delete, "Hapus", Colors.red, () => _confirmDelete(p)),
-                      ],
-                    ),
+                    
+                    // INFO HARGA MODAL (HANYA PEMILIK)
+                    if (_isOwner) ...[
+                      Row(
+                        children: [
+                          _priceInfo("Modal Satuan", _formatRp(p.buyPriceUnit), Colors.red),
+                          const SizedBox(width: 8),
+                          if (!isBulat)
+                            _priceInfo(labelModalGrosir, _formatRp(p.buyPriceCubic), Colors.red)
+                          else 
+                            const Expanded(child: SizedBox()), 
+                        ],
+                      ),
+                      const Divider(),
+                    
+                      // TOMBOL AKSI (HANYA PEMILIK)
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          _actionButton(Icons.add_circle, "Tambah Stok", Colors.green, () => _showQuickAddStock(p)),
+                          _actionButton(Icons.edit, "Edit", Colors.orange, () async {
+                            final res = await Navigator.push(context, MaterialPageRoute(builder: (_) => ProductFormScreen(product: p)));
+                            if (res == true) _loadProducts();
+                          }),
+                          _actionButton(Icons.delete, "Hapus", Colors.red, () => _confirmDelete(p)),
+                        ],
+                      ),
+                    ],
                     const SizedBox(height: 10),
                   ],
                 ),

@@ -4,8 +4,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:permission_handler/permission_handler.dart'; 
-import 'package:sqflite/sqflite.dart'; // <--- INI YANG KURANG TADI
+import 'package:flutter/services.dart'; // Untuk InputFormatter
+import 'package:sqflite/sqflite.dart'; 
 import 'dart:io';
 import 'dart:math'; 
 import '../helpers/database_helper.dart';
@@ -72,7 +72,78 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Pengaturan Disimpan!")));
   }
 
-  // --- 1. BACKUP DATABASE ---
+  // --- 1. FITUR GANTI PIN PEMILIK (KEAMANAN) ---
+  Future<void> _showChangePinDialog() async {
+    final TextEditingController oldPinCtrl = TextEditingController();
+    final TextEditingController newPinCtrl = TextEditingController();
+    String errorMsg = "";
+
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text("Ganti PIN Pemilik"),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: oldPinCtrl,
+                    keyboardType: TextInputType.number,
+                    maxLength: 6,
+                    obscureText: true,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    decoration: const InputDecoration(labelText: "PIN Lama", counterText: "", border: OutlineInputBorder()),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: newPinCtrl,
+                    keyboardType: TextInputType.number,
+                    maxLength: 6,
+                    obscureText: true,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    decoration: const InputDecoration(labelText: "PIN Baru (6 Angka)", counterText: "", border: OutlineInputBorder()),
+                  ),
+                  if (errorMsg.isNotEmpty) 
+                    Padding(padding: const EdgeInsets.only(top: 8), child: Text(errorMsg, style: const TextStyle(color: Colors.red, fontSize: 12))),
+                ],
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(context), child: const Text("Batal")),
+                ElevatedButton(
+                  onPressed: () async {
+                    String? savedPin = await DatabaseHelper.instance.getSetting('owner_pin');
+                    String currentPin = savedPin ?? "123456"; // Default PIN
+
+                    if (oldPinCtrl.text != currentPin) {
+                      setDialogState(() => errorMsg = "PIN Lama Salah!");
+                      return;
+                    }
+                    if (newPinCtrl.text.length != 6) {
+                      setDialogState(() => errorMsg = "PIN Baru harus 6 angka!");
+                      return;
+                    }
+
+                    // Simpan PIN Baru
+                    await DatabaseHelper.instance.saveSetting('owner_pin', newPinCtrl.text);
+                    
+                    if (mounted) {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("PIN Berhasil Diganti!"), backgroundColor: Colors.green));
+                    }
+                  },
+                  child: const Text("SIMPAN"),
+                )
+              ],
+            );
+          }
+        );
+      }
+    );
+  }
+
+  // --- 2. BACKUP DATABASE ---
   Future<void> _backupDatabase() async {
     setState(() => _isLoading = true);
     try {
@@ -83,11 +154,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       String dateStr = DateFormat('yyyy-MM-dd_HHmm').format(DateTime.now());
       String backupFileName = "panglong_backup_$dateStr.db";
       
-      // Copy ke folder dokumen dulu
       final newPath = "${dbFolder.path}/$backupFileName";
       await dbFile.copy(newPath);
 
-      // Share file tersebut
       await Share.shareXFiles([XFile(newPath)], text: 'Backup Database Bos Panglong');
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal Backup: $e")));
@@ -96,7 +165,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  // --- 2. RESTORE DATABASE ---
+  // --- 3. RESTORE DATABASE ---
   Future<void> _restoreDatabase() async {
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles();
@@ -104,17 +173,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
         setState(() => _isLoading = true);
         File sourceFile = File(result.files.single.path!);
         
-        // Validasi sederhana (cek ekstensi)
         if (!sourceFile.path.endsWith('.db')) {
           throw Exception("File bukan database (.db)");
         }
 
         final dbPath = await DatabaseHelper.instance.getDbPath();
-        await DatabaseHelper.instance.close(); // Tutup koneksi lama
+        await DatabaseHelper.instance.close(); 
         
-        await sourceFile.copy(dbPath); // Timpa file lama
+        await sourceFile.copy(dbPath); 
         
-        // Reload UI (Restart App Logic simple)
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Restore Berhasil! Silakan restart aplikasi.")));
       }
     } catch (e) {
@@ -124,7 +191,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  // --- 3. RESET DATABASE (BAHAYA) ---
+  // --- 4. RESET DATABASE (BAHAYA) ---
   Future<void> _resetDatabase() async {
     bool confirm = await showDialog(
       context: context, 
@@ -142,41 +209,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
       setState(() => _isLoading = true);
       final dbPath = await DatabaseHelper.instance.getDbPath();
       await DatabaseHelper.instance.close();
-      await deleteDatabase(dbPath); // Skrg sudah bisa karena ada import sqflite
+      await deleteDatabase(dbPath);
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Database Terhapus. Restart aplikasi.")));
       setState(() => _isLoading = false);
     }
   }
 
-  // --- 4. GENERATE DUMMY DATA (TESTING FITUR BARU) ---
+  // --- 5. GENERATE DUMMY DATA ---
   Future<void> _generateDummyData() async {
     setState(() => _isLoading = true);
     
     final db = await DatabaseHelper.instance.database;
     final random = Random();
 
-    // A. BUAT 50 PRODUK (25 KAYU, 25 BANGUNAN)
     List<int> productIds = [];
     
-    // 25 Produk Kayu
     List<String> kayuTypes = ['Meranti', 'Kamper', 'Jati', 'Sengon', 'Mahoni'];
     List<String> dimensions = ['2x3', '3x4', '4x6', '5x10', 'Papan 2x20'];
     
     for (int i = 0; i < 25; i++) {
       String type = kayuTypes[random.nextInt(kayuTypes.length)];
       String dim = dimensions[random.nextInt(dimensions.length)];
-      int basePrice = (random.nextInt(50) + 10) * 1000; // 10rb - 60rb
+      int basePrice = (random.nextInt(50) + 10) * 1000; 
       
       Product p = Product(
         name: "Kayu $type $dim",
         type: 'KAYU',
         dimensions: dim,
-        woodClass: 'Kelas ${random.nextInt(2)+1}', // Kelas 1 atau 2
-        // STOK AWAL DIBUAT 1 JUTA AGAR TIDAK MINUS SAAT DIHANTAM 5000 TRANSAKSI
+        woodClass: 'Kelas ${random.nextInt(2)+1}', 
         stock: 1000000, 
         buyPriceUnit: basePrice,
-        sellPriceUnit: basePrice + (basePrice * 0.2).toInt(), // Margin 20%
-        buyPriceCubic: basePrice * 100, // Asumsi
+        sellPriceUnit: basePrice + (basePrice * 0.2).toInt(), 
+        buyPriceCubic: basePrice * 100, 
         sellPriceCubic: (basePrice * 100) + ((basePrice*100) * 0.15).toInt(),
         packContent: 0
       );
@@ -184,17 +248,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
       productIds.add(id);
     }
 
-    // 25 Produk Bangunan
     List<String> matNames = ['Semen Tiga Roda', 'Semen Padang', 'Cat Dulux Putih', 'Cat Avian Kayu', 'Paku 5cm', 'Paku 7cm', 'Pipa PVC 3"', 'Besi 8mm', 'Besi 10mm', 'Pasir Karung'];
     
     for (int i = 0; i < 25; i++) {
       String name = matNames[random.nextInt(matNames.length)] + " - V${i+1}";
-      int basePrice = (random.nextInt(100) + 5) * 1000; // 5rb - 105rb
+      int basePrice = (random.nextInt(100) + 5) * 1000; 
       
       Product p = Product(
         name: name,
         type: 'BANGUNAN',
-        // STOK AWAL DIBUAT 1 JUTA
         stock: 1000000,
         buyPriceUnit: basePrice,
         sellPriceUnit: basePrice + (basePrice * 0.15).toInt(),
@@ -204,28 +266,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
       productIds.add(id);
     }
 
-    // B. BUAT 5.000+ TRANSAKSI DARI TAHUN 2010
     List<String> customers = ["Budi", "Siti", "Agus", "Wawan", "Lestari", "CV. Maju Jaya", "Pak RT", "Bu Ningsih", "Proyek Sekolah", "Bengkel Las"];
     
     DateTime startDate = DateTime(2010, 1, 1);
-    DateTime endDate = DateTime.now(); // 14 Jan 2026
+    DateTime endDate = DateTime.now(); 
     int totalDays = endDate.difference(startDate).inDays;
     
-    int targetTransactions = 5050; // Sedikit di atas 5000
+    int targetTransactions = 5050; 
     
     for (int i = 0; i < targetTransactions; i++) {
-      // Random Tanggal
       int randomDays = random.nextInt(totalDays);
       DateTime transDate = startDate.add(Duration(days: randomDays));
-      // Random Jam (08:00 - 17:00)
       transDate = transDate.add(Duration(hours: 8 + random.nextInt(9), minutes: random.nextInt(60)));
-      
       String dateStr = DateFormat('yyyy-MM-dd HH:mm:ss').format(transDate);
-      
-      // Random Customer
       String cust = customers[random.nextInt(customers.length)];
       
-      // Random Items (1-5 jenis barang)
       int itemCount = random.nextInt(5) + 1;
       List<CartItemModel> items = [];
       int totalSellPrice = 0;
@@ -233,12 +288,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       for (int j = 0; j < itemCount; j++) {
         int prodId = productIds[random.nextInt(productIds.length)];
         
-        // Ambil data produk manual biar cepat (Query DB dalam loop berat, tapi aman untuk dummy)
         List<Map<String, dynamic>> res = await db.query('products', where: 'id = ?', whereArgs: [prodId]);
         if (res.isNotEmpty) {
           Product p = Product.fromMap(res.first);
           int qty = random.nextInt(10) + 1;
-          
           items.add(CartItemModel(
             productId: p.id!,
             productName: p.name,
@@ -252,19 +305,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
         }
       }
       
-      // Random Bensin & Diskon
-      int bensin = random.nextBool() ? (random.nextInt(5) + 1) * 10000 : 0; // 0 atau 10rb-50rb
+      int bensin = random.nextBool() ? (random.nextInt(5) + 1) * 10000 : 0; 
       int discount = 0;
-      
-      // 20% Transaksi ada Nego (Diskon)
       if (random.nextDouble() < 0.2) {
-        discount = (totalSellPrice * (random.nextInt(10) + 1) / 100).toInt(); // Diskon 1-10%
+        discount = (totalSellPrice * (random.nextInt(10) + 1) / 100).toInt(); 
       }
 
       int finalTotal = totalSellPrice + bensin - discount;
       if (finalTotal < 0) finalTotal = 0;
 
-      // Status Lunas/Hutang
       String method = random.nextBool() ? "TUNAI" : "HUTANG";
       String status = method == "HUTANG" ? "Belum Lunas" : "Lunas";
       
@@ -298,7 +347,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         : SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          // IDENTITAS TOKO
+          
+          // --- IDENTITAS TOKO ---
           const Text("Identitas Toko", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.blue)),
           const SizedBox(height: 15),
           GestureDetector(
@@ -323,7 +373,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
           
           const Divider(height: 40, thickness: 2),
 
-          // MANAJEMEN DATA
+          // --- KEAMANAN AKUN (BARU) ---
+          const Text("Keamanan Akun", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.blue)),
+          const SizedBox(height: 15),
+          Card(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)), 
+            child: ListTile(
+              leading: const Icon(Icons.lock, color: Colors.red), 
+              title: const Text("Ganti PIN Pemilik", style: TextStyle(fontWeight: FontWeight.bold)), 
+              subtitle: const Text("Default: 123456"), 
+              trailing: const Icon(Icons.arrow_forward_ios, size: 14),
+              onTap: _showChangePinDialog, // Buka Dialog Ganti PIN
+            )
+          ),
+
+          const Divider(height: 40, thickness: 2),
+
+          // --- MANAJEMEN DATA ---
           const Text("Manajemen Database", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.blue)),
           const SizedBox(height: 15),
           Card(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)), child: ListTile(leading: const Icon(Icons.download, color: Colors.green), title: const Text("Backup Database", style: TextStyle(fontWeight: FontWeight.bold)), subtitle: const Text("Simpan/Share data ke WA/Drive"), onTap: _backupDatabase)),
@@ -334,7 +400,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const Text("Testing & Reset", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)), 
           const SizedBox(height: 10),
           
-          // TOMBOL DATA TESTING (UPDATED)
+          // TOMBOL DATA TESTING
           Card(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)), 
             child: ListTile(

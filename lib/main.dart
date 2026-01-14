@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'screens/dashboard_screen.dart';
+import 'screens/login_screen.dart'; // REVISI: Arahkan import ke Login Screen
 
 void main() async {
   // 1. Pastikan binding flutter terinisialisasi
@@ -56,7 +56,8 @@ class BosPanglongApp extends StatelessWidget {
           scaffoldBackgroundColor: const Color(0xFFF5F5F5), 
         ),
         
-        home: const DashboardScreen(),
+        // REVISI: Home sekarang adalah LoginScreen, bukan DashboardScreen
+        home: const LoginScreen(),
       ),
     );
   }

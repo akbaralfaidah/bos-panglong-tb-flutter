@@ -3,12 +3,14 @@ import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart'; 
 import 'dart:io'; 
 import '../helpers/database_helper.dart';
+import '../helpers/session_manager.dart'; // Import Session Manager
 import 'product_list_screen.dart';
 import 'cashier_screen.dart';
 import 'settings_screen.dart';
 import 'history_screen.dart';
 import 'report_screen.dart'; 
-import 'customer_list_screen.dart'; 
+import 'customer_list_screen.dart';
+import 'login_screen.dart'; // Import Login Screen untuk Logout
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -33,6 +35,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String _storeName = "Bos Panglong & TB"; 
   String? _logoPath;
 
+  // Cek Status User
+  bool get _isOwner => SessionManager().isOwner;
+
   @override
   void initState() { 
     super.initState(); 
@@ -40,6 +45,32 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _refreshStats(); 
       _loadStoreIdentity(); 
     }); 
+  }
+
+  // LOGIKA LOGOUT
+  void _logout() {
+    showDialog(
+      context: context, 
+      builder: (ctx) => AlertDialog(
+        title: const Text("Keluar Aplikasi?"),
+        content: const Text("Anda akan kembali ke halaman login."),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Batal")),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () {
+              SessionManager().logout(); // Hapus Sesi
+              Navigator.pop(ctx);
+              Navigator.pushReplacement(
+                context, 
+                MaterialPageRoute(builder: (context) => const LoginScreen())
+              );
+            }, 
+            child: const Text("KELUAR", style: TextStyle(color: Colors.white))
+          )
+        ],
+      )
+    );
   }
 
   void _nav(Widget page) async { 
@@ -71,6 +102,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _refreshStats() async {
+    // Jika Karyawan, tidak perlu hitung statistik berat (Hemat Resource)
+    if (!_isOwner) return;
+
     final db = DatabaseHelper.instance;
     final dbInstance = await db.database;
     
@@ -179,7 +213,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start, 
                   children: [
                     Text(_storeName.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white), overflow: TextOverflow.ellipsis),
-                    Text(DateFormat('EEEE, d MMMM yyyy', 'id_ID').format(DateTime.now()), style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.8))),
+                    Text(
+                      _isOwner ? "Mode Pemilik (Full Access)" : "Mode Karyawan (Kasir)", 
+                      style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.8))
+                    ),
                   ]
                 ),
               ),
@@ -188,7 +225,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
           backgroundColor: Colors.transparent, foregroundColor: Colors.white, elevation: 0,
           actions: [
             IconButton(icon: const Icon(Icons.refresh), onPressed: _refreshStats), 
-            IconButton(icon: const Icon(Icons.settings), onPressed: () => _nav(const SettingsScreen()))
+            
+            // HANYA PEMILIK YANG BISA AKSES SETTINGS
+            if (_isOwner)
+              IconButton(icon: const Icon(Icons.settings), onPressed: () => _nav(const SettingsScreen())),
+            
+            // TOMBOL LOGOUT UNTUK SEMUA
+            IconButton(icon: const Icon(Icons.logout), onPressed: _logout),
           ],
         ),
         body: SingleChildScrollView(
@@ -199,90 +242,91 @@ class _DashboardScreenState extends State<DashboardScreen> {
             children: [
               const SizedBox(height: 20),
               
-              // KARTU PROFIT BESAR
-              InkWell(
-                onTap: () => _openHistory(HistoryType.transactions, "Detail Profit & Transaksi"),
-                borderRadius: BorderRadius.circular(25),
-                child: Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(25), boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: const Offset(0, 5))]),
-                  child: Column(children: [
-                    Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.monetization_on, color: Colors.amber[700]), const SizedBox(width: 8), Text("PROFIT BERSIH (HARI INI)", style: TextStyle(color: Colors.grey[600], fontWeight: FontWeight.bold))]),
-                    const Divider(indent: 40, endIndent: 40),
-                    FittedBox(child: Text(_formatRp(_profitBersih), style: TextStyle(fontSize: 48, fontWeight: FontWeight.w900, color: _profitBersih >= 0 ? const Color(0xFF007A33) : Colors.red[800]))),
-                    const Text("(Klik untuk detail lengkap)", style: TextStyle(fontSize: 10, color: Colors.grey))
-                  ]),
+              // --- FITUR KHUSUS PEMILIK (STATISTIK LENGKAP) ---
+              if (_isOwner) ...[
+                // KARTU PROFIT BESAR
+                InkWell(
+                  onTap: () => _openHistory(HistoryType.transactions, "Detail Profit & Transaksi"),
+                  borderRadius: BorderRadius.circular(25),
+                  child: Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(25), boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: const Offset(0, 5))]),
+                    child: Column(children: [
+                      Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.monetization_on, color: Colors.amber[700]), const SizedBox(width: 8), Text("PROFIT BERSIH (HARI INI)", style: TextStyle(color: Colors.grey[600], fontWeight: FontWeight.bold))]),
+                      const Divider(indent: 40, endIndent: 40),
+                      FittedBox(child: Text(_formatRp(_profitBersih), style: TextStyle(fontSize: 48, fontWeight: FontWeight.w900, color: _profitBersih >= 0 ? const Color(0xFF007A33) : Colors.red[800]))),
+                      const Text("(Klik untuk detail lengkap)", style: TextStyle(fontSize: 10, color: Colors.grey))
+                    ]),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 20),
-              
-              // --- BARIS 1 KEUANGAN (PIUTANG & OMSET) ---
-              Row(
-                children: [
-                  Expanded(
-                    child: _statCard(
-                      "Piutang (Total)", 
-                      _totalPiutang, 
-                      Icons.book, 
-                      Colors.red[700]!, 
-                      () => _nav(const ReportScreen(initialIndex: 1))
+                const SizedBox(height: 20),
+                
+                // BARIS 1 KEUANGAN (PIUTANG & OMSET)
+                Row(
+                  children: [
+                    Expanded(
+                      child: _statCard(
+                        "Piutang (Total)", 
+                        _totalPiutang, 
+                        Icons.book, 
+                        Colors.red[700]!, 
+                        () => _nav(const ReportScreen(initialIndex: 1))
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 12), // Jarak Horizontal antar kartu
-                  Expanded(
-                    child: _statCard(
-                      "Omset (Hari Ini)", 
-                      _omsetKotor, 
-                      Icons.storefront, 
-                      Colors.blue[800]!, 
-                      () => _openHistory(HistoryType.transactions, "Riwayat Transaksi")
+                    const SizedBox(width: 12), 
+                    Expanded(
+                      child: _statCard(
+                        "Omset (Hari Ini)", 
+                        _omsetKotor, 
+                        Icons.storefront, 
+                        Colors.blue[800]!, 
+                        () => _openHistory(HistoryType.transactions, "Riwayat Transaksi")
+                      ),
                     ),
-                  ),
-                ],
-              ),
-              
-              const SizedBox(height: 12), // Jarak Vertikal Baris 1 ke Baris 2
+                  ],
+                ),
+                
+                const SizedBox(height: 12), 
 
-              // --- BARIS 2 KEUANGAN (BENSIN & STOK) ---
-              Row(
-                children: [
-                  Expanded(
-                    child: _statCard(
-                      "Bensin (Hari Ini)", 
-                      _uangBensin, 
-                      Icons.local_gas_station, 
-                      Colors.orange[800]!, 
-                      () => _openHistory(HistoryType.bensin, "Pengeluaran Bensin")
+                // BARIS 2 KEUANGAN (BENSIN & STOK)
+                Row(
+                  children: [
+                    Expanded(
+                      child: _statCard(
+                        "Bensin (Hari Ini)", 
+                        _uangBensin, 
+                        Icons.local_gas_station, 
+                        Colors.orange[800]!, 
+                        () => _openHistory(HistoryType.bensin, "Pengeluaran Bensin")
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 12), // Jarak Horizontal antar kartu
-                  Expanded(
-                    child: _statCard(
-                      "Stok Masuk (Hari Ini)", 
-                      _totalBeliStok, 
-                      Icons.shopping_cart, 
-                      Colors.purple[800]!, 
-                      () => _openHistory(HistoryType.stock, "Riwayat Stok Masuk")
+                    const SizedBox(width: 12), 
+                    Expanded(
+                      child: _statCard(
+                        "Stok Masuk (Hari Ini)", 
+                        _totalBeliStok, 
+                        Icons.shopping_cart, 
+                        Colors.purple[800]!, 
+                        () => _openHistory(HistoryType.stock, "Riwayat Stok Masuk")
+                      ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
 
-              // --- JARAK NOL (0) ANTARA KEUANGAN DAN BARANG ---
-              // Sengaja tidak ada SizedBox disini agar nempel.
-              // Kalau mau ada celah dikit biar ga dempet banget, ubah height jadi 4 atau 8.
-              const SizedBox(height: 8), 
-              
-              // --- BARIS 3: INFO BARANG TERJUAL ---
-              Row(children: [
-                Expanded(child: _itemCard("Kayu Hari Ini", "$_kayuTerjual Btg", Icons.forest, const Color(0xFF795548), () => _openHistory(HistoryType.soldItems, "Rincian Barang Keluar"))),
-                const SizedBox(width: 12),
-                Expanded(child: _itemCard("Bangunan Hari Ini", "$_bangunanTerjual Pcs", Icons.home_work, const Color(0xFF546E7A), () => _openHistory(HistoryType.soldItems, "Rincian Barang Keluar"))),
-              ]),
-              
-              const SizedBox(height: 30),
-              
-              // MENU UTAMA (GUDANG & KASIR)
+                const SizedBox(height: 8), 
+                
+                // BARIS 3: INFO BARANG TERJUAL
+                Row(children: [
+                  Expanded(child: _itemCard("Kayu Hari Ini", "$_kayuTerjual Btg", Icons.forest, const Color(0xFF795548), () => _openHistory(HistoryType.soldItems, "Rincian Barang Keluar"))),
+                  const SizedBox(width: 12),
+                  Expanded(child: _itemCard("Bangunan Hari Ini", "$_bangunanTerjual Pcs", Icons.home_work, const Color(0xFF546E7A), () => _openHistory(HistoryType.soldItems, "Rincian Barang Keluar"))),
+                ]),
+                
+                const SizedBox(height: 30),
+              ], // END IF OWNER
+
+              // --- MENU UTAMA (UNTUK PEMILIK & KARYAWAN) ---
+              // Karyawan tetap butuh akses Gudang untuk cek stok (tapi nanti dibatasi akses editnya)
               Row(children: [
                 Expanded(child: _menuBtn("GUDANG", Icons.inventory_2, [Colors.orange[400]!, Colors.orange[700]!], () => _nav(const ProductListScreen()))),
                 const SizedBox(width: 12),
@@ -291,9 +335,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
               
               const SizedBox(height: 12),
 
-              // MENU LAPORAN & DATA PELANGGAN
               Row(children: [
-                Expanded(child: _menuBtn("LAPORAN", Icons.analytics, [const Color.fromARGB(255, 71, 208, 7), const Color.fromARGB(255, 71, 143, 3)], () => _nav(const ReportScreen()))),
+                // Jika Karyawan: Ganti Tombol "Laporan" dengan "Riwayat" sederhana
+                if (_isOwner)
+                  Expanded(child: _menuBtn("LAPORAN", Icons.analytics, [const Color.fromARGB(255, 71, 208, 7), const Color.fromARGB(255, 71, 143, 3)], () => _nav(const ReportScreen())))
+                else
+                  Expanded(child: _menuBtn("RIWAYAT", Icons.history, [Colors.blueGrey, Colors.blueGrey.shade700], () => _openHistory(HistoryType.transactions, "Riwayat Transaksi"))),
+
                 const SizedBox(width: 12),
                 Expanded(child: _menuBtn("DATA PELANGGAN", Icons.people_alt, [Colors.purple[400]!, Colors.purple[700]!], () => _nav(const CustomerListScreen()))),
               ]),

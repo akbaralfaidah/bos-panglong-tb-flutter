@@ -10,7 +10,8 @@ import 'package:share_plus/share_plus.dart';
 import '../models/product.dart';
 import '../helpers/database_helper.dart';
 import '../helpers/printer_helper.dart';
-import 'cashier_screen.dart'; // Import untuk akses class CartItem
+import '../helpers/session_manager.dart'; // REVISI: Import SessionManager
+import 'cashier_screen.dart'; 
 
 class CheckoutScreen extends StatefulWidget {
   final List<CartItem> cartItems;
@@ -49,6 +50,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   final GlobalKey _printKey = GlobalKey();
   final PrinterHelper _printerHelper = PrinterHelper(); 
 
+  // Helper Cek Role
+  bool get _isOwner => SessionManager().isOwner;
+
   @override
   void initState() {
     super.initState();
@@ -71,6 +75,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     _calculateProfitOnNego(_totalFinalController.text);
   }
 
+  // REVISI: Logika Sembunyikan Profit untuk Karyawan
   void _calculateProfitOnNego(String negoTotalStr) {
     int negoTotal = int.tryParse(negoTotalStr.replaceAll('.', '')) ?? 0;
     int bensin = int.tryParse(_bensinController.text.replaceAll('.', '')) ?? 0;
@@ -80,11 +85,18 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
     setState(() {
       if (margin < 0) {
+        // SAFETY NET: Rugi selalu muncul untuk siapapun
         _profitAlertText = "⚠️ AWAS RUGI: ${_formatRp(margin)} (Di bawah modal)";
         _profitAlertColor = Colors.red;
       } else {
-        _profitAlertText = "✅ Aman! Estimasi Untung: ${_formatRp(margin)}";
-        _profitAlertColor = Colors.green[700]!;
+        // Jika Untung, Cek Role dulu
+        if (_isOwner) {
+          _profitAlertText = "✅ Aman! Estimasi Untung: ${_formatRp(margin)}";
+          _profitAlertColor = Colors.green[700]!;
+        } else {
+          // Karyawan tidak boleh lihat modal/untung
+          _profitAlertText = ""; 
+        }
       }
     });
   }
@@ -165,12 +177,17 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             int totalModal = (q * modalPerUnit).round();
             int margin = inputTotal - totalModal;
 
+            // REVISI: Logika Hide Profit di Dialog
             if (margin < 0) {
               profitInfo = "AWAS RUGI: ${_formatRp(margin)}";
               profitColor = Colors.red;
             } else {
-              profitInfo = "Estimasi Untung: ${_formatRp(margin)}";
-              profitColor = Colors.green[700]!;
+              if (SessionManager().isOwner) {
+                profitInfo = "Estimasi Untung: ${_formatRp(margin)}";
+                profitColor = Colors.green[700]!;
+              } else {
+                profitInfo = ""; // Hide untuk Karyawan
+              }
             }
 
             if (isGrosirMode) {
@@ -182,7 +199,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             }
           }
 
-          if(profitInfo.isEmpty) updateCalculations();
+          if(profitInfo.isEmpty && SessionManager().isOwner) updateCalculations();
 
           return Dialog(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
@@ -270,12 +287,18 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                          }
                          int totalModal = (q * modalPerUnit).round();
                          int margin = inputTotal - totalModal;
+                         
+                         // Logic hide profit di dialog edit
                          if (margin < 0) {
                            profitInfo = "AWAS RUGI: ${_formatRp(margin)}";
                            profitColor = Colors.red;
                          } else {
-                           profitInfo = "Estimasi Untung: ${_formatRp(margin)}";
-                           profitColor = Colors.green[700]!;
+                           if (SessionManager().isOwner) {
+                             profitInfo = "Estimasi Untung: ${_formatRp(margin)}";
+                             profitColor = Colors.green[700]!;
+                           } else {
+                             profitInfo = "";
+                           }
                          }
                       }),
                     ),
@@ -341,8 +364,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Nama Pelanggan wajib diisi!")));
       return;
     }
-    // VALIDASI DIPERBOLEHKAN KOSONG, TAPI DISARANKAN DIISI UNTUK NOTA YANG BAGUS
-    // if (_addressController.text.isEmpty) ... (Dihapus agar fleksibel, tapi data akan kosong di struk)
 
     setState(() => _isLoading = true);
     
@@ -385,9 +406,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
     int queueNo = await DatabaseHelper.instance.getNextQueueNumber();
     String finalStatus = _selectedPaymentMethod == "HUTANG" ? "Belum Lunas" : "Lunas";
-    
-    // FORMAT PENYIMPANAN NAMA DI DATABASE TETAP DIGABUNG AGAR KOMPATIBEL
-    // Format: "Nama (NoHP) \n Alamat"
     String finalCustomerName = "${_customerController.text} (${_phoneController.text})\n${_addressController.text}";
 
     int tId = await DatabaseHelper.instance.createTransaction(
@@ -449,7 +467,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text("INV-#$tId (Antrian: $q)", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)), Text(DateFormat('dd/MM HH:mm').format(DateTime.now()), style: const TextStyle(fontSize: 16))]),
                         const SizedBox(height: 10),
 
-                        // --- REVISI TAMPILAN PELANGGAN DI STRUK ---
                         Table(
                           columnWidths: const {0: FixedColumnWidth(90), 1: FixedColumnWidth(10), 2: FlexColumnWidth()},
                           children: [
@@ -472,7 +489,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                             ]),
                           ],
                         ),
-                        // ------------------------------------------
                         
                         const SizedBox(height: 15),
                         const Divider(color: Colors.black, thickness: 1.5),
