@@ -197,7 +197,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   const Text(
-                    "Sistem Kasir Terintegrasi",
+                    "Manajemen Panglong & Toko Bangunan",
                     style: TextStyle(color: Colors.white70, fontSize: 14),
                   ),
                   
@@ -254,7 +254,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   
                   const SizedBox(height: 30),
-                  const Text("Versi 5.3 - Role Based Security", style: TextStyle(color: Colors.white54, fontSize: 10))
+                  const Text("Versi 1.0 - Offline App", style: TextStyle(color: Colors.white54, fontSize: 10))
                 ],
               ),
             ),

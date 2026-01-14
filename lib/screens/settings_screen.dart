@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart'; 
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:flutter/services.dart'; 
+import 'package:permission_handler/permission_handler.dart'; 
 import 'package:sqflite/sqflite.dart'; 
-import 'package:permission_handler/permission_handler.dart'; // Wajib untuk izin simpan
 import 'dart:io';
-import 'dart:math'; 
+// import 'dart:math'; // SUDAH DIHAPUS (Tidak butuh random lagi)
 import '../helpers/database_helper.dart';
 import '../models/product.dart';
 
@@ -24,6 +24,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final Color _bgEnd = const Color(0xFF4364F7);
   bool _isLoading = false;
 
+  // Controller untuk Identitas Toko
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _addressController = TextEditingController();
   File? _logoFile;
@@ -32,9 +33,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void initState() {
     super.initState();
-    _loadStoreSettings();
+    _loadStoreSettings(); // Muat data toko saat dibuka
   }
 
+  // --- 0. LOAD & SAVE IDENTITAS TOKO ---
   Future<void> _loadStoreSettings() async {
     String? name = await DatabaseHelper.instance.getSetting('store_name');
     String? address = await DatabaseHelper.instance.getSetting('store_address');
@@ -140,15 +142,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  // --- REVISI: BACKUP KE FOLDER DOWNLOAD ---
+  // --- 1. BACKUP DATABASE ---
   Future<void> _backupDatabase() async {
-    // 1. Minta Izin Penyimpanan (Untuk Android 11+ butuh Manage External Storage agar bisa tulis ke Download)
+    // Izin Penyimpanan
     var status = await Permission.manageExternalStorage.status;
     if (!status.isGranted) {
       await Permission.manageExternalStorage.request();
     }
-    
-    // Cek lagi (Fallback untuk Android lama)
     if (!await Permission.storage.isGranted) {
       await Permission.storage.request();
     }
@@ -161,22 +161,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
       String dateStr = DateFormat('yyyy-MM-dd_HH-mm').format(DateTime.now());
       String backupFileName = "Backup_Panglong_$dateStr.db";
       
-      // Target Folder: Download di Internal Storage
-      // Path Hardcode agar pasti masuk ke folder Download HP
       Directory downloadDir = Directory('/storage/emulated/0/Download');
-      
       if (!await downloadDir.exists()) {
-        // Fallback jika path beda
         downloadDir = (await getExternalStorageDirectory())!;
       }
 
       String newPath = "${downloadDir.path}/$backupFileName";
-      
-      // Copy File
       await dbFile.copy(newPath);
 
       if (mounted) {
-        // Tampilkan Sukses + Path
         showDialog(
           context: context,
           builder: (ctx) => AlertDialog(
@@ -202,6 +195,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  // --- 2. RESTORE DATABASE ---
   Future<void> _restoreDatabase() async {
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles();
@@ -227,6 +221,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  // --- 3. RESET DATABASE (BAHAYA) ---
   Future<void> _resetDatabase() async {
     bool confirm = await showDialog(
       context: context, 
@@ -250,123 +245,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  Future<void> _generateDummyData() async {
-    setState(() => _isLoading = true);
-    
-    final db = await DatabaseHelper.instance.database;
-    final random = Random();
-
-    List<int> productIds = [];
-    
-    List<String> kayuTypes = ['Meranti', 'Kamper', 'Jati', 'Sengon', 'Mahoni'];
-    List<String> dimensions = ['2x3', '3x4', '4x6', '5x10', 'Papan 2x20'];
-    
-    for (int i = 0; i < 25; i++) {
-      String type = kayuTypes[random.nextInt(kayuTypes.length)];
-      String dim = dimensions[random.nextInt(dimensions.length)];
-      int basePrice = (random.nextInt(50) + 10) * 1000; 
-      
-      Product p = Product(
-        name: "Kayu $type $dim",
-        type: 'KAYU',
-        dimensions: dim,
-        woodClass: 'Kelas ${random.nextInt(2)+1}', 
-        stock: 1000000, 
-        buyPriceUnit: basePrice,
-        sellPriceUnit: basePrice + (basePrice * 0.2).toInt(), 
-        buyPriceCubic: basePrice * 100, 
-        sellPriceCubic: (basePrice * 100) + ((basePrice*100) * 0.15).toInt(),
-        packContent: 0
-      );
-      int id = await DatabaseHelper.instance.createProduct(p);
-      productIds.add(id);
-    }
-
-    List<String> matNames = ['Semen Tiga Roda', 'Semen Padang', 'Cat Dulux Putih', 'Cat Avian Kayu', 'Paku 5cm', 'Paku 7cm', 'Pipa PVC 3"', 'Besi 8mm', 'Besi 10mm', 'Pasir Karung'];
-    
-    for (int i = 0; i < 25; i++) {
-      String name = matNames[random.nextInt(matNames.length)] + " - V${i+1}";
-      int basePrice = (random.nextInt(100) + 5) * 1000; 
-      
-      Product p = Product(
-        name: name,
-        type: 'BANGUNAN',
-        stock: 1000000,
-        buyPriceUnit: basePrice,
-        sellPriceUnit: basePrice + (basePrice * 0.15).toInt(),
-        packContent: 1
-      );
-      int id = await DatabaseHelper.instance.createProduct(p);
-      productIds.add(id);
-    }
-
-    List<String> customers = ["Budi", "Siti", "Agus", "Wawan", "Lestari", "CV. Maju Jaya", "Pak RT", "Bu Ningsih", "Proyek Sekolah", "Bengkel Las"];
-    
-    DateTime startDate = DateTime(2010, 1, 1);
-    DateTime endDate = DateTime.now(); 
-    int totalDays = endDate.difference(startDate).inDays;
-    
-    int targetTransactions = 5050; 
-    
-    for (int i = 0; i < targetTransactions; i++) {
-      int randomDays = random.nextInt(totalDays);
-      DateTime transDate = startDate.add(Duration(days: randomDays));
-      transDate = transDate.add(Duration(hours: 8 + random.nextInt(9), minutes: random.nextInt(60)));
-      String dateStr = DateFormat('yyyy-MM-dd HH:mm:ss').format(transDate);
-      String cust = customers[random.nextInt(customers.length)];
-      
-      int itemCount = random.nextInt(5) + 1;
-      List<CartItemModel> items = [];
-      int totalSellPrice = 0;
-      
-      for (int j = 0; j < itemCount; j++) {
-        int prodId = productIds[random.nextInt(productIds.length)];
-        
-        List<Map<String, dynamic>> res = await db.query('products', where: 'id = ?', whereArgs: [prodId]);
-        if (res.isNotEmpty) {
-          Product p = Product.fromMap(res.first);
-          int qty = random.nextInt(10) + 1;
-          items.add(CartItemModel(
-            productId: p.id!,
-            productName: p.name,
-            productType: p.type,
-            quantity: qty,
-            unitType: p.type == 'KAYU' ? 'Btg' : 'Pcs',
-            capitalPrice: p.buyPriceUnit,
-            sellPrice: p.sellPriceUnit
-          ));
-          totalSellPrice += (p.sellPriceUnit * qty);
-        }
-      }
-      
-      int bensin = random.nextBool() ? (random.nextInt(5) + 1) * 10000 : 0; 
-      int discount = 0;
-      if (random.nextDouble() < 0.2) {
-        discount = (totalSellPrice * (random.nextInt(10) + 1) / 100).toInt(); 
-      }
-
-      int finalTotal = totalSellPrice + bensin - discount;
-      if (finalTotal < 0) finalTotal = 0;
-
-      String method = random.nextBool() ? "TUNAI" : "HUTANG";
-      String status = method == "HUTANG" ? "Belum Lunas" : "Lunas";
-      
-      await DatabaseHelper.instance.createTransaction(
-        totalPrice: finalTotal, 
-        operational_cost: bensin, 
-        customerName: cust, 
-        paymentMethod: method, 
-        paymentStatus: status, 
-        queueNumber: i + 1, 
-        items: items,
-        transaction_date: dateStr,
-        discount: discount 
-      );
-    }
-
-    setState(() => _isLoading = false);
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Selesai! 50 Produk (Stok 1jt) & 5.000+ Transaksi dibuat.")));
-  }
+  // --- FITUR GENERATE DUMMY TELAH DIHAPUS UNTUK VERSI RILIS ---
 
   @override
   Widget build(BuildContext context) {
@@ -423,33 +302,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           const Text("Manajemen Database", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.blue)),
           const SizedBox(height: 15),
-          // REVISI ICON DISINI UNTUK BACKUP (Save)
           Card(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)), child: ListTile(leading: const Icon(Icons.save, color: Colors.green), title: const Text("Backup ke Download", style: TextStyle(fontWeight: FontWeight.bold)), subtitle: const Text("Simpan data ke folder Download"), onTap: _backupDatabase)),
           const SizedBox(height: 10),
           Card(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)), child: ListTile(leading: const Icon(Icons.upload, color: Colors.orange), title: const Text("Restore Database", style: TextStyle(fontWeight: FontWeight.bold)), subtitle: const Text("Kembalikan data lama"), onTap: _restoreDatabase)),
           const SizedBox(height: 30), 
           
-          const Text("Testing & Reset", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)), 
+          const Text("Zona Bahaya", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)), 
           const SizedBox(height: 10),
           
-          Card(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)), 
-            child: ListTile(
-              leading: const Icon(Icons.science, color: Colors.purple), 
-              title: const Text("Isi Data Testing (5000+)", style: TextStyle(fontWeight: FontWeight.bold)), 
-              subtitle: const Text("Generate 50 Produk & Transaksi (2010-Kini)"), 
-              onTap: _generateDummyData
-            )
-          ), 
-          
-          const SizedBox(height: 10),
-          Card(color: Colors.red[50], shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)), child: ListTile(leading: const Icon(Icons.delete_forever, color: Colors.red), title: const Text("Reset Database", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red)), subtitle: const Text("Hapus SEMUA data"), onTap: _resetDatabase)),
+          Card(color: Colors.red[50], shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)), child: ListTile(leading: const Icon(Icons.delete_forever, color: Colors.red), title: const Text("Reset Database", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red)), subtitle: const Text("Hapus SEMUA data & Mulai Baru"), onTap: _resetDatabase)),
         ]),
       ),
     );
   }
 }
 
+// Model kelas untuk cart item (tetap dipertahankan untuk kompatibilitas jika ada referensi lokal)
 class CartItemModel {
   final int productId; final String productName; final String productType; final int quantity; final String unitType; final int capitalPrice; final int sellPrice;
   CartItemModel({required this.productId, required this.productName, required this.productType, required this.quantity, required this.unitType, required this.capitalPrice, required this.sellPrice});
