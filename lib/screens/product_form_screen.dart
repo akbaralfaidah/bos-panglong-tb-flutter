@@ -240,6 +240,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
 
     if (_mainTabController.index == 0) { 
       if (_selectedWoodType == 0) {
+        // BALOK/PAPAN
         if (!_isInputKubik) {
           inputVal = int.tryParse(_inputQtyMasukController.text.replaceAll('.', '')) ?? 0;
         } else {
@@ -249,14 +250,25 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
           }
         }
       } else if (_selectedWoodType == 1) {
+        // --- FIX BUG RENG (SATUAN vs GROSIR) ---
         int qty = int.tryParse(_inputQtyMasukController.text.replaceAll('.', '')) ?? 0;
-        int isi = int.tryParse(_inputIsiPerDusController.text.replaceAll('.', '')) ?? 1;
-        inputVal = qty * isi; 
+        
+        // Cek dulu apakah inputnya mode Grosir/Ikat atau Satuan
+        if (_isInputGrosirBangunan) {
+           int isi = int.tryParse(_inputIsiPerDusController.text.replaceAll('.', '')) ?? 1;
+           inputVal = qty * isi; // Jika Ikat, dikalikan isi per ikat
+        } else {
+           inputVal = qty; // Jika Satuan, ambil apa adanya
+        }
+        // ----------------------------------------
+        
       } else {
+        // KAYU BULAT
         inputVal = int.tryParse(_inputQtyMasukController.text.replaceAll('.', '')) ?? 0;
       }
     } 
     else { 
+      // TAB BANGUNAN
       int qty = int.tryParse(_inputQtyMasukController.text.replaceAll('.', '')) ?? 0;
       int isi = int.tryParse(_inputIsiPerDusController.text.replaceAll('.', '')) ?? 1;
       inputVal = _isInputGrosirBangunan ? (qty * isi) : qty;
@@ -271,6 +283,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
 
     if (_mainTabController.index == 0) { 
       if (_selectedWoodType == 0) {
+        // BALOK
         if (!_isInputKubik) {
           int qtyBatang = int.tryParse(_inputQtyMasukController.text.replaceAll('.', '')) ?? 0;
           int modalSatuan = _parseMoney(_modalSatuanController.text);
@@ -281,21 +294,33 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
           totalEstimasi = (qtyKubik * modalKubik).round();
         }
       } else if (_selectedWoodType == 1) {
-        int qtyIkat = int.tryParse(_inputQtyMasukController.text.replaceAll('.', '')) ?? 0;
-        int hargaIkat = _parseMoney(_modalGrosirController.text);
-        if (hargaIkat == 0) {
-           int isi = int.tryParse(_inputIsiPerDusController.text) ?? 1;
-           int hargaEcer = _parseMoney(_modalSatuanController.text);
-           hargaIkat = hargaEcer * isi;
+        // --- FIX BUG RENG JUGA DI SINI (Uang Keluar) ---
+        if (_isInputGrosirBangunan) {
+           // Jika Mode Ikat
+           int qtyIkat = int.tryParse(_inputQtyMasukController.text.replaceAll('.', '')) ?? 0;
+           int hargaIkat = _parseMoney(_modalGrosirController.text);
+           if (hargaIkat == 0) {
+              int isi = int.tryParse(_inputIsiPerDusController.text) ?? 1;
+              int hargaEcer = _parseMoney(_modalSatuanController.text);
+              hargaIkat = hargaEcer * isi;
+           }
+           totalEstimasi = qtyIkat * hargaIkat;
+        } else {
+           // Jika Mode Satuan
+           int qtyBatang = int.tryParse(_inputQtyMasukController.text.replaceAll('.', '')) ?? 0;
+           int modalSatuan = _parseMoney(_modalSatuanController.text);
+           totalEstimasi = qtyBatang * modalSatuan;
         }
-        totalEstimasi = qtyIkat * hargaIkat;
+        // -----------------------------------------------
       } else {
+        // BULAT
         int qtyBatang = int.tryParse(_inputQtyMasukController.text.replaceAll('.', '')) ?? 0;
         int modalSatuan = _parseMoney(_modalSatuanController.text);
         totalEstimasi = qtyBatang * modalSatuan;
       }
     } 
     else { 
+      // BANGUNAN
       int qty = int.tryParse(_inputQtyMasukController.text.replaceAll('.', '')) ?? 0;
       if (_isInputGrosirBangunan) {
         int hargaDus = _parseMoney(_modalGrosirController.text);
