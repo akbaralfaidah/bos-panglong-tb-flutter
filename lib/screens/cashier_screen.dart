@@ -349,24 +349,41 @@ class _CashierScreenState extends State<CashierScreen> {
                     String lblGrosirModal = isKayu ? "Modal Kubik" : (isReng ? "Modal Ikat" : "Modal Grosir");
                     String lblGrosirJual = isKayu ? "Jual Kubik" : (isReng ? "Jual Ikat" : "Jual Grosir");
 
+                    // --- REVISI TAMPILAN: FORMAT JUDUL & SUBTITLE (AGAR KONSISTEN DENGAN GUDANG) ---
+                    String displayTitle = p.name;
+                    String displaySubtitle = "Ukuran: ${p.dimensions ?? '-'} | Stok: ${p.stock}";
+
+                    if (isKayu) {
+                      // 1. Ambil Jenis Kayu dari dalam kurung nama asli "Kayu Kelas 1 (Meranti)"
+                      String jenisKayu = "";
+                      if (p.name.contains("(") && p.name.contains(")")) {
+                        int start = p.name.indexOf("(");
+                        jenisKayu = p.name.substring(start).trim(); // Hasil: "(Meranti)"
+                      }
+
+                      // 2. Format Judul: Kayu [Dimensi] (Jenis)
+                      displayTitle = "Kayu ${p.dimensions ?? ''} $jenisKayu";
+
+                      // 3. Format Subtitle: Kelas: [Kelas] | Stok: [Stok]
+                      displaySubtitle = "Kelas: ${p.woodClass ?? '-'} | Stok: ${p.stock}";
+                    }
+                    // --------------------------------------------------------------------------------
+
                     return Card(
                       color: Colors.blue[50], elevation: 1, margin: const EdgeInsets.only(bottom: 8),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       child: ExpansionTile(
                         leading: CircleAvatar(backgroundColor: _bgStart, child: Icon((isKayu||isReng||isBulat)?Icons.forest:Icons.home_work, color: Colors.white)),
-                        title: Text(p.name, style: TextStyle(fontWeight: FontWeight.bold, color: _bgStart)),
+                        // GUNAKAN DISPLAY TITLE
+                        title: Text(displayTitle, style: TextStyle(fontWeight: FontWeight.bold, color: _bgStart)),
                         
                         subtitle: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const SizedBox(height: 4),
-                            Row(
-                              children: [
-                                Text("Ukuran: ${p.dimensions ?? '-'}"),
-                                const SizedBox(width: 10),
-                                Text("| Stok: ${p.stock}"),
-                              ],
-                            ),
+                            // GUNAKAN DISPLAY SUBTITLE
+                            Text(displaySubtitle),
+                            
                             if(p.source.isNotEmpty)
                               Padding(
                                 padding: const EdgeInsets.only(top: 2),

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/product.dart';
 import '../helpers/database_helper.dart';
-import '../helpers/session_manager.dart'; // REVISI: Import SessionManager
+import '../helpers/session_manager.dart'; 
 import 'product_form_screen.dart'; 
 import 'stock_in_bulk_screen.dart'; 
 
@@ -86,7 +86,7 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
           foregroundColor: Colors.white,
           elevation: 0,
           actions: [
-            // REVISI: Sembunyikan Tombol Stok Bulk jika bukan Pemilik
+            // Sembunyikan Tombol Stok Bulk jika bukan Pemilik
             if (!_isSearching && _isOwner)
               IconButton(
                 tooltip: "Tambah Stok Banyak",
@@ -132,7 +132,7 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
           children: [_buildList(_kayuList), _buildList(_bangunanList)],
         ),
         
-        // REVISI: Sembunyikan FAB "Produk Baru" jika bukan Pemilik
+        // Sembunyikan FAB "Produk Baru" jika bukan Pemilik
         floatingActionButton: _isOwner ? FloatingActionButton.extended(
           backgroundColor: Colors.white,
           onPressed: () async {
@@ -169,8 +169,27 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
           labelJualGrosir = "Jual per Ikat";
         }
 
-        String displayName = p.name; 
-        
+        // --- REVISI TAMPILAN: FORMAT JUDUL & SUBTITLE ---
+        String displayTitle = p.name;
+        String displaySubtitle = "Ukuran: ${p.dimensions ?? '-'} | Stok: ${p.stock}";
+
+        if (isKayu) {
+          // 1. Ambil Jenis Kayu dari dalam kurung nama asli "Kayu Kelas 1 (Meranti)"
+          String jenisKayu = "";
+          if (p.name.contains("(") && p.name.contains(")")) {
+            int start = p.name.indexOf("(");
+            jenisKayu = p.name.substring(start).trim(); // Hasil: "(Meranti)"
+          }
+
+          // 2. Format Judul: Kayu [Dimensi] (Jenis)
+          // Contoh: Kayu 6x12x4 (Meranti)
+          displayTitle = "Kayu ${p.dimensions ?? ''} $jenisKayu";
+
+          // 3. Format Subtitle: Kelas: [Kelas] | Stok: [Stok]
+          displaySubtitle = "Kelas: ${p.woodClass ?? '-'} | Stok: ${p.stock}";
+        }
+        // ------------------------------------------------
+
         return Card(
           margin: const EdgeInsets.only(bottom: 12),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
@@ -180,12 +199,15 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
               backgroundColor: _bgStart.withOpacity(0.1),
               child: Icon((isKayu || isReng || isBulat) ? Icons.forest : Icons.home_work, color: _bgStart),
             ),
-            title: Text(displayName, style: const TextStyle(fontWeight: FontWeight.bold)),
+            // GUNAKAN DISPLAY TITLE HASIL REVISI
+            title: Text(displayTitle, style: const TextStyle(fontWeight: FontWeight.bold)),
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 4),
-                Text("Ukuran: ${p.dimensions ?? '-'} | Stok: ${p.stock}"),
+                // GUNAKAN DISPLAY SUBTITLE HASIL REVISI
+                Text(displaySubtitle),
+                
                 if(p.source.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 4),
