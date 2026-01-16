@@ -8,8 +8,16 @@ enum HistoryType { transactions, piutang, bensin, stock, soldItems }
 class HistoryScreen extends StatefulWidget {
   final HistoryType type;
   final String title;
+  
+  // REVISI 1: Tambah parameter initialIndex agar bisa lompat ke tab tertentu
+  final int initialIndex; 
 
-  const HistoryScreen({super.key, required this.type, required this.title});
+  const HistoryScreen({
+    super.key, 
+    required this.type, 
+    required this.title,
+    this.initialIndex = 0, // Default: Tab Pertama (Kayu)
+  });
 
   @override
   State<HistoryScreen> createState() => _HistoryScreenState();
@@ -19,10 +27,8 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
   final Color _bgStart = const Color(0xFF0052D4);
   final Color _bgEnd = const Color(0xFF4364F7);
   
-  // Data untuk History Biasa
   List<Map<String, dynamic>> _generalData = [];
   
-  // Data Khusus Piutang (Dibagi 2)
   List<Map<String, dynamic>> _unpaidDebts = [];
   List<Map<String, dynamic>> _paidDebtsHistory = [];
 
@@ -33,307 +39,347 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
   @override
   void initState() {
     super.initState();
-    // Inisialisasi Tab Controller jika mode Piutang
-    if (widget.type == HistoryType.piutang) {
-      _tabController = TabController(length: 2, vsync: this);
+    // REVISI 2: Inisialisasi TabController dengan initialIndex dari parameter
+    if (widget.type == HistoryType.piutang || 
+        widget.type == HistoryType.stock || 
+        widget.type == HistoryType.soldItems) {
+      _tabController = TabController(
+        length: 2, 
+        vsync: this, 
+        initialIndex: widget.initialIndex // Set tab awal disini
+      );
     }
+    
     _loadData();
-  }
-
-  @override
-  void dispose() {
-    if (widget.type == HistoryType.piutang) {
-      _tabController.dispose();
-    }
-    super.dispose();
   }
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
-    final db = DatabaseHelper.instance;
-    String startDate = "2024-01-01"; 
-    String endDate = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    
+    String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    String startDate = today;
+    String endDate = today;
 
-    List<Map<String, dynamic>> rawResult = [];
+    List<Map<String, dynamic>> res = [];
+
+    if (widget.type == HistoryType.transactions) {
+      res = await DatabaseHelper.instance.getTransactionHistory(startDate: startDate, endDate: endDate);
+    } else if (widget.type == HistoryType.bensin) {
+       res = []; 
+    } else if (widget.type == HistoryType.stock) {
+      res = await DatabaseHelper.instance.getStockLogsDetail(startDate: startDate, endDate: endDate);
+    } else if (widget.type == HistoryType.soldItems) {
+      res = await DatabaseHelper.instance.getSoldItemsDetail(startDate: startDate, endDate: endDate);
+    } else if (widget.type == HistoryType.piutang) {
+      _unpaidDebts = await DatabaseHelper.instance.getDebtReport(status: 'Belum Lunas', startDate: '2000-01-01', endDate: '2099-12-31');
+      _paidDebtsHistory = await DatabaseHelper.instance.getDebtReport(status: 'Lunas', startDate: startDate, endDate: endDate);
+    }
+
+    if (widget.type != HistoryType.piutang) {
+      _generalData = res;
+    }
+
+    _calculateTotal();
+
+    if (mounted) setState(() => _isLoading = false);
+  }
+
+  void _calculateTotal() {
     double total = 0;
-
-    try {
-      // --- LOGIKA KHUSUS PIUTANG (TAB) ---
-      if (widget.type == HistoryType.piutang) {
-        // Ambil SEMUA sejarah hutang (Lunas & Belum)
-        rawResult = await db.getAllDebtHistory();
-        
-        List<Map<String, dynamic>> unpaid = [];
-        List<Map<String, dynamic>> paid = [];
-        
-        for (var t in rawResult) {
-          // Pisahkan berdasarkan status
-          if (t['payment_status'] == 'Belum Lunas') {
-            unpaid.add(t);
-            // Total di header hanya menghitung yang BELUM LUNAS
-            total += (t['total_price'] as num).toDouble();
-          } else {
-            paid.add(t);
-          }
+    if (widget.type == HistoryType.piutang) {
+       // Total dihitung dinamis di Tab
+    } else {
+      for (var item in _generalData) {
+        if (widget.type == HistoryType.transactions) {
+          total += (item['total_price'] as int);
+        } else if (widget.type == HistoryType.stock) {
+          double qty = (item['quantity_added'] as num).toDouble();
+          int capital = (item['capital_price'] as int);
+          total += (qty * capital);
+        } else if (widget.type == HistoryType.soldItems) {
+           double qty = (item['quantity'] as num).toDouble();
+           int sell = (item['sell_price'] as int);
+           total += (qty * sell);
         }
-        
-        if (mounted) {
-          setState(() {
-            _unpaidDebts = unpaid;
-            _paidDebtsHistory = paid;
-            _totalValue = total;
-            _isLoading = false;
-          });
-        }
-        return; 
       }
+    }
+    _totalValue = total;
+  }
 
-      // --- LOGIKA HISTORY BIASA (Omset, Stok, dll) ---
+  Future<void> _pickDateRange() async {
+    DateTimeRange? picked = await showDateRangePicker(
+      context: context, 
+      firstDate: DateTime(2020), 
+      lastDate: DateTime(2030),
+      initialDateRange: DateTimeRange(start: DateTime.now(), end: DateTime.now())
+    );
+
+    if (picked != null) {
+      setState(() => _isLoading = true);
+      String start = DateFormat('yyyy-MM-dd').format(picked.start);
+      String end = DateFormat('yyyy-MM-dd').format(picked.end);
+
       if (widget.type == HistoryType.stock) {
-        rawResult = await db.getStockLogsDetail(startDate: startDate, endDate: endDate);
-        for (var item in rawResult) total += (item['quantity_added'] * item['capital_price']);
-      } 
-      else if (widget.type == HistoryType.soldItems) {
-        rawResult = await db.getSoldItemsDetail(startDate: startDate, endDate: endDate);
-        for (var item in rawResult) total += item['quantity']; 
-      } 
-      else if (widget.type == HistoryType.bensin) {
-        final allTrans = await db.getTransactionHistory(startDate: startDate, endDate: endDate);
-        rawResult = allTrans.where((t) => (t['operational_cost'] as num) > 0).toList();
-        for (var t in rawResult) total += (t['operational_cost'] as num).toDouble();
-      } 
-      else {
-        // History Transaksi Umum (Omset)
-        rawResult = await db.getTransactionHistory(startDate: startDate, endDate: endDate);
-        for (var t in rawResult) {
-           if (t['payment_status'] != 'Belum Lunas') {
-             double grand = (t['total_price'] as num).toDouble();
-             double bensin = (t['operational_cost'] as num).toDouble();
-             total += (grand - bensin);
-           }
-        }
+         _generalData = await DatabaseHelper.instance.getStockLogsDetail(startDate: start, endDate: end);
+      } else if (widget.type == HistoryType.soldItems) {
+         _generalData = await DatabaseHelper.instance.getSoldItemsDetail(startDate: start, endDate: end);
+      } else if (widget.type == HistoryType.transactions) {
+         _generalData = await DatabaseHelper.instance.getTransactionHistory(startDate: start, endDate: end);
+      } else if (widget.type == HistoryType.piutang) {
+         _unpaidDebts = await DatabaseHelper.instance.getDebtReport(status: 'Belum Lunas', startDate: '2000-01-01', endDate: '2099-12-31');
+         _paidDebtsHistory = await DatabaseHelper.instance.getDebtReport(status: 'Lunas', startDate: start, endDate: end);
       }
-
-      List<Map<String, dynamic>> sortedResult = List<Map<String, dynamic>>.from(rawResult);
-      sortedResult.sort((a, b) {
-        DateTime dateA = DateTime.parse(_getRawDate(a));
-        DateTime dateB = DateTime.parse(_getRawDate(b));
-        return dateB.compareTo(dateA); 
-      });
-
-      if (mounted) {
-        setState(() {
-          _generalData = sortedResult;
-          _totalValue = total;
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      print("Error: $e");
-      if (mounted) setState(() => _isLoading = false);
+      
+      _calculateTotal();
+      setState(() => _isLoading = false);
     }
   }
 
-  // --- BUILDER UTAMA ---
+  // REVISI 3: Helper untuk mengubah tanggal jadi Label (Hari Ini, Kemarin, dll)
+  String _getGroupLabel(String dateStr) {
+    try {
+      DateTime date = DateTime.parse(dateStr);
+      DateTime now = DateTime.now();
+      DateTime today = DateTime(now.year, now.month, now.day);
+      DateTime yesterday = today.subtract(const Duration(days: 1));
+      DateTime checkDate = DateTime(date.year, date.month, date.day);
+      
+      if (checkDate == today) return "Hari Ini";
+      if (checkDate == yesterday) return "Kemarin";
+      return DateFormat('EEEE, d MMM yyyy', 'id_ID').format(date);
+    } catch (e) {
+      return "-";
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    if (widget.type == HistoryType.piutang) {
-      return _buildPiutangTabView();
-    }
-    return _buildGeneralHistoryView();
-  }
+    bool useTabs = (widget.type == HistoryType.piutang || 
+                    widget.type == HistoryType.stock || 
+                    widget.type == HistoryType.soldItems);
 
-  // === TAMPILAN KHUSUS PIUTANG (DENGAN TAB) ===
-  Widget _buildPiutangTabView() {
     return Container(
-      decoration: BoxDecoration(gradient: LinearGradient(colors: [_bgStart, _bgEnd], begin: Alignment.topCenter, end: Alignment.bottomCenter)),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(colors: [_bgStart, _bgEnd], begin: Alignment.topCenter, end: Alignment.bottomCenter),
+      ),
       child: Scaffold(
         backgroundColor: Colors.transparent,
         appBar: AppBar(
-          title: Text(widget.title),
-          backgroundColor: Colors.transparent, foregroundColor: Colors.white, elevation: 0,
-          bottom: TabBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          foregroundColor: Colors.white,
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(widget.title, style: const TextStyle(fontWeight: FontWeight.bold)),
+              if (!useTabs && !_isLoading) 
+                Text("Total: ${_formatRp(_totalValue)}", style: const TextStyle(fontSize: 12)),
+            ],
+          ),
+          actions: [
+            IconButton(icon: const Icon(Icons.calendar_month), onPressed: _pickDateRange)
+          ],
+          bottom: useTabs ? TabBar(
             controller: _tabController,
             indicatorColor: Colors.white,
             labelColor: Colors.white,
-            unselectedLabelColor: Colors.white70,
-            tabs: const [
-              Tab(text: "BELUM LUNAS (Tagih)"),
-              Tab(text: "RIWAYAT LUNAS"),
-            ],
-          ),
+            unselectedLabelColor: Colors.white60,
+            tabs: widget.type == HistoryType.piutang 
+              ? const [Tab(text: "BELUM LUNAS"), Tab(text: "RIWAYAT LUNAS")]
+              : const [Tab(text: "KAYU & RENG"), Tab(text: "BANGUNAN")] 
+          ) : null,
         ),
-        body: Column(
-          children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(15),
-              color: Colors.white.withOpacity(0.1),
-              child: Column(
-                children: [
-                  const Text("Total Sisa Piutang", style: TextStyle(color: Colors.white70, fontSize: 12)),
-                  const SizedBox(height: 5),
-                  Text(_formatRp(_totalValue), style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
-                ],
-              ),
-            ),
-            Expanded(
-              child: TabBarView(
+        body: _isLoading 
+          ? const Center(child: CircularProgressIndicator(color: Colors.white))
+          : useTabs 
+            ? TabBarView(
                 controller: _tabController,
-                children: [
-                  _buildGroupedListView(_unpaidDebts, isPiutangLunas: false),
-                  _buildGroupedListView(_paidDebtsHistory, isPiutangLunas: true),
-                ],
-              ),
-            ),
-          ],
-        ),
+                children: widget.type == HistoryType.piutang 
+                  ? [_buildDebtList(_unpaidDebts), _buildDebtList(_paidDebtsHistory)]
+                  : [
+                      _buildGeneralList(filterType: 'KAYU'), 
+                      _buildGeneralList(filterType: 'BANGUNAN')
+                    ]
+              )
+            : _buildGeneralList(), 
       ),
     );
   }
 
-  // === TAMPILAN HISTORY BIASA (Omset, Stok, dll) ===
-  Widget _buildGeneralHistoryView() {
-    return Container(
-      decoration: BoxDecoration(gradient: LinearGradient(colors: [_bgStart, _bgEnd], begin: Alignment.topCenter, end: Alignment.bottomCenter)),
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        appBar: AppBar(title: Text(widget.title), backgroundColor: Colors.transparent, foregroundColor: Colors.white, elevation: 0),
-        body: Column(
-          children: [
-            Container(
-              width: double.infinity, padding: const EdgeInsets.all(20), color: Colors.white.withOpacity(0.1),
-              child: Column(children: [
-                  Text("Total Terdata (Semua Waktu)", style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                  const SizedBox(height: 5),
-                  Text(widget.type == HistoryType.soldItems ? "${_formatNum(_totalValue)} Unit" : _formatRp(_totalValue), style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold)),
-              ]),
-            ),
-            Expanded(child: _buildGroupedListView(_generalData)),
-          ],
-        ),
-      ),
-    );
-  }
+  Widget _buildGeneralList({String? filterType}) {
+    List<Map<String, dynamic>> dataToShow = _generalData;
+    
+    if (filterType != null) {
+      dataToShow = _generalData.where((item) {
+        String type = (item['product_type'] ?? '').toString();
+        if (filterType == 'KAYU') {
+          return type == 'KAYU' || type == 'RENG' || type == 'BULAT';
+        } else {
+          return type == 'BANGUNAN';
+        }
+      }).toList();
+    }
 
-  // --- WIDGET LIST DENGAN GROUPING TANGGAL (REUSABLE) ---
-  Widget _buildGroupedListView(List<Map<String, dynamic>> dataList, {bool? isPiutangLunas}) {
-    return Container(
-      decoration: const BoxDecoration(color: Color(0xFFF5F5F5), borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      child: _isLoading 
-        ? const Center(child: CircularProgressIndicator())
-        : dataList.isEmpty 
-          ? const Center(child: Text("Tidak ada data", style: TextStyle(color: Colors.grey)))
-          : ListView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 50),
-              itemCount: dataList.length,
-              itemBuilder: (ctx, i) {
-                final item = dataList[i];
-                bool showHeader = false;
-                String currentDate = _getRawDate(item).substring(0, 10);
-                if (i == 0) { showHeader = true; } 
-                else {
-                  String prevDate = _getRawDate(dataList[i-1]).substring(0, 10);
-                  if (currentDate != prevDate) showHeader = true;
-                }
+    if (dataToShow.isEmpty) return const Center(child: Text("Tidak ada data", style: TextStyle(color: Colors.white70)));
 
+    double tabTotal = 0;
+    for (var item in dataToShow) {
+       if (widget.type == HistoryType.stock) {
+          tabTotal += ((item['quantity_added'] as num) * (item['capital_price'] as num));
+       } else if (widget.type == HistoryType.soldItems) {
+          tabTotal += ((item['quantity'] as num) * (item['sell_price'] as num));
+       }
+    }
+
+    return Column(
+      children: [
+        if (filterType != null)
+           Container(
+             padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+             color: Colors.black12,
+             width: double.infinity,
+             child: Text("Total ${filterType == 'KAYU' ? 'Kayu' : 'Bangunan'}: ${_formatRp(tabTotal)}", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+           ),
+        Expanded(
+          // REVISI 4: Menambahkan Header Tanggal di ListView
+          child: ListView.builder(
+            padding: const EdgeInsets.all(12),
+            itemCount: dataToShow.length,
+            itemBuilder: (ctx, i) {
+              final item = dataToShow[i];
+              
+              // --- LOGIC HEADER TANGGAL ---
+              bool showHeader = false;
+              String dateRaw = "";
+              
+              // Tentukan field tanggal berdasarkan tipe history
+              if (widget.type == HistoryType.stock) {
+                 dateRaw = item['date'] ?? "";
+              } else {
+                 dateRaw = item['transaction_date'] ?? "";
+              }
+              
+              String dateHeader = "";
+              if (dateRaw.isNotEmpty) {
+                 dateHeader = _getGroupLabel(dateRaw);
+                 
+                 // Cek apakah header ini beda dengan item sebelumnya
+                 if (i == 0) {
+                   showHeader = true;
+                 } else {
+                   String prevDateRaw = "";
+                   if (widget.type == HistoryType.stock) {
+                     prevDateRaw = dataToShow[i-1]['date'] ?? "";
+                   } else {
+                     prevDateRaw = dataToShow[i-1]['transaction_date'] ?? "";
+                   }
+                   
+                   if (prevDateRaw.isNotEmpty && _getGroupLabel(prevDateRaw) != dateHeader) {
+                     showHeader = true;
+                   }
+                 }
+              }
+              // ---------------------------
+
+              if (showHeader) {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (showHeader) 
-                      Padding(padding: const EdgeInsets.only(top: 15, bottom: 8, left: 4), child: Text(_getGroupLabel(_getRawDate(item)), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black54))),
-                    Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 2))]),
-                      child: _buildListItem(item, isPiutangLunas),
-                    )
+                    Padding(
+                      padding: const EdgeInsets.only(top: 15, bottom: 8, left: 4),
+                      child: Text(
+                        dateHeader.toUpperCase(), 
+                        style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 13, letterSpacing: 1.2)
+                      ),
+                    ),
+                    _buildCard(item),
                   ],
                 );
-              },
-            ),
+              }
+              
+              return _buildCard(item);
+            },
+          ),
+        ),
+      ],
     );
   }
 
-  Widget _buildListItem(Map<String, dynamic> item, bool? isPiutangLunas) {
-    if (widget.type == HistoryType.stock) {
-      return ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.purple.withOpacity(0.1), shape: BoxShape.circle), child: const Icon(Icons.inventory, color: Colors.purple, size: 20)),
-        title: Text(item['product_name'] ?? 'Produk Dihapus', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-        subtitle: Text("${DateFormat('HH:mm').format(DateTime.parse(item['date']))} • +${_formatNum(item['quantity_added'])} Unit", style: TextStyle(color: Colors.grey[600], fontSize: 12)),
-        trailing: Text(_formatRp((item['quantity_added'] * item['capital_price'])), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-      );
+  Widget _buildDebtList(List<Map<String, dynamic>> data) {
+    if (data.isEmpty) return const Center(child: Text("Tidak ada data piutang", style: TextStyle(color: Colors.white70)));
+    return ListView.builder(
+      padding: const EdgeInsets.all(12),
+      itemCount: data.length,
+      itemBuilder: (ctx, i) {
+        return _buildCard(data[i]);
+      },
+    );
+  }
+
+  Widget _buildCard(Map<String, dynamic> item) {
+    String title = "";
+    String subtitle = "";
+    String trailingVal = "";
+    IconData icon = Icons.history;
+    Color color = Colors.blue;
+
+    if (widget.type == HistoryType.transactions || widget.type == HistoryType.piutang) {
+      title = item['customer_name'] ?? "Pelanggan Umum";
+      subtitle = item['payment_status'] ?? "-";
+      trailingVal = _formatRp(item['total_price']);
+      icon = Icons.receipt;
+      color = (item['payment_status'] == 'Lunas') ? Colors.green : Colors.red;
     } 
+    else if (widget.type == HistoryType.stock) {
+      title = item['product_name'] ?? "Unknown";
+      double qty = (item['quantity_added'] as num).toDouble();
+      subtitle = "${item['note']} • ${DateFormat('HH:mm').format(DateTime.parse(item['date']))}";
+      trailingVal = "+$qty"; 
+      icon = Icons.inventory;
+      color = Colors.orange;
+    }
     else if (widget.type == HistoryType.soldItems) {
-      return ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.orange.withOpacity(0.1), shape: BoxShape.circle), child: const Icon(Icons.shopping_bag, color: Colors.orange, size: 20)),
-        title: Text(item['product_name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-        subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [ const SizedBox(height: 4), Text("#${item['trans_id']} • ${DateFormat('HH:mm').format(DateTime.parse(item['transaction_date']))}", style: const TextStyle(fontSize: 11, color: Colors.grey)), Text(item['customer_name'], style: const TextStyle(color: Colors.black54, fontSize: 11))]),
-        trailing: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [ Text("${_formatNum(item['quantity'])} ${item['unit_type']}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)), Text(item['product_type'], style: const TextStyle(fontSize: 10, color: Colors.grey))]),
-      );
-    } 
-    else {
-      // TRANSAKSI (Termasuk Piutang)
-      String date = item['transaction_date'];
-      String cust = item['customer_name'];
-      int tId = item['id'];
-      int queueNo = item['queue_number'] ?? 0; // REVISI: Ambil No Antrian
-      double totalBayar = (item['total_price'] as num).toDouble();
-      double bensin = (item['operational_cost'] as num).toDouble();
-      String status = item['payment_status'];
+      title = item['product_name'] ?? "Unknown";
       
-      String title = cust;
-      String trailingVal = "";
-      Color color = Colors.blue;
-      IconData icon = Icons.receipt;
+      double reqQty = (item['request_qty'] as num?)?.toDouble() ?? 0;
+      double stockQty = (item['quantity'] as num).toDouble();
+      
+      String displayQty = (reqQty > 0) 
+        ? "$reqQty ${item['product_type']=='KAYU'?'m³':item['unit_type']}" 
+        : "$stockQty ${item['unit_type']}";
 
-      if (widget.type == HistoryType.bensin) {
-        title = "Bensin ($cust)";
-        trailingVal = _formatRp(bensin); 
-        color = Colors.orange;
-        icon = Icons.local_gas_station;
-      } 
-      else if (widget.type == HistoryType.piutang) {
-        title = cust;
-        trailingVal = _formatRp(totalBayar);
-        if (isPiutangLunas == true) {
-           color = Colors.green;
-           icon = Icons.check_circle;
-        } else {
-           color = Colors.red;
-           icon = Icons.watch_later;
-        }
-      } 
-      else {
-        // Omset Biasa
-        title = cust;
-        double omsetMurni = totalBayar - bensin;
-        trailingVal = _formatRp(omsetMurni);
-        color = status == 'Lunas' ? const Color(0xFF007A33) : Colors.grey;
-        icon = status == 'Lunas' ? Icons.check : Icons.watch_later;
-      }
+      subtitle = "${item['customer_name']} • #${item['trans_id']}";
+      trailingVal = displayQty;
+      icon = Icons.shopping_bag;
+      color = Colors.purple;
+    }
 
-      // REVISI SUBTITLE: Tampilkan Antrian jika ada
-      String antrianStr = queueNo > 0 ? " • Antrian $queueNo" : "";
-
-      return ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        onTap: () async {
-          await Navigator.push(context, MaterialPageRoute(builder: (_) => TransactionDetailScreen(transaction: item)));
-          _loadData();
-        },
-        leading: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle), child: Icon(icon, color: color, size: 20)),
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ListTile(
+        leading: CircleAvatar(backgroundColor: color.withOpacity(0.1), child: Icon(icon, color: color, size: 20)),
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-        // SUBTITLE BARU
-        subtitle: Text("#$tId$antrianStr • ${DateFormat('HH:mm').format(DateTime.parse(date))}", style: TextStyle(color: Colors.grey[600], fontSize: 12)),
-        trailing: Row(mainAxisSize: MainAxisSize.min, children: [Text(trailingVal, style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 14)), const SizedBox(width: 5), const Icon(Icons.arrow_forward_ios, size: 12, color: Colors.grey)]),
-      );
+        subtitle: Text(subtitle, style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+        trailing: Text(trailingVal, style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 14)),
+        onTap: () {
+          if (widget.type == HistoryType.transactions || widget.type == HistoryType.piutang || widget.type == HistoryType.soldItems) {
+             int tId = item['transaction_id'] ?? item['trans_id'] ?? item['id'];
+             _openDetail(tId);
+          }
+        },
+      ),
+    );
+  }
+
+  Future<void> _openDetail(int transId) async {
+    final db = await DatabaseHelper.instance.database;
+    final transList = await db.query('transactions', where: 'id = ?', whereArgs: [transId]);
+    
+    if (transList.isNotEmpty) {
+      Navigator.push(context, MaterialPageRoute(builder: (_) => TransactionDetailScreen(transaction: transList.first)));
     }
   }
 
-  String _getGroupLabel(String dateStr) { DateTime date = DateTime.parse(dateStr); DateTime now = DateTime.now(); DateTime today = DateTime(now.year, now.month, now.day); DateTime yesterday = today.subtract(const Duration(days: 1)); DateTime checkDate = DateTime(date.year, date.month, date.day); if (checkDate == today) return "Hari ini"; if (checkDate == yesterday) return "Kemarin"; return DateFormat('EEEE, d MMM yyyy', 'id_ID').format(date); }
-  String _getRawDate(Map<String, dynamic> item) { if (widget.type == HistoryType.stock) { return item['date']; } else { return item['transaction_date']; }}
   String _formatRp(dynamic number) => NumberFormat.currency(locale: 'id', symbol: 'Rp ', decimalDigits: 0).format(number);
-  String _formatNum(dynamic number) => NumberFormat.decimalPattern('id').format(number);
 }

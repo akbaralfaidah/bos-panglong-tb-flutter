@@ -79,8 +79,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _loadStoreIdentity(); 
   }
 
-  void _openHistory(HistoryType type, String title) async {
-    await Navigator.push(context, MaterialPageRoute(builder: (_) => HistoryScreen(type: type, title: title)));
+  // REVISI: Menambahkan parameter optional {initialIndex} untuk tab History
+  void _openHistory(HistoryType type, String title, {int initialIndex = 0}) async {
+    await Navigator.push(
+      context, 
+      MaterialPageRoute(builder: (_) => HistoryScreen(
+        type: type, 
+        title: title, 
+        initialIndex: initialIndex // Kirim index tab ke HistoryScreen
+      ))
+    );
     _refreshStats(); 
   }
 
@@ -317,9 +325,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 
                 // BARIS 3: INFO BARANG TERJUAL
                 Row(children: [
-                  Expanded(child: _itemCard("Kayu Hari Ini", "$_kayuTerjual Btg", Icons.forest, const Color(0xFF795548), () => _openHistory(HistoryType.soldItems, "Rincian Barang Keluar"))),
+                  // REVISI: Mengirim initialIndex: 0 untuk Kayu
+                  Expanded(child: _itemCard("Kayu Hari Ini", "$_kayuTerjual Btg", Icons.forest, const Color(0xFF795548), 
+                    () => _openHistory(HistoryType.soldItems, "Rincian Barang Keluar", initialIndex: 0))),
+                  
                   const SizedBox(width: 12),
-                  Expanded(child: _itemCard("Bangunan Hari Ini", "$_bangunanTerjual Pcs", Icons.home_work, const Color(0xFF546E7A), () => _openHistory(HistoryType.soldItems, "Rincian Barang Keluar"))),
+                  
+                  // REVISI: Mengirim initialIndex: 1 untuk Bangunan
+                  Expanded(child: _itemCard("Bangunan Hari Ini", "$_bangunanTerjual Pcs", Icons.home_work, const Color(0xFF546E7A), 
+                    () => _openHistory(HistoryType.soldItems, "Rincian Barang Keluar", initialIndex: 1))),
                 ]),
                 
                 const SizedBox(height: 30),
