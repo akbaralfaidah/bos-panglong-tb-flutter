@@ -46,8 +46,16 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
 
   void _applyFilters() {
     List<Product> temp = _allProducts.where((p) {
-      return p.name.toLowerCase().contains(_searchQuery.toLowerCase()) || 
-             p.source.toLowerCase().contains(_searchQuery.toLowerCase());
+      String query = _searchQuery.toLowerCase();
+      
+      // --- LOGIC PENCARIAN LENGKAP (Nama, Sumber, Dimensi, Kelas) ---
+      bool matchName = p.name.toLowerCase().contains(query);
+      bool matchSource = p.source.toLowerCase().contains(query);
+      bool matchDim = p.dimensions != null && p.dimensions!.toLowerCase().contains(query);
+      bool matchClass = p.woodClass != null && p.woodClass!.toLowerCase().contains(query);
+      
+      return matchName || matchSource || matchDim || matchClass;
+      // ---------------------------------------------------------------
     }).toList();
 
     setState(() {
@@ -78,7 +86,7 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
                 controller: _searchController,
                 autofocus: true,
                 style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(hintText: "Cari (Ex: Kayu)...", hintStyle: TextStyle(color: Colors.white70), border: InputBorder.none),
+                decoration: const InputDecoration(hintText: "Cari (Ukuran/Kelas/Nama)...", hintStyle: TextStyle(color: Colors.white70), border: InputBorder.none),
                 onChanged: (v) => setState(() { _searchQuery = v; _applyFilters(); }),
               )
             : const Text("Gudang Stok"),
@@ -86,7 +94,6 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
           foregroundColor: Colors.white,
           elevation: 0,
           actions: [
-            // Sembunyikan Tombol Stok Bulk jika bukan Pemilik
             if (!_isSearching && _isOwner)
               IconButton(
                 tooltip: "Tambah Stok Banyak",
@@ -131,8 +138,6 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
           controller: _tabController,
           children: [_buildList(_kayuList), _buildList(_bangunanList)],
         ),
-        
-        // Sembunyikan FAB "Produk Baru" jika bukan Pemilik
         floatingActionButton: _isOwner ? FloatingActionButton.extended(
           backgroundColor: Colors.white,
           onPressed: () async {
@@ -147,7 +152,7 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
   }
 
   Widget _buildList(List<Product> products) {
-    if (products.isEmpty) return const Center(child: Text("Gudang Kosong", style: TextStyle(color: Colors.white70)));
+    if (products.isEmpty) return const Center(child: Text("Gudang Kosong / Tidak Ditemukan", style: TextStyle(color: Colors.white70)));
 
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 100),
@@ -169,26 +174,20 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
           labelJualGrosir = "Jual per Ikat";
         }
 
-        // --- REVISI TAMPILAN: FORMAT JUDUL & SUBTITLE ---
+        // --- TAMPILAN REVISI (Judul & Subtitle) ---
         String displayTitle = p.name;
         String displaySubtitle = "Ukuran: ${p.dimensions ?? '-'} | Stok: ${p.stock}";
 
         if (isKayu) {
-          // 1. Ambil Jenis Kayu dari dalam kurung nama asli "Kayu Kelas 1 (Meranti)"
           String jenisKayu = "";
           if (p.name.contains("(") && p.name.contains(")")) {
             int start = p.name.indexOf("(");
-            jenisKayu = p.name.substring(start).trim(); // Hasil: "(Meranti)"
+            jenisKayu = p.name.substring(start).trim(); 
           }
-
-          // 2. Format Judul: Kayu [Dimensi] (Jenis)
-          // Contoh: Kayu 6x12x4 (Meranti)
           displayTitle = "Kayu ${p.dimensions ?? ''} $jenisKayu";
-
-          // 3. Format Subtitle: Kelas: [Kelas] | Stok: [Stok]
           displaySubtitle = "Kelas: ${p.woodClass ?? '-'} | Stok: ${p.stock}";
         }
-        // ------------------------------------------------
+        // ------------------------------------------
 
         return Card(
           margin: const EdgeInsets.only(bottom: 12),
@@ -199,15 +198,12 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
               backgroundColor: _bgStart.withOpacity(0.1),
               child: Icon((isKayu || isReng || isBulat) ? Icons.forest : Icons.home_work, color: _bgStart),
             ),
-            // GUNAKAN DISPLAY TITLE HASIL REVISI
             title: Text(displayTitle, style: const TextStyle(fontWeight: FontWeight.bold)),
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 4),
-                // GUNAKAN DISPLAY SUBTITLE HASIL REVISI
                 Text(displaySubtitle),
-                
                 if(p.source.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 4),
@@ -220,7 +216,6 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Column(
                   children: [
-                    // INFO HARGA JUAL (Tampil untuk Semua)
                     Row(
                       children: [
                         _priceInfo("Jual Satuan", _formatRp(p.sellPriceUnit), Colors.blue),
@@ -232,8 +227,6 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
                       ],
                     ),
                     const SizedBox(height: 8),
-                    
-                    // INFO HARGA MODAL (HANYA PEMILIK)
                     if (_isOwner) ...[
                       Row(
                         children: [
@@ -246,8 +239,6 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
                         ],
                       ),
                       const Divider(),
-                    
-                      // TOMBOL AKSI (HANYA PEMILIK)
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [

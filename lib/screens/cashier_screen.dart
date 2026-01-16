@@ -45,7 +45,6 @@ class _CashierScreenState extends State<CashierScreen> {
     _loadData();
   }
 
-  // REVISI: Dispose controller untuk mencegah Memory Leak
   @override
   void dispose() {
     _searchController.dispose();
@@ -66,8 +65,16 @@ class _CashierScreenState extends State<CashierScreen> {
         _filteredProducts = _allProducts;
       } else {
         _filteredProducts = _allProducts.where((p) {
-          return p.name.toLowerCase().contains(query.toLowerCase()) ||
-                 p.source.toLowerCase().contains(query.toLowerCase());
+          String q = query.toLowerCase();
+          
+          // --- LOGIC PENCARIAN LENGKAP (Sama dengan Gudang) ---
+          bool matchName = p.name.toLowerCase().contains(q);
+          bool matchSource = p.source.toLowerCase().contains(q);
+          bool matchDim = p.dimensions != null && p.dimensions!.toLowerCase().contains(q);
+          bool matchClass = p.woodClass != null && p.woodClass!.toLowerCase().contains(q);
+          
+          return matchName || matchSource || matchDim || matchClass;
+          // ----------------------------------------------------
         }).toList();
       }
     });
@@ -300,20 +307,17 @@ class _CashierScreenState extends State<CashierScreen> {
     );
   }
 
-  // NAVIGASI KE CHECKOUT
   void _goToCheckout() async {
     if (_cart.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Keranjang masih kosong!")));
       return;
     }
     
-    // Gunakan Navigator.push dan tunggu result
     final result = await Navigator.push(
       context, 
       MaterialPageRoute(builder: (context) => CheckoutScreen(cartItems: _cart))
     );
 
-    // Jika result == true (Transaksi Berhasil), reset keranjang & reload data stok
     if (result == true) {
       setState(() {
         _cart.clear();
@@ -334,7 +338,7 @@ class _CashierScreenState extends State<CashierScreen> {
         appBar: AppBar(title: const Text("Kasir"), backgroundColor: Colors.transparent, foregroundColor: Colors.white, elevation: 0),
         body: Column(
           children: [
-            Padding(padding: const EdgeInsets.all(16), child: TextField(controller: _searchController, onChanged: _onSearch, decoration: InputDecoration(hintText: "Cari Produk...", prefixIcon: const Icon(Icons.search), filled: true, fillColor: Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none)))),
+            Padding(padding: const EdgeInsets.all(16), child: TextField(controller: _searchController, onChanged: _onSearch, decoration: InputDecoration(hintText: "Cari Produk (Ukuran/Kelas)...", prefixIcon: const Icon(Icons.search), filled: true, fillColor: Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none)))),
             Expanded(
               child: Container(
                 decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
@@ -349,41 +353,33 @@ class _CashierScreenState extends State<CashierScreen> {
                     String lblGrosirModal = isKayu ? "Modal Kubik" : (isReng ? "Modal Ikat" : "Modal Grosir");
                     String lblGrosirJual = isKayu ? "Jual Kubik" : (isReng ? "Jual Ikat" : "Jual Grosir");
 
-                    // --- REVISI TAMPILAN: FORMAT JUDUL & SUBTITLE (AGAR KONSISTEN DENGAN GUDANG) ---
+                    // --- TAMPILAN REVISI (Tetap Dipertahankan) ---
                     String displayTitle = p.name;
                     String displaySubtitle = "Ukuran: ${p.dimensions ?? '-'} | Stok: ${p.stock}";
 
                     if (isKayu) {
-                      // 1. Ambil Jenis Kayu dari dalam kurung nama asli "Kayu Kelas 1 (Meranti)"
                       String jenisKayu = "";
                       if (p.name.contains("(") && p.name.contains(")")) {
                         int start = p.name.indexOf("(");
-                        jenisKayu = p.name.substring(start).trim(); // Hasil: "(Meranti)"
+                        jenisKayu = p.name.substring(start).trim(); 
                       }
-
-                      // 2. Format Judul: Kayu [Dimensi] (Jenis)
                       displayTitle = "Kayu ${p.dimensions ?? ''} $jenisKayu";
-
-                      // 3. Format Subtitle: Kelas: [Kelas] | Stok: [Stok]
                       displaySubtitle = "Kelas: ${p.woodClass ?? '-'} | Stok: ${p.stock}";
                     }
-                    // --------------------------------------------------------------------------------
+                    // ---------------------------------------------
 
                     return Card(
                       color: Colors.blue[50], elevation: 1, margin: const EdgeInsets.only(bottom: 8),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       child: ExpansionTile(
                         leading: CircleAvatar(backgroundColor: _bgStart, child: Icon((isKayu||isReng||isBulat)?Icons.forest:Icons.home_work, color: Colors.white)),
-                        // GUNAKAN DISPLAY TITLE
                         title: Text(displayTitle, style: TextStyle(fontWeight: FontWeight.bold, color: _bgStart)),
                         
                         subtitle: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const SizedBox(height: 4),
-                            // GUNAKAN DISPLAY SUBTITLE
                             Text(displaySubtitle),
-                            
                             if(p.source.isNotEmpty)
                               Padding(
                                 padding: const EdgeInsets.only(top: 2),
@@ -411,7 +407,6 @@ class _CashierScreenState extends State<CashierScreen> {
           ],
         ),
         
-        // TOMBOL LANJUT BAYAR
         bottomNavigationBar: Container(
           padding: const EdgeInsets.all(16),
           decoration: const BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, -5))]),
