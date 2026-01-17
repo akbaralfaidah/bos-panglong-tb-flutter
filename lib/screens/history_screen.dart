@@ -1,7 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../helpers/database_helper.dart';
 import 'transaction_detail_screen.dart';
+
+// HELPER FORMATTER UNTUK INPUT ANGKA BERTITIK
+class CurrencyInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue o, TextEditingValue n) {
+    if (n.selection.baseOffset == 0) return n;
+    String c = n.text.replaceAll(RegExp(r'[^0-9]'), '');
+    if (c.isEmpty) return n.copyWith(text: '');
+    try {
+      int v = int.tryParse(c) ?? 0;
+      final f = NumberFormat('#,###', 'id_ID');
+      String nt = f.format(v);
+      return n.copyWith(text: nt, selection: TextSelection.collapsed(offset: nt.length));
+    } catch (e) { return o; }
+  }
+}
 
 enum HistoryType { transactions, piutang, bensin, stock, soldItems }
 
@@ -25,33 +42,42 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
   final Color _bgStart = const Color(0xFF0052D4);
   final Color _bgEnd = const Color(0xFF4364F7);
   
-  // Data List
   List<Map<String, dynamic>> _generalData = [];
   List<Map<String, dynamic>> _unpaidDebts = [];
   List<Map<String, dynamic>> _paidDebtsHistory = [];
 
+  List<Map<String, dynamic>> _fuelIncomeList = [];  
+  List<Map<String, dynamic>> _fuelExpenseList = []; 
+  int _fuelTotalIncome = 0;
+  int _fuelTotalExpense = 0;
+
   bool _isLoading = true;
   late TabController _tabController;
 
-  // --- FILTER VARIABLES ---
   String _selectedPeriod = 'Hari Ini'; 
   DateTimeRange _currentDateRange = DateTimeRange(
     start: DateTime.now(), 
     end: DateTime.now()
   );
 
-  // --- SUMMARY VARIABLES ---
   double _stockSummaryMoney = 0;
   double _stockSummaryQty = 0;
 
   @override
   void initState() {
     super.initState();
+    
+    int tabLength = 0;
     if (widget.type == HistoryType.piutang || 
         widget.type == HistoryType.stock || 
-        widget.type == HistoryType.soldItems) {
+        widget.type == HistoryType.soldItems ||
+        widget.type == HistoryType.bensin) { 
+      tabLength = 2;
+    }
+
+    if (tabLength > 0) {
       _tabController = TabController(
-        length: 2, 
+        length: tabLength, 
         vsync: this, 
         initialIndex: widget.initialIndex
       );
@@ -59,7 +85,7 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
       _tabController.addListener(() {
         if (!_tabController.indexIsChanging) {
           setState(() {
-            _calculateStockSummary();
+            _calculateStockSummary(); 
           });
         }
       });
@@ -68,7 +94,6 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
     _updateDateRange('Hari Ini');
   }
 
-  // --- LOGIC FILTER TANGGAL ---
   void _updateDateRange(String label) async {
     DateTime now = DateTime.now();
     DateTime start = now;
@@ -114,24 +139,31 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
     String start = DateFormat('yyyy-MM-dd').format(_currentDateRange.start);
     String end = DateFormat('yyyy-MM-dd').format(_currentDateRange.end);
 
-    List<Map<String, dynamic>> res = [];
-
     if (widget.type == HistoryType.transactions) {
-      res = await DatabaseHelper.instance.getTransactionHistory(startDate: start, endDate: end);
-    } else if (widget.type == HistoryType.stock) {
-      res = await DatabaseHelper.instance.getStockLogsDetail(startDate: start, endDate: end);
-    } else if (widget.type == HistoryType.soldItems) {
-      res = await DatabaseHelper.instance.getSoldItemsDetail(startDate: start, endDate: end);
-    } else if (widget.type == HistoryType.piutang) {
+      _generalData = await DatabaseHelper.instance.getTransactionHistory(startDate: start, endDate: end);
+    } 
+    else if (widget.type == HistoryType.stock) {
+      _generalData = await DatabaseHelper.instance.getStockLogsDetail(startDate: start, endDate: end);
+      _calculateStockSummary();
+    } 
+    else if (widget.type == HistoryType.soldItems) {
+      _generalData = await DatabaseHelper.instance.getSoldItemsDetail(startDate: start, endDate: end);
+      _calculateStockSummary();
+    } 
+    else if (widget.type == HistoryType.piutang) {
       _unpaidDebts = await DatabaseHelper.instance.getDebtReport(status: 'Belum Lunas', startDate: '2000-01-01', endDate: '2099-12-31');
       _paidDebtsHistory = await DatabaseHelper.instance.getDebtReport(status: 'Lunas', startDate: start, endDate: end);
-    }
+    } 
+    else if (widget.type == HistoryType.bensin) {
+      Map<String, dynamic> report = await DatabaseHelper.instance.getFuelReport(startDate: start, endDate: end);
+      _fuelExpenseList = List<Map<String, dynamic>>.from(report['history']);
+      _fuelTotalExpense = report['total_expense'];
 
-    if (widget.type != HistoryType.piutang) {
-      _generalData = res;
+      List<Map<String, dynamic>> allTrans = await DatabaseHelper.instance.getTransactionHistory(startDate: start, endDate: end);
+      _fuelIncomeList = allTrans.where((t) => (t['operational_cost'] ?? 0) > 0).toList();
+      
+      _fuelTotalIncome = _fuelIncomeList.fold(0, (sum, item) => sum + (item['operational_cost'] as int));
     }
-
-    _calculateStockSummary();
 
     if (mounted) setState(() => _isLoading = false);
   }
@@ -172,6 +204,67 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
     _stockSummaryQty = totalQty;
   }
 
+  void _showAddFuelDialog() {
+    final TextEditingController amountCtrl = TextEditingController();
+    final TextEditingController noteCtrl = TextEditingController();
+    
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        title: const Text("Isi Bensin", style: TextStyle(fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: amountCtrl,
+              autofocus: true,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly, CurrencyInputFormatter()],
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black87),
+              decoration: const InputDecoration(
+                labelText: "Biaya (Rp)", 
+                border: OutlineInputBorder(), 
+                prefixText: "Rp ",
+              ),
+            ),
+            const SizedBox(height: 15),
+            TextField(
+              controller: noteCtrl,
+              decoration: const InputDecoration(
+                labelText: "Catatan (Opsional - Mobil/Driver)", 
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("BATAL")),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: _bgStart),
+            onPressed: () async {
+              int amount = int.tryParse(amountCtrl.text.replaceAll('.', '')) ?? 0;
+              if (amount > 0) {
+                String dateNow = DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now());
+                String finalNote = noteCtrl.text.trim();
+
+                await DatabaseHelper.instance.addFuelExpense(amount, finalNote, dateNow);
+                
+                if (mounted) {
+                  Navigator.pop(ctx);
+                  _loadData(); 
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Data bensin tersimpan!"), backgroundColor: Colors.green));
+                }
+              }
+            },
+            child: const Text("SIMPAN", style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
   String _getGroupLabel(String dateStr) {
     try {
       DateTime date = DateTime.parse(dateStr);
@@ -190,7 +283,17 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
   Widget build(BuildContext context) {
     bool useTabs = (widget.type == HistoryType.piutang || 
                     widget.type == HistoryType.stock || 
-                    widget.type == HistoryType.soldItems);
+                    widget.type == HistoryType.soldItems ||
+                    widget.type == HistoryType.bensin); 
+
+    List<Tab> tabs = [];
+    if (widget.type == HistoryType.piutang) {
+      tabs = [const Tab(text: "BELUM LUNAS"), const Tab(text: "RIWAYAT LUNAS")];
+    } else if (widget.type == HistoryType.stock || widget.type == HistoryType.soldItems) {
+      tabs = [const Tab(text: "KAYU & RENG"), const Tab(text: "BANGUNAN")];
+    } else if (widget.type == HistoryType.bensin) {
+      tabs = [const Tab(text: "PEMASUKAN (CUSTOMER)"), const Tab(text: "PENGELUARAN (SPBU)")];
+    }
 
     return Container(
       decoration: BoxDecoration(
@@ -209,11 +312,13 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
             labelColor: Colors.white,
             unselectedLabelColor: Colors.white60,
             onTap: (index) {
-              setState(() { _calculateStockSummary(); });
+              setState(() { 
+                if (widget.type == HistoryType.stock || widget.type == HistoryType.soldItems) {
+                  _calculateStockSummary();
+                }
+              });
             },
-            tabs: widget.type == HistoryType.piutang 
-              ? const [Tab(text: "BELUM LUNAS"), Tab(text: "RIWAYAT LUNAS")]
-              : const [Tab(text: "KAYU & RENG"), Tab(text: "BANGUNAN")] 
+            tabs: tabs
           ) : null,
         ),
         body: Column(
@@ -222,6 +327,9 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
 
             if (widget.type == HistoryType.stock || widget.type == HistoryType.soldItems)
               _buildSummaryCard(),
+            
+            if (widget.type == HistoryType.bensin)
+              _buildFuelSummaryCard(),
 
             Expanded(
               child: _isLoading 
@@ -230,24 +338,176 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
                   ? TabBarView(
                       controller: _tabController,
                       physics: const NeverScrollableScrollPhysics(),
-                      children: widget.type == HistoryType.piutang 
-                        ? [_buildDebtList(_unpaidDebts), _buildDebtList(_paidDebtsHistory)]
-                        : [
-                            _buildGeneralList(filterType: 'KAYU'), 
-                            _buildGeneralList(filterType: 'BANGUNAN')
-                          ]
+                      children: _buildTabContent()
                     )
                   : _buildGeneralList(),
             ),
           ],
         ),
+        floatingActionButton: widget.type == HistoryType.bensin
+          ? FloatingActionButton(
+              backgroundColor: Colors.white,
+              onPressed: _showAddFuelDialog,
+              child: Icon(Icons.add, color: _bgStart),
+            )
+          : null,
       ),
     );
   }
 
-  // --- REVISI 3 (FINAL): FILTER COLOR FIX ---
-  // Background Putih (Inactive) vs Biru (Active)
-  // Font Biru (Inactive) vs Putih (Active)
+  List<Widget> _buildTabContent() {
+    if (widget.type == HistoryType.piutang) {
+      return [_buildDebtList(_unpaidDebts), _buildDebtList(_paidDebtsHistory)];
+    } else if (widget.type == HistoryType.stock || widget.type == HistoryType.soldItems) {
+      return [_buildGeneralList(filterType: 'KAYU'), _buildGeneralList(filterType: 'BANGUNAN')];
+    } else if (widget.type == HistoryType.bensin) {
+      return [_buildFuelIncomeList(), _buildFuelExpenseList()];
+    }
+    return [];
+  }
+
+  Widget _buildFuelSummaryCard() {
+    int profit = _fuelTotalIncome - _fuelTotalExpense;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 5, 16, 10),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15)),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _fuelStat("Terima", _fuelTotalIncome, Colors.green),
+          Container(width: 1, height: 30, color: Colors.grey[300]),
+          _fuelStat("Keluar", _fuelTotalExpense, Colors.red),
+          Container(width: 1, height: 30, color: Colors.grey[300]),
+          _fuelStat("Selisih", profit, profit >= 0 ? Colors.blue : Colors.red),
+        ],
+      ),
+    );
+  }
+
+  Widget _fuelStat(String label, int value, Color color) {
+    return Column(
+      children: [
+        Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+        Text(_formatRp(value), style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color)),
+      ],
+    );
+  }
+
+  Widget _buildFuelIncomeList() {
+    if (_fuelIncomeList.isEmpty) return const Center(child: Text("Tidak ada pemasukan bensin", style: TextStyle(color: Colors.white70)));
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 5, 16, 80),
+      itemCount: _fuelIncomeList.length,
+      itemBuilder: (ctx, i) {
+        final item = _fuelIncomeList[i];
+        bool showHeader = false;
+        String dateRaw = item['transaction_date'] ?? "";
+        if (i == 0 || (i > 0 && _getGroupLabel(_fuelIncomeList[i-1]['transaction_date']) != _getGroupLabel(dateRaw))) {
+          showHeader = true;
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (showHeader)
+              Padding(
+                padding: const EdgeInsets.only(top: 15, bottom: 8, left: 4),
+                child: Text(_getGroupLabel(dateRaw).toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 12)),
+              ),
+            Card(
+              margin: const EdgeInsets.only(bottom: 8),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              child: ListTile(
+                leading: CircleAvatar(backgroundColor: Colors.green[50], child: const Icon(Icons.arrow_downward, color: Colors.green, size: 20)),
+                title: Text(item['customer_name'] ?? "Umum", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                subtitle: Text("ID: #${item['id']} • ${DateFormat('HH:mm').format(DateTime.parse(dateRaw))}", style: const TextStyle(fontSize: 12)),
+                trailing: Text("+${_formatRp(item['operational_cost'])}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green, fontSize: 14)),
+                onTap: () => _openDetail(item['id']),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildFuelExpenseList() {
+    if (_fuelExpenseList.isEmpty) return const Center(child: Text("Tidak ada pengeluaran bensin", style: TextStyle(color: Colors.white70)));
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 5, 16, 80),
+      itemCount: _fuelExpenseList.length,
+      itemBuilder: (ctx, i) {
+        final item = _fuelExpenseList[i];
+        bool showHeader = false;
+        String dateRaw = item['date'] ?? "";
+        if (i == 0 || (i > 0 && _getGroupLabel(_fuelExpenseList[i-1]['date']) != _getGroupLabel(dateRaw))) {
+          showHeader = true;
+        }
+        String note = item['note'] ?? "";
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (showHeader)
+              Padding(
+                padding: const EdgeInsets.only(top: 15, bottom: 8, left: 4),
+                child: Text(_getGroupLabel(dateRaw).toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 12)),
+              ),
+            Card(
+              margin: const EdgeInsets.only(bottom: 8),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              child: ListTile(
+                leading: CircleAvatar(backgroundColor: Colors.red[50], child: const Icon(Icons.local_gas_station, color: Colors.red, size: 20)),
+                title: const Text("Isi BBM", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (note.isNotEmpty)
+                      Text("Catatan: $note", style: TextStyle(fontSize: 12, color: Colors.grey[800], fontWeight: FontWeight.w500)),
+                    const SizedBox(height: 2),
+                    Text(DateFormat('dd MMM • HH:mm').format(DateTime.parse(dateRaw)), style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                  ],
+                ),
+                isThreeLine: note.isNotEmpty,
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text("-${_formatRp(item['amount'])}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red, fontSize: 14)),
+                    IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.grey, size: 18),
+                      onPressed: () => _confirmDeleteExpense(item['id']),
+                    )
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _confirmDeleteExpense(int id) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Hapus Data?"),
+        content: const Text("Data pengisian bensin ini akan dihapus."),
+        actions: [
+          TextButton(onPressed: ()=>Navigator.pop(ctx), child: const Text("Batal")),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () async {
+              await DatabaseHelper.instance.deleteExpense(id);
+              Navigator.pop(ctx);
+              _loadData();
+            },
+            child: const Text("Hapus", style: TextStyle(color: Colors.white)),
+          )
+        ],
+      )
+    );
+  }
+
   Widget _buildFilterSection() {
     List<String> filters = ['Hari Ini', 'Kemarin', '7 Hari', 'Bulan Ini', 'Pilih Tanggal'];
     return Container(
@@ -265,18 +525,10 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
             label: Text(f),
             selected: isActive,
             onSelected: (val) { if(val) _updateDateRange(f); },
-            
-            // STATE AKTIF: Background Biru, Font Putih
-            selectedColor: _bgStart, 
-            
-            // STATE TIDAK AKTIF: Background Putih, Font Biru
-            backgroundColor: Colors.white, 
+            selectedColor: _bgStart,
+            backgroundColor: Colors.white,
             shape: const StadiumBorder(side: BorderSide(color: Colors.white, width: 0)), 
-            
-            labelStyle: TextStyle(
-              color: isActive ? Colors.white : _bgStart, 
-              fontWeight: FontWeight.bold
-            ),
+            labelStyle: TextStyle(color: isActive ? Colors.white : _bgStart, fontWeight: FontWeight.bold),
             showCheckmark: false,
           );
         },
@@ -384,12 +636,10 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
     );
   }
 
-  // --- REVISI: JUDUL & ALUR AUDIT ---
   Widget _buildStockCard(Map<String, dynamic> item) {
     String type = item['product_type'] ?? 'BANGUNAN';
     bool isKayu = (type == 'KAYU' || type == 'RENG' || type == 'BULAT');
     
-    // FORMAT NAMA: "Kayu [Dimensi] ([Jenis])"
     String rawName = item['product_name'] ?? '-';
     String displayName = rawName;
     String woodClass = item['wood_class'] ?? ''; 
@@ -415,13 +665,9 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
     double qtyAdded = (item['quantity_added'] as num).toDouble();
     double modalSatuan = (item['capital_price'] as num).toDouble();
     double totalModal = qtyAdded * modalSatuan;
-    
-    // AUDIT LOGIC (AMBIL PREVIOUS STOCK DARI DATABASE)
-    // NOTE: Data lama (sebelum update DB) akan bernilai 0. Transaksi baru akan bernilai benar.
     double prevStock = (item['previous_stock'] as num?)?.toDouble() ?? 0;
     double finalStockAudit = prevStock + qtyAdded;
 
-    // LOGIKA SATUAN VS GROSIR
     int packContent = (item['pack_content'] as num?)?.toInt() ?? 1;
     bool isGrosirInput = false;
     double grosirQty = 0;
@@ -496,59 +742,11 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // 1. STOK AWAL
-                Expanded(
-                  flex: 2,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text("STOK AWAL", style: TextStyle(fontSize: 9, color: Colors.grey, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 2),
-                      Text("${NumberFormat('#,###').format(prevStock)} $unitLabel", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey)),
-                    ],
-                  ),
-                ),
-
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 5),
-                  child: Icon(Icons.add_circle_outline, color: Colors.blue, size: 16),
-                ),
-
-                // 2. MASUK (INPUT)
-                Expanded(
-                  flex: 3,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      const Text("MASUK", style: TextStyle(fontSize: 9, color: Colors.blue, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 2),
-                      if (isGrosirInput) ...[
-                         Text("+${NumberFormat('#,###').format(grosirQty)} $grosirLabel", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blue)),
-                         Text("(${NumberFormat('#,###').format(qtyAdded)} $unitLabel)", style: const TextStyle(fontSize: 10, color: Colors.blue)),
-                      ] else ...[
-                         Text("+${NumberFormat('#,###').format(qtyAdded)} $unitLabel", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blue)),
-                      ]
-                    ],
-                  ),
-                ),
-
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 5),
-                  child: Icon(Icons.arrow_forward, color: Colors.grey, size: 16),
-                ),
-
-                // 3. STOK AKHIR (AUDIT)
-                Expanded(
-                  flex: 2,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      const Text("STOK AKHIR", style: TextStyle(fontSize: 9, color: Colors.grey, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 2),
-                      Text("${NumberFormat('#,###').format(finalStockAudit)} $unitLabel", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: _bgStart)),
-                    ],
-                  ),
-                ),
+                Expanded(flex: 2, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text("STOK AWAL", style: TextStyle(fontSize: 9, color: Colors.grey, fontWeight: FontWeight.bold)), const SizedBox(height: 2), Text("${NumberFormat('#,###').format(prevStock)} $unitLabel", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey))])),
+                const Padding(padding: EdgeInsets.symmetric(horizontal: 5), child: Icon(Icons.add_circle_outline, color: Colors.blue, size: 16)),
+                Expanded(flex: 3, child: Column(crossAxisAlignment: CrossAxisAlignment.center, children: [const Text("MASUK", style: TextStyle(fontSize: 9, color: Colors.blue, fontWeight: FontWeight.bold)), const SizedBox(height: 2), if (isGrosirInput) ...[Text("+${NumberFormat('#,###').format(grosirQty)} $grosirLabel", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blue)), Text("(${NumberFormat('#,###').format(qtyAdded)} $unitLabel)", style: const TextStyle(fontSize: 10, color: Colors.blue))] else ...[Text("+${NumberFormat('#,###').format(qtyAdded)} $unitLabel", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blue))]])),
+                const Padding(padding: EdgeInsets.symmetric(horizontal: 5), child: Icon(Icons.arrow_forward, color: Colors.grey, size: 16)),
+                Expanded(flex: 2, child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [const Text("STOK AKHIR", style: TextStyle(fontSize: 9, color: Colors.grey, fontWeight: FontWeight.bold)), const SizedBox(height: 2), Text("${NumberFormat('#,###').format(finalStockAudit)} $unitLabel", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: _bgStart))])),
               ],
             )
           ],
@@ -557,90 +755,194 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
     );
   }
 
-  // --- WIDGET: KARTU REGULER (SOLD ITEMS / TRANSAKSI) ---
+  // --- REVISI KARTU TRANSAKSI (Tampil Lebih Detail & Cantik) ---
   Widget _buildRegularCard(Map<String, dynamic> item) {
-    String title = "";
+    if (widget.type == HistoryType.soldItems) {
+      // JIKA INI ITEM TERJUAL (BARANG KELUAR) -> Gunaan Tampilan Lama yg Disesuaikan
+      return _buildSoldItemCard(item);
+    }
+
+    // JIKA INI TRANSAKSI / PIUTANG -> Gunakan Tampilan Baru "Berbumbu"
+    String name = item['customer_name'] ?? "Pelanggan Umum";
+    int total = item['total_price'] ?? 0;
+    int id = item['id'];
+    String dateStr = item['transaction_date'] ?? "";
+    String status = item['payment_status'] ?? "Lunas";
+    String method = item['payment_method'] ?? "TUNAI"; 
+    int bensin = item['operational_cost'] ?? 0;
+    int discount = item['discount'] ?? 0;
+    int queue = item['queue_number'] ?? 0;
+
+    bool isLunas = status == 'Lunas';
+    Color methodColor = (method == "TUNAI") ? Colors.green : (method == "HUTANG" ? Colors.red : Colors.blue);
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 2,
+      child: InkWell(
+        onTap: () {
+          // Navigasi ke Detail
+          int tId = item['transaction_id'] ?? item['trans_id'] ?? item['id'];
+          _openDetail(tId);
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // BARIS 1: Nama & Total Harga
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      name, 
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                      overflow: TextOverflow.ellipsis
+                    ),
+                  ),
+                  Text(
+                    _formatRp(total), 
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold, 
+                      fontSize: 16, 
+                      color: isLunas ? Colors.green[700] : Colors.red
+                    )
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              
+              // BARIS 2: ID, Antrian & Waktu
+              Row(
+                children: [
+                  Text(
+                    "#$id (Antrian $queue)", 
+                    style: TextStyle(fontSize: 12, color: Colors.grey[700], fontWeight: FontWeight.bold)
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    "•  ${DateFormat('HH:mm').format(DateTime.parse(dateStr))}", 
+                    style: const TextStyle(fontSize: 12, color: Colors.grey)
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              
+              // BARIS 3: Badge Status & Info Tambahan
+              Row(
+                children: [
+                  // Badge Pembayaran
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: methodColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: methodColor.withOpacity(0.5), width: 0.5)
+                    ),
+                    child: Text(
+                      method, 
+                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: methodColor)
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  
+                  // Jika Belum Lunas, Tambah Badge Merah
+                  if (!isLunas)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.red,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Text(
+                        "BELUM LUNAS", 
+                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white)
+                      ),
+                    ),
+
+                  const Spacer(),
+
+                  // Info Bensin
+                  if (bensin > 0) ...[
+                    const Icon(Icons.local_gas_station, size: 14, color: Colors.orange),
+                    const SizedBox(width: 2),
+                    Text(_formatRpNoSymbol(bensin), style: const TextStyle(fontSize: 11, color: Colors.orange, fontWeight: FontWeight.bold)),
+                    const SizedBox(width: 10),
+                  ],
+
+                  // Info Diskon
+                  if (discount > 0) ...[
+                    const Icon(Icons.discount, size: 14, color: Colors.red),
+                    const SizedBox(width: 2),
+                    Text("-${_formatRpNoSymbol(discount)}", style: const TextStyle(fontSize: 11, color: Colors.red, fontWeight: FontWeight.bold)),
+                  ]
+                ],
+              )
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // TAMPILAN KHUSUS SOLD ITEMS (Stok Keluar) - Tetap Sederhana tapi Rapi
+  Widget _buildSoldItemCard(Map<String, dynamic> item) {
+    String rawName = item['product_name'] ?? "Unknown";
+    String title = rawName;
+    if (rawName.toLowerCase().contains("kayu")) {
+       String jenis = "";
+       if (rawName.contains("(") && rawName.contains(")")) {
+          int start = rawName.indexOf("(");
+          jenis = rawName.substring(start).trim();
+       }
+       String dim = item['dimensions'] ?? "";
+       title = "Kayu $dim $jenis";
+    }
+
+    List<String> subParts1 = [];
+    if (item['wood_class'] != null && item['wood_class'].toString().isNotEmpty) {
+       subParts1.add(item['wood_class']);
+    }
+    if (item['source'] != null && item['source'].toString().isNotEmpty) {
+       subParts1.add("Sumber: ${item['source']}");
+    }
+    String infoProduk = subParts1.join(" | ");
+
+    String custName = item['customer_name'] ?? "Umum";
+    String transId = "#${item['trans_id']}";
+    String infoTrans = "$custName ($transId)";
+
     String subtitle = "";
-    String trailingVal = "";
-    IconData icon = Icons.history;
-    Color color = Colors.blue;
+    if (infoProduk.isNotEmpty) subtitle += "$infoProduk\n";
+    subtitle += infoTrans;
 
-    if (widget.type == HistoryType.transactions || widget.type == HistoryType.piutang) {
-      // --- LOGIC TRANSAKSI & PIUTANG (TETAP) ---
-      title = item['customer_name'] ?? "Pelanggan Umum";
-      subtitle = item['payment_status'] ?? "-";
-      trailingVal = _formatRp(item['total_price']);
-      icon = Icons.receipt;
-      color = (item['payment_status'] == 'Lunas') ? Colors.green : Colors.red;
-    } 
-    else if (widget.type == HistoryType.soldItems) {
-      // --- REVISI LOGIC BARANG KELUAR (SESUAI REQUEST) ---
-      icon = Icons.outbox;
-      color = Colors.orange;
-
-      // 1. JUDUL PINTAR
-      String rawName = item['product_name'] ?? "Unknown";
-      title = rawName;
-      if (rawName.toLowerCase().contains("kayu")) {
-         String jenis = "";
-         if (rawName.contains("(") && rawName.contains(")")) {
-            int start = rawName.indexOf("(");
-            jenis = rawName.substring(start).trim();
-         }
-         String dim = item['dimensions'] ?? "";
-         title = "Kayu $dim $jenis";
-      }
-
-      // 2. SUBTITLE 1 (Kelas | Sumber)
-      List<String> subParts1 = [];
-      if (item['wood_class'] != null && item['wood_class'].toString().isNotEmpty) {
-         subParts1.add(item['wood_class']);
-      }
-      if (item['source'] != null && item['source'].toString().isNotEmpty) {
-         subParts1.add("Sumber: ${item['source']}");
-      }
-      String infoProduk = subParts1.join(" | ");
-
-      // 3. SUBTITLE 2 (Customer | ID Transaksi)
-      String custName = item['customer_name'] ?? "Umum";
-      String transId = "#${item['trans_id']}";
-      String infoTrans = "$custName ($transId)";
-
-      subtitle = "";
-      if (infoProduk.isNotEmpty) subtitle += "$infoProduk\n";
-      subtitle += infoTrans;
-
-      // 4. JUMLAH PINTAR (Grosir vs Satuan)
-      double reqQty = (item['request_qty'] as num?)?.toDouble() ?? 0;
-      double stockQty = (item['quantity'] as num).toDouble();
-      
-      String displayQty = "";
-      if (reqQty > 0) {
-         // Cek satuan dari unit_type yang disimpan
-         String unit = item['unit_type'] ?? "Pcs";
-         String val = reqQty % 1 == 0 ? reqQty.toInt().toString() : reqQty.toString();
-         displayQty = "$val $unit";
-      } else {
-         String val = stockQty % 1 == 0 ? stockQty.toInt().toString() : stockQty.toString();
-         displayQty = "$val Pcs";
-      }
-      
-      trailingVal = displayQty;
+    double reqQty = (item['request_qty'] as num?)?.toDouble() ?? 0;
+    double stockQty = (item['quantity'] as num).toDouble();
+    String trailingVal;
+    
+    if (reqQty > 0) {
+       String unit = item['unit_type'] ?? "Pcs";
+       String val = reqQty % 1 == 0 ? reqQty.toInt().toString() : reqQty.toString();
+       trailingVal = "$val $unit";
+    } else {
+       String val = stockQty % 1 == 0 ? stockQty.toInt().toString() : stockQty.toString();
+       trailingVal = "$val Pcs";
     }
 
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ListTile(
-        leading: CircleAvatar(backgroundColor: color.withOpacity(0.1), child: Icon(icon, color: color, size: 20)),
+        leading: CircleAvatar(backgroundColor: Colors.orange.withOpacity(0.1), child: const Icon(Icons.outbox, color: Colors.orange, size: 20)),
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
         subtitle: Text(subtitle, style: TextStyle(color: Colors.grey[600], fontSize: 12)),
-        trailing: Text(trailingVal, style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 14)),
+        trailing: Text(trailingVal, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange, fontSize: 14)),
         onTap: () {
-          if (widget.type == HistoryType.transactions || widget.type == HistoryType.piutang || widget.type == HistoryType.soldItems) {
-             int tId = item['transaction_id'] ?? item['trans_id'] ?? item['id'];
-             _openDetail(tId);
-          }
+           int tId = item['transaction_id'] ?? item['trans_id'] ?? item['id'];
+           _openDetail(tId);
         },
       ),
     );
@@ -666,4 +968,5 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
   }
 
   String _formatRp(dynamic number) => NumberFormat.currency(locale: 'id', symbol: 'Rp ', decimalDigits: 0).format(number);
+  String _formatRpNoSymbol(dynamic number) => NumberFormat.currency(locale: 'id', symbol: '', decimalDigits: 0).format(number);
 }

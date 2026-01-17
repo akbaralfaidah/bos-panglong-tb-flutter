@@ -3,14 +3,15 @@ import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart'; 
 import 'dart:io'; 
 import '../helpers/database_helper.dart';
-import '../helpers/session_manager.dart'; // Import Session Manager
+import '../helpers/session_manager.dart'; 
 import 'product_list_screen.dart';
 import 'cashier_screen.dart';
 import 'settings_screen.dart';
 import 'history_screen.dart';
 import 'report_screen.dart'; 
 import 'customer_list_screen.dart';
-import 'login_screen.dart'; // Import Login Screen untuk Logout
+import 'login_screen.dart'; 
+import 'profit_detail_screen.dart'; 
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -35,7 +36,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String _storeName = "Bos Panglong & TB"; 
   String? _logoPath;
 
-  // Cek Status User
   bool get _isOwner => SessionManager().isOwner;
 
   @override
@@ -47,7 +47,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }); 
   }
 
-  // LOGIKA LOGOUT
   void _logout() {
     showDialog(
       context: context, 
@@ -59,7 +58,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () {
-              SessionManager().logout(); // Hapus Sesi
+              SessionManager().logout(); 
               Navigator.pop(ctx);
               Navigator.pushReplacement(
                 context, 
@@ -79,14 +78,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _loadStoreIdentity(); 
   }
 
-  // REVISI: Menambahkan parameter optional {initialIndex} untuk tab History
   void _openHistory(HistoryType type, String title, {int initialIndex = 0}) async {
     await Navigator.push(
       context, 
       MaterialPageRoute(builder: (_) => HistoryScreen(
         type: type, 
         title: title, 
-        initialIndex: initialIndex // Kirim index tab ke HistoryScreen
+        initialIndex: initialIndex 
       ))
     );
     _refreshStats(); 
@@ -110,7 +108,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _refreshStats() async {
-    // Jika Karyawan, tidak perlu hitung statistik berat (Hemat Resource)
     if (!_isOwner) return;
 
     final db = DatabaseHelper.instance;
@@ -120,36 +117,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
     String startOfDay = "$today 00:00:00";
     String endOfDay = "$today 23:59:59";
 
+    // 1. PROFIT BERSIH REAL (Sudah dipotong bensin di database_helper)
+    int realNetProfit = await db.getRealNetProfit(startDate: today, endDate: today);
+
+    // 2. OMSET & BENSIN
     final transactions = await db.getTransactionHistory(startDate: today, endDate: today);
     int totalOutstandingDebt = await db.getTotalPiutangAllTime();
 
     double omsetReal = 0; 
-    double totalMarginLaba = 0; 
-    double bensin = 0;
+    double bensinIncome = 0;
 
     for (var t in transactions) {
-      int tId = t['id'];
       double totalBelanja = (t['total_price'] as num).toDouble();
       double opCost = (t['operational_cost'] as num).toDouble();
-      String status = t['payment_status']; 
       
-      if (status == 'Lunas') {
-        bensin += opCost; 
-        omsetReal += (totalBelanja - opCost); 
-
-        final items = await dbInstance.query('transaction_items', where: 'transaction_id = ?', whereArgs: [tId]);
-        for (var item in items) {
-          double qty = (item['quantity'] as num).toDouble();
-          double modalSatuan = (item['capital_price'] as num).toDouble();
-          double jualSatuan = (item['sell_price'] as num).toDouble();
-          
-          totalMarginLaba += (jualSatuan - modalSatuan) * qty;
-        }
-      }
+      // REVISI: Hitung Omset dari SEMUA transaksi (Lunas & Hutang)
+      // Omset Murni = Total Nota - Uang Bensin
+      omsetReal += (totalBelanja - opCost);
+      
+      // Hitung Pendapatan Bensin dari SEMUA transaksi
+      bensinIncome += opCost;
     }
     
-    double netProfit = totalMarginLaba - bensin;
-
+    // 3. BARANG TERJUAL
     int kCount = 0;
     int bCount = 0;
     final resItems = await dbInstance.rawQuery(
@@ -162,6 +152,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if(type == 'KAYU' || type == 'RENG') kCount += q; else bCount += q;
     }
 
+    // 4. STOK MASUK
     final resStok = await dbInstance.rawQuery(
       '''SELECT quantity_added, capital_price FROM stock_logs WHERE date BETWEEN ? AND ? AND quantity_added > 0''',
       [startOfDay, endOfDay]
@@ -176,8 +167,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (!mounted) return;
     setState(() {
       _omsetKotor = _roundClean(omsetReal);
-      _profitBersih = _roundClean(netProfit);
-      _uangBensin = _roundClean(bensin);
+      _profitBersih = realNetProfit;
+      _uangBensin = _roundClean(bensinIncome);
       _totalPiutang = _roundClean(totalOutstandingDebt.toDouble()); 
       _totalBeliStok = _roundClean(beliStokTotal);
       _kayuTerjual = kCount;
@@ -233,12 +224,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           backgroundColor: Colors.transparent, foregroundColor: Colors.white, elevation: 0,
           actions: [
             IconButton(icon: const Icon(Icons.refresh), onPressed: _refreshStats), 
-            
-            // HANYA PEMILIK YANG BISA AKSES SETTINGS
             if (_isOwner)
               IconButton(icon: const Icon(Icons.settings), onPressed: () => _nav(const SettingsScreen())),
-            
-            // TOMBOL LOGOUT UNTUK SEMUA
             IconButton(icon: const Icon(Icons.logout), onPressed: _logout),
           ],
         ),
@@ -250,11 +237,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
             children: [
               const SizedBox(height: 20),
               
-              // --- FITUR KHUSUS PEMILIK (STATISTIK LENGKAP) ---
               if (_isOwner) ...[
                 // KARTU PROFIT BESAR
                 InkWell(
-                  onTap: () => _openHistory(HistoryType.transactions, "Detail Profit & Transaksi"),
+                  onTap: () async {
+                    await Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfitDetailScreen()));
+                    _refreshStats(); 
+                  },
                   borderRadius: BorderRadius.circular(25),
                   child: Container(
                     padding: const EdgeInsets.all(20),
@@ -269,7 +258,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
                 const SizedBox(height: 20),
                 
-                // BARIS 1 KEUANGAN (PIUTANG & OMSET)
+                // BARIS 1 KEUANGAN
                 Row(
                   children: [
                     Expanded(
@@ -296,16 +285,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 
                 const SizedBox(height: 12), 
 
-                // BARIS 2 KEUANGAN (BENSIN & STOK)
+                // BARIS 2 KEUANGAN
                 Row(
                   children: [
                     Expanded(
                       child: _statCard(
-                        "Bensin (Hari Ini)", 
+                        "Bensin Masuk (Hari Ini)", 
                         _uangBensin, 
                         Icons.local_gas_station, 
                         Colors.orange[800]!, 
-                        () => _openHistory(HistoryType.bensin, "Pengeluaran Bensin")
+                        () => _openHistory(HistoryType.bensin, "Manajemen Bensin")
                       ),
                     ),
                     const SizedBox(width: 12), 
@@ -323,24 +312,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
                 const SizedBox(height: 8), 
                 
-                // BARIS 3: INFO BARANG TERJUAL
+                // BARIS 3: INFO BARANG
                 Row(children: [
-                  // REVISI: Mengirim initialIndex: 0 untuk Kayu
                   Expanded(child: _itemCard("Kayu Hari Ini", "$_kayuTerjual Btg", Icons.forest, const Color(0xFF795548), 
                     () => _openHistory(HistoryType.soldItems, "Rincian Barang Keluar", initialIndex: 0))),
                   
                   const SizedBox(width: 12),
                   
-                  // REVISI: Mengirim initialIndex: 1 untuk Bangunan
                   Expanded(child: _itemCard("Bangunan Hari Ini", "$_bangunanTerjual Pcs", Icons.home_work, const Color(0xFF546E7A), 
                     () => _openHistory(HistoryType.soldItems, "Rincian Barang Keluar", initialIndex: 1))),
                 ]),
                 
                 const SizedBox(height: 30),
-              ], // END IF OWNER
+              ], 
 
-              // --- MENU UTAMA (UNTUK PEMILIK & KARYAWAN) ---
-              // Karyawan tetap butuh akses Gudang untuk cek stok (tapi nanti dibatasi akses editnya)
+              // --- MENU UTAMA ---
               Row(children: [
                 Expanded(child: _menuBtn("GUDANG", Icons.inventory_2, [Colors.orange[400]!, Colors.orange[700]!], () => _nav(const ProductListScreen()))),
                 const SizedBox(width: 12),
@@ -350,7 +336,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
               const SizedBox(height: 12),
 
               Row(children: [
-                // Jika Karyawan: Ganti Tombol "Laporan" dengan "Riwayat" sederhana
                 if (_isOwner)
                   Expanded(child: _menuBtn("LAPORAN", Icons.analytics, [const Color.fromARGB(255, 71, 208, 7), const Color.fromARGB(255, 71, 143, 3)], () => _nav(const ReportScreen())))
                 else

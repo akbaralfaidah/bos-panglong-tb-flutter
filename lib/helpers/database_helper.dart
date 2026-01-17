@@ -22,8 +22,8 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      // VERSI 5 (Sesuai file terakhir)
-      version: 5, 
+      // VERSI 6 (Fitur Manajemen Bensin)
+      version: 6, 
       onCreate: _createDB,
       onUpgrade: _onUpgrade, 
     );
@@ -88,14 +88,13 @@ class DatabaseHelper {
       )
     ''');
 
-    // REVISI: Tambah previous_stock
     await db.execute('''
       CREATE TABLE stock_logs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         product_id INTEGER,
         product_type TEXT,
         quantity_added REAL,
-        previous_stock REAL DEFAULT 0, -- KOLOM BARU (AUDIT)
+        previous_stock REAL DEFAULT 0,
         capital_price INTEGER,
         date TEXT,
         note TEXT
@@ -109,6 +108,17 @@ class DatabaseHelper {
         amount_paid INTEGER,
         payment_date TEXT,
         note TEXT
+      )
+    ''');
+
+    // TABEL PENGELUARAN (BENSIN DLL)
+    await db.execute('''
+      CREATE TABLE expenses (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date TEXT,
+        amount INTEGER,
+        note TEXT,
+        type TEXT
       )
     ''');
 
@@ -127,15 +137,241 @@ class DatabaseHelper {
     if (oldVersion < 4) {
       await db.execute('ALTER TABLE transaction_items ADD COLUMN request_qty REAL DEFAULT 0');
     }
-    // MIGRASI KE VERSI 5 (Audit Stok)
     if (oldVersion < 5) {
       await db.execute('ALTER TABLE stock_logs ADD COLUMN previous_stock REAL DEFAULT 0');
+    }
+    if (oldVersion < 6) {
+      await db.execute('''
+        CREATE TABLE expenses (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          date TEXT,
+          amount INTEGER,
+          note TEXT,
+          type TEXT
+        )
+      ''');
     }
   }
 
   // ==========================================
-  // FITUR DATA PELANGGAN (CRM)
+  // HELPER: SMART ROUNDING (PEMBULATAN CERDAS)
   // ==========================================
+  int _smartRound(int value) {
+    if (value == 0) return 0;
+    if (value.abs() < 500) return value;
+    
+    double val = value.toDouble();
+    return (val / 500).round() * 500;
+  }
+
+  // ==========================================
+  // FITUR DASHBOARD PROFIT REAL (REVISI KONSERVATIF + ROUNDING)
+  // ==========================================
+
+  Future<int> getRealNetProfit({required String startDate, required String endDate}) async {
+    final db = await instance.database;
+    String start = "$startDate 00:00:00";
+    String end = "$endDate 23:59:59";
+
+    // A. Hitung Gross Profit Barang (Jual - Modal)
+    final resSales = await db.rawQuery('''
+      SELECT SUM((ti.sell_price - ti.capital_price) * ti.quantity) as profit
+      FROM transaction_items ti
+      JOIN transactions t ON ti.transaction_id = t.id
+      WHERE t.transaction_date BETWEEN ? AND ?
+    ''', [start, end]);
+    int salesProfit = (resSales.first['profit'] as int?) ?? 0;
+
+    // B. Hitung Dana Cadangan Bensin (Dari Customer)
+    final resOp = await db.rawQuery('''
+      SELECT SUM(operational_cost) as total
+      FROM transactions
+      WHERE transaction_date BETWEEN ? AND ?
+    ''', [start, end]);
+    int shippingIncome = (resOp.first['total'] as int?) ?? 0;
+
+    // C. Hitung Pengeluaran Bensin Asli (SPBU)
+    final resExp = await db.rawQuery('''
+      SELECT SUM(amount) as total
+      FROM expenses
+      WHERE date BETWEEN ? AND ?
+    ''', [start, end]);
+    int fuelExpense = (resExp.first['total'] as int?) ?? 0;
+
+    // D. Hitung Total Diskon
+    final resDisc = await db.rawQuery('''
+      SELECT SUM(discount) as total
+      FROM transactions
+      WHERE transaction_date BETWEEN ? AND ?
+    ''', [start, end]);
+    int totalDiscount = (resDisc.first['total'] as int?) ?? 0;
+
+    // --- LOGIKA BARU (KONSERVATIF) ---
+    // 1. Profit Murni dari Dagang
+    int tradeProfit = salesProfit - totalDiscount;
+
+    // 2. Cek Apakah Bensin Nombok?
+    int fuelDeficit = 0;
+    if (fuelExpense > shippingIncome) {
+      fuelDeficit = fuelExpense - shippingIncome;
+    } 
+
+    // 3. Profit Akhir (Dibulatkan)
+    int rawProfit = tradeProfit - fuelDeficit;
+    return _smartRound(rawProfit); 
+  }
+
+  Future<List<Map<String, dynamic>>> getMergedProfitHistory({required String startDate, required String endDate}) async {
+    final db = await instance.database;
+    String start = "$startDate 00:00:00";
+    String end = "$endDate 23:59:59";
+
+    // A. Transaksi
+    final List<Map<String, dynamic>> transactions = await db.rawQuery('''
+      SELECT 
+        t.id,
+        t.transaction_date as date,
+        t.customer_name as title,
+        'IN' as type,
+        t.operational_cost,
+        t.discount,
+        SUM((ti.sell_price - ti.capital_price) * ti.quantity) as gross_profit
+      FROM transactions t
+      JOIN transaction_items ti ON t.id = ti.transaction_id
+      WHERE t.transaction_date BETWEEN ? AND ?
+      GROUP BY t.id
+    ''', [start, end]);
+
+    // B. Pengeluaran
+    final List<Map<String, dynamic>> expenses = await db.rawQuery('''
+      SELECT 
+        id,
+        date,
+        note as title,
+        'OUT' as type,
+        amount
+      FROM expenses
+      WHERE date BETWEEN ? AND ?
+    ''', [start, end]);
+
+    List<Map<String, dynamic>> merged = [];
+
+    // Proses Transaksi
+    for (var t in transactions) {
+      int gross = (t['gross_profit'] as int?) ?? 0;
+      int op = (t['operational_cost'] as int?) ?? 0;
+      int disc = (t['discount'] as int?) ?? 0;
+      
+      int netTradeProfit = gross - disc;
+
+      merged.add({
+        'id': t['id'],
+        'date': t['date'],
+        'title': t['title'], 
+        'subtitle': "Penjualan #${t['id']}",
+        'type': 'IN',
+        'amount': _smartRound(netTradeProfit), 
+        'extra_fuel_income': op,  
+      });
+    }
+
+    // Proses Pengeluaran
+    for (var e in expenses) {
+      merged.add({
+        'id': e['id'],
+        'date': e['date'],
+        'title': e['title'] ?? 'Pengeluaran',
+        'subtitle': 'Operasional',
+        'type': 'OUT',
+        'amount': (e['amount'] as int),
+      });
+    }
+
+    merged.sort((a, b) => DateTime.parse(b['date']).compareTo(DateTime.parse(a['date'])));
+
+    return merged;
+  }
+
+  // ==========================================
+  // FITUR MANAJEMEN BENSIN (TAB BENSIN)
+  // ==========================================
+
+  Future<int> addFuelExpense(int amount, String note, String date) async {
+    final db = await instance.database;
+    return await db.insert('expenses', {
+      'date': date,
+      'amount': amount,
+      'note': note,
+      'type': 'FUEL'
+    });
+  }
+
+  Future<Map<String, dynamic>> getFuelReport({required String startDate, required String endDate}) async {
+    final db = await instance.database;
+    String start = "$startDate 00:00:00";
+    String end = "$endDate 23:59:59";
+
+    final resIncome = await db.rawQuery(
+      "SELECT SUM(operational_cost) as total FROM transactions WHERE transaction_date BETWEEN ? AND ?", 
+      [start, end]
+    );
+    int totalIncome = (resIncome.first['total'] as int?) ?? 0;
+
+    final resExpense = await db.rawQuery(
+      "SELECT SUM(amount) as total FROM expenses WHERE type='FUEL' AND date BETWEEN ? AND ?",
+      [start, end]
+    );
+    int totalExpense = (resExpense.first['total'] as int?) ?? 0;
+
+    final listExpenses = await db.query(
+      'expenses',
+      where: "type='FUEL' AND date BETWEEN ? AND ?",
+      whereArgs: [start, end],
+      orderBy: "date DESC"
+    );
+
+    return {
+      'total_income': totalIncome,
+      'total_expense': totalExpense,
+      'history': listExpenses
+    };
+  }
+
+  Future<int> deleteExpense(int id) async {
+    final db = await instance.database;
+    return await db.delete('expenses', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // ==========================================
+  // FITUR LAMA LAINNYA (DIPERBAIKI QUERY TOP 5)
+  // ==========================================
+
+  // --- REVISI QUERY TOP 5: PAKSA SATUAN JADI 'Batang'/'Pcs' ---
+  Future<List<Map<String, dynamic>>> getTopProducts({required String startDate, required String endDate}) async {
+    final db = await instance.database;
+    String start = "$startDate 00:00:00";
+    String end = "$endDate 23:59:59";
+
+    return await db.rawQuery('''
+      SELECT 
+        p.name as product_name,
+        p.dimensions,
+        p.wood_class,
+        p.source,
+        SUM(i.quantity) as total_qty,
+        CASE 
+          WHEN p.type IN ('KAYU', 'RENG', 'BULAT') THEN 'Batang'
+          ELSE 'Pcs'
+        END as unit_type
+      FROM transaction_items i
+      JOIN transactions t ON i.transaction_id = t.id
+      LEFT JOIN products p ON i.product_id = p.id
+      WHERE t.transaction_date BETWEEN ? AND ?
+      GROUP BY i.product_id
+      ORDER BY total_qty DESC
+      LIMIT 5
+    ''', [start, end]);
+  }
 
   Future<List<Map<String, dynamic>>> getTransactionsByCustomer(String name) async {
     final db = await instance.database;
@@ -146,10 +382,6 @@ class DatabaseHelper {
       orderBy: 'transaction_date DESC'
     );
   }
-
-  // ==========================================
-  // LOGIKA HUTANG & CICILAN
-  // ==========================================
 
   Future<List<Map<String, dynamic>>> getAllDebtHistory({String? startDate, String? endDate}) async {
     final db = await instance.database;
@@ -250,11 +482,6 @@ class DatabaseHelper {
     );
   }
 
-  // ==========================================
-  // QUERY LAPORAN LAINNYA
-  // ==========================================
-
-  // --- REVISI QUERY SOLD ITEMS (Join Product Info) ---
   Future<List<Map<String, dynamic>>> getSoldItemsDetail({required String startDate, required String endDate}) async {
     final db = await instance.database;
     String start = "$startDate 00:00:00";
@@ -277,7 +504,6 @@ class DatabaseHelper {
     ''', [start, end]);
   }
 
-  // REVISI: JOIN Products untuk ambil Dimensions, Wood Class, Pack Content
   Future<List<Map<String, dynamic>>> getStockLogsDetail({required String startDate, required String endDate}) async {
     final db = await instance.database;
     String start = "$startDate 00:00:00";
@@ -344,25 +570,6 @@ class DatabaseHelper {
     ''', [start, end]);
   }
 
-  Future<List<Map<String, dynamic>>> getTopProducts({required String startDate, required String endDate}) async {
-    final db = await instance.database;
-    String start = "$startDate 00:00:00";
-    String end = "$endDate 23:59:59";
-
-    return await db.rawQuery('''
-      SELECT 
-        i.product_name, 
-        SUM(i.quantity) as total_qty,
-        i.unit_type
-      FROM transaction_items i
-      JOIN transactions t ON i.transaction_id = t.id
-      WHERE t.transaction_date BETWEEN ? AND ?
-      GROUP BY i.product_name
-      ORDER BY total_qty DESC
-      LIMIT 5
-    ''', [start, end]);
-  }
-
   Future<int> createTransaction({
     required int totalPrice, 
     required int operational_cost, 
@@ -391,9 +598,7 @@ class DatabaseHelper {
         });
 
         for (var item in items) {
-          // Cast ke CartItemModel agar field requestQty terbaca dengan aman
           CartItemModel cartItem = item as CartItemModel;
-          
           await txn.insert('transaction_items', {
             'transaction_id': tId, 
             'product_id': cartItem.productId, 
@@ -405,7 +610,6 @@ class DatabaseHelper {
             'capital_price': cartItem.capitalPrice, 
             'sell_price': cartItem.sellPrice
           });
-          
           await txn.rawUpdate('UPDATE products SET stock = stock - ? WHERE id = ?', [cartItem.quantity, cartItem.productId]);
         }
         return tId;
@@ -462,29 +666,23 @@ class DatabaseHelper {
     return r.map((e) => e['name'] as String).toList();
   }
 
-  // --- REVISI BUG FIX: STOK AWAL BENAR ---
   Future<void> updateStockQuick(int id, double newStock, int expense) async {
     final db = await instance.database;
     final old = await db.query('products', where: 'id = ?', whereArgs: [id]);
     if(old.isNotEmpty) {
-      double oldStk = (old.first['stock'] as int).toDouble(); // AMBIL STOK LAMA
+      double oldStk = (old.first['stock'] as int).toDouble(); 
       double add = newStock - oldStk;
       
-      // 1. UPDATE DB DULUAN (Supaya data konsisten)
       await db.update('products', {'stock': newStock.toInt()}, where: 'id = ?', whereArgs: [id]);
 
-      // 2. BARU CATAT LOG
       if(add > 0) {
         int modal = (expense / add).round();
         if(expense == 0) modal = old.first['buy_price_unit'] as int;
-        
-        // KIRIM oldStk SEBAGAI manualPrevStock
         await addStockLog(id, old.first['type'] as String, add, modal, "Tambah Cepat", manualPrevStock: oldStk);
       }
     }
   }
   
-  // --- REVISI: TERIMA PARAMETER manualPrevStock ---
   Future<void> addStockLog(int pid, String type, double qty, int modal, String note, {double? manualPrevStock}) async {
     final db = await instance.database;
     String dateNow = DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now());
@@ -492,11 +690,8 @@ class DatabaseHelper {
     double prevStock = 0;
 
     if (manualPrevStock != null) {
-      // JIKA DIKIRIM MANUAL, GUNAKAN LANGSUNG (PASTI BENAR)
       prevStock = manualPrevStock;
     } else {
-      // FALLBACK (JIKA TIDAK DIKIRIM MANUAL) - Hitung Mundur
-      // Asumsi: Fungsi ini dipanggil SETELAH update stok produk
       final productRes = await db.query('products', columns: ['stock'], where: 'id = ?', whereArgs: [pid]);
       double currentStock = 0;
       if (productRes.isNotEmpty) {
