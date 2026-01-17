@@ -18,6 +18,59 @@ class _StockInBulkScreenState extends State<StockInBulkScreen> {
   
   int get _totalExpense => _bulkList.fold(0, (sum, item) => sum + item.totalPrice);
 
+  // --- FITUR BARU: ANIMASI SUKSES POP-UP ---
+  void _showSuccessDialog() {
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: false,
+      barrierLabel: "Success",
+      transitionDuration: const Duration(milliseconds: 400),
+      pageBuilder: (ctx, anim1, anim2) => Container(),
+      transitionBuilder: (ctx, anim1, anim2, child) {
+        return ScaleTransition(
+          scale: CurvedAnimation(parent: anim1, curve: Curves.elasticOut), 
+          child: AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            contentPadding: const EdgeInsets.all(20),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 10),
+                TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0.0, end: 1.0),
+                  duration: const Duration(milliseconds: 600),
+                  builder: (context, value, child) {
+                    return Transform.scale(
+                      scale: value,
+                      child: Container(
+                        padding: const EdgeInsets.all(15),
+                        decoration: BoxDecoration(color: Colors.green.withOpacity(0.1), shape: BoxShape.circle),
+                        child: const Icon(Icons.check_circle, color: Colors.green, size: 80),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 20),
+                const Text("BERHASIL!", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.green)),
+                const SizedBox(height: 10),
+                const Text("Stok massal telah disimpan.", textAlign: TextAlign.center, style: TextStyle(fontSize: 16, color: Colors.grey)),
+                const SizedBox(height: 10),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    // Auto close dan kembali ke layar sebelumnya
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted) {
+        Navigator.pop(context); // Tutup Dialog
+        Navigator.pop(context); // Kembali ke Gudang
+      }
+    });
+  }
+
   Future<void> _saveBulkStock() async {
     if (_bulkList.isEmpty) return;
 
@@ -31,16 +84,32 @@ class _StockInBulkScreenState extends State<StockInBulkScreen> {
       final db = await DatabaseHelper.instance.database;
       await db.transaction((txn) async {
         for (var item in _bulkList) {
+          // 1. AMBIL STOK LAMA DULU (SNAPSHOT)
+          final List<Map<String, dynamic>> currentData = await txn.query(
+            'products',
+            columns: ['stock'],
+            where: 'id = ?',
+            whereArgs: [item.product.id]
+          );
+          
+          double oldStock = 0;
+          if (currentData.isNotEmpty) {
+            oldStock = (currentData.first['stock'] as int).toDouble();
+          }
+
+          // 2. LAKUKAN UPDATE STOK
           await txn.rawUpdate(
             'UPDATE products SET stock = stock + ? WHERE id = ?',
             [item.finalQtyToAdd, item.product.id]
           );
 
+          // 3. SIMPAN LOG
           String dateNow = DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now());
           await txn.insert('stock_logs', {
             'product_id': item.product.id,
             'product_type': item.product.type,
             'quantity_added': item.finalQtyToAdd.toDouble(),
+            'previous_stock': oldStock,
             'capital_price': item.modalInput,
             'date': dateNow,
             'note': "Penerimaan Massal"
@@ -49,11 +118,8 @@ class _StockInBulkScreenState extends State<StockInBulkScreen> {
       });
 
       if (mounted) {
-        Navigator.pop(context);
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Berhasil memperbarui stok massal!"), backgroundColor: Colors.green)
-        );
+        Navigator.pop(context); // Tutup Loading
+        _showSuccessDialog();   // Tampilkan Pop-up Sukses
       }
     } catch (e) {
       if (mounted) Navigator.pop(context);
@@ -328,12 +394,40 @@ class _AddBulkItemDialogState extends State<AddBulkItemDialog> {
                   ],
                 ),
                 const SizedBox(height: 15),
-                TextField(controller: _qtyController, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: "Jumlah Masuk", border: OutlineInputBorder())),
+                
+                // INPUT JUMLAH DENGAN LIVE INFO
+                TextField(
+                  controller: _qtyController, 
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true), 
+                  decoration: const InputDecoration(labelText: "Jumlah Masuk", border: OutlineInputBorder()),
+                  onChanged: (v) => setState((){}), // Trigger rebuild untuk info
+                ),
+                
+                // INFO KONVERSI REAL-TIME
+                if (_selectedProduct != null && _isGrosir)
+                  Builder(builder: (context) {
+                    double val = double.tryParse(_qtyController.text.replaceAll(',', '.')) ?? 0;
+                    if (val > 0) {
+                      double totalPcs = val * _selectedProduct!.packContent;
+                      String satuan = _selectedProduct!.type == 'KAYU' || _selectedProduct!.type == 'RENG' ? "Batang" : "Pcs";
+                      String unitGrosir = _selectedProduct!.type == 'KAYU' ? "m³" : "Dus/Ikat";
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 8, bottom: 8),
+                        child: Text(
+                          "Info: $val $unitGrosir setara dengan ${NumberFormat('#,###').format(totalPcs)} $satuan",
+                          style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                      );
+                    }
+                    return const SizedBox.shrink();
+                  }),
+
                 const SizedBox(height: 10),
                 TextField(
                   controller: _modalController, 
                   keyboardType: TextInputType.number, 
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  // FORMATTER RUPIAH
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly, CurrencyInputFormatter()],
                   decoration: const InputDecoration(labelText: "Harga Modal per Unit", prefixText: "Rp ", border: OutlineInputBorder())
                 ),
               ]
@@ -347,6 +441,7 @@ class _AddBulkItemDialogState extends State<AddBulkItemDialog> {
           ElevatedButton(
             onPressed: () {
               double inputQty = double.tryParse(_qtyController.text.replaceAll(',', '.')) ?? 0;
+              // PARSE HARGA DENGAN TITIK
               int modal = int.tryParse(_modalController.text.replaceAll('.', '')) ?? 0;
               if (inputQty <= 0) return;
 
@@ -394,4 +489,20 @@ class _AddBulkItemDialogState extends State<AddBulkItemDialog> {
       ),
     ),
   );
+}
+
+// CLASS FORMATTER
+class CurrencyInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue o, TextEditingValue n) {
+    if (n.selection.baseOffset == 0) return n;
+    String c = n.text.replaceAll(RegExp(r'[^0-9]'), '');
+    if (c.isEmpty) return n.copyWith(text: '');
+    try {
+      int v = int.parse(c);
+      final f = NumberFormat('#,###', 'id_ID');
+      String nt = f.format(v);
+      return n.copyWith(text: nt, selection: TextSelection.collapsed(offset: nt.length));
+    } catch (e) { return o; }
+  }
 }

@@ -22,8 +22,8 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      // VERSI NAIK JADI 4 (Untuk fitur Request Qty / Konsistensi History)
-      version: 4, 
+      // VERSI 5 (Sesuai file terakhir)
+      version: 5, 
       onCreate: _createDB,
       onUpgrade: _onUpgrade, 
     );
@@ -73,7 +73,6 @@ class DatabaseHelper {
       )
     ''');
 
-    // REVISI: Tambah request_qty
     await db.execute('''
       CREATE TABLE transaction_items (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -89,12 +88,14 @@ class DatabaseHelper {
       )
     ''');
 
+    // REVISI: Tambah previous_stock
     await db.execute('''
       CREATE TABLE stock_logs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         product_id INTEGER,
         product_type TEXT,
         quantity_added REAL,
+        previous_stock REAL DEFAULT 0, -- KOLOM BARU (AUDIT)
         capital_price INTEGER,
         date TEXT,
         note TEXT
@@ -123,9 +124,12 @@ class DatabaseHelper {
     if (oldVersion < 3) {
       await db.execute('ALTER TABLE transactions ADD COLUMN discount INTEGER DEFAULT 0');
     }
-    // MIGRASI KE VERSI 4 (Tambah Kolom request_qty)
     if (oldVersion < 4) {
       await db.execute('ALTER TABLE transaction_items ADD COLUMN request_qty REAL DEFAULT 0');
+    }
+    // MIGRASI KE VERSI 5 (Audit Stok)
+    if (oldVersion < 5) {
+      await db.execute('ALTER TABLE stock_logs ADD COLUMN previous_stock REAL DEFAULT 0');
     }
   }
 
@@ -250,27 +254,42 @@ class DatabaseHelper {
   // QUERY LAPORAN LAINNYA
   // ==========================================
 
+  // --- REVISI QUERY SOLD ITEMS (Join Product Info) ---
   Future<List<Map<String, dynamic>>> getSoldItemsDetail({required String startDate, required String endDate}) async {
     final db = await instance.database;
     String start = "$startDate 00:00:00";
     String end = "$endDate 23:59:59";
 
     return await db.rawQuery('''
-      SELECT i.*, t.transaction_date, t.customer_name, t.id as trans_id 
+      SELECT 
+        i.*, 
+        t.transaction_date, 
+        t.customer_name, 
+        t.id as trans_id,
+        p.wood_class,
+        p.source,
+        p.dimensions
       FROM transaction_items i 
       JOIN transactions t ON i.transaction_id = t.id 
+      LEFT JOIN products p ON i.product_id = p.id
       WHERE t.transaction_date BETWEEN ? AND ? 
       ORDER BY t.transaction_date DESC
     ''', [start, end]);
   }
 
+  // REVISI: JOIN Products untuk ambil Dimensions, Wood Class, Pack Content
   Future<List<Map<String, dynamic>>> getStockLogsDetail({required String startDate, required String endDate}) async {
     final db = await instance.database;
     String start = "$startDate 00:00:00";
     String end = "$endDate 23:59:59";
 
     return await db.rawQuery('''
-      SELECT s.*, p.name as product_name 
+      SELECT 
+        s.*, 
+        p.name as product_name,
+        p.dimensions,
+        p.wood_class,
+        p.pack_content
       FROM stock_logs s 
       LEFT JOIN products p ON s.product_id = p.id 
       WHERE s.date BETWEEN ? AND ? AND s.quantity_added > 0
@@ -311,7 +330,7 @@ class DatabaseHelper {
         t.transaction_date, 
         t.id as invoice_id, 
         t.customer_name, 
-        t.payment_status,
+        t.payment_status, 
         t.discount,
         i.product_name, 
         i.quantity, 
@@ -344,7 +363,6 @@ class DatabaseHelper {
     ''', [start, end]);
   }
 
-  // --- REVISI: Update createTransaction untuk simpan request_qty ---
   Future<int> createTransaction({
     required int totalPrice, 
     required int operational_cost, 
@@ -365,7 +383,7 @@ class DatabaseHelper {
           'total_price': totalPrice, 
           'operational_cost': operational_cost, 
           'discount': discount, 
-          'customer_name': customerName,
+          'customer_name': customerName, 
           'payment_method': paymentMethod, 
           'payment_status': paymentStatus, 
           'queue_number': queueNumber, 
@@ -381,8 +399,8 @@ class DatabaseHelper {
             'product_id': cartItem.productId, 
             'product_name': cartItem.productName,
             'product_type': cartItem.productType, 
-            'quantity': cartItem.quantity, // Ini qty pengurangan stok (misal 350 batang)
-            'request_qty': cartItem.requestQty, // REVISI: Ini qty input asli (misal 5 kubik)
+            'quantity': cartItem.quantity, 
+            'request_qty': cartItem.requestQty,
             'unit_type': cartItem.unitType,
             'capital_price': cartItem.capitalPrice, 
             'sell_price': cartItem.sellPrice
@@ -444,24 +462,57 @@ class DatabaseHelper {
     return r.map((e) => e['name'] as String).toList();
   }
 
+  // --- REVISI BUG FIX: STOK AWAL BENAR ---
   Future<void> updateStockQuick(int id, double newStock, int expense) async {
     final db = await instance.database;
     final old = await db.query('products', where: 'id = ?', whereArgs: [id]);
     if(old.isNotEmpty) {
-      double oldStk = (old.first['stock'] as int).toDouble();
+      double oldStk = (old.first['stock'] as int).toDouble(); // AMBIL STOK LAMA
       double add = newStock - oldStk;
+      
+      // 1. UPDATE DB DULUAN (Supaya data konsisten)
+      await db.update('products', {'stock': newStock.toInt()}, where: 'id = ?', whereArgs: [id]);
+
+      // 2. BARU CATAT LOG
       if(add > 0) {
         int modal = (expense / add).round();
         if(expense == 0) modal = old.first['buy_price_unit'] as int;
-        await addStockLog(id, old.first['type'] as String, add, modal, "Tambah Cepat");
+        
+        // KIRIM oldStk SEBAGAI manualPrevStock
+        await addStockLog(id, old.first['type'] as String, add, modal, "Tambah Cepat", manualPrevStock: oldStk);
       }
-      await db.update('products', {'stock': newStock.toInt()}, where: 'id = ?', whereArgs: [id]);
     }
   }
   
-  Future<void> addStockLog(int pid, String type, double qty, int modal, String note) async {
+  // --- REVISI: TERIMA PARAMETER manualPrevStock ---
+  Future<void> addStockLog(int pid, String type, double qty, int modal, String note, {double? manualPrevStock}) async {
     final db = await instance.database;
     String dateNow = DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now());
-    await db.insert('stock_logs', {'product_id': pid, 'product_type': type, 'quantity_added': qty, 'capital_price': modal, 'date': dateNow, 'note': note});
+    
+    double prevStock = 0;
+
+    if (manualPrevStock != null) {
+      // JIKA DIKIRIM MANUAL, GUNAKAN LANGSUNG (PASTI BENAR)
+      prevStock = manualPrevStock;
+    } else {
+      // FALLBACK (JIKA TIDAK DIKIRIM MANUAL) - Hitung Mundur
+      // Asumsi: Fungsi ini dipanggil SETELAH update stok produk
+      final productRes = await db.query('products', columns: ['stock'], where: 'id = ?', whereArgs: [pid]);
+      double currentStock = 0;
+      if (productRes.isNotEmpty) {
+        currentStock = (productRes.first['stock'] as int).toDouble();
+      }
+      prevStock = currentStock - qty;
+    }
+
+    await db.insert('stock_logs', {
+      'product_id': pid, 
+      'product_type': type, 
+      'quantity_added': qty, 
+      'previous_stock': prevStock, 
+      'capital_price': modal, 
+      'date': dateNow, 
+      'note': note
+    });
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // Import untuk Formatter
 import 'package:intl/intl.dart';
 import '../models/product.dart';
 import '../helpers/database_helper.dart';
@@ -48,14 +49,12 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
     List<Product> temp = _allProducts.where((p) {
       String query = _searchQuery.toLowerCase();
       
-      // --- LOGIC PENCARIAN LENGKAP (Nama, Sumber, Dimensi, Kelas) ---
       bool matchName = p.name.toLowerCase().contains(query);
       bool matchSource = p.source.toLowerCase().contains(query);
       bool matchDim = p.dimensions != null && p.dimensions!.toLowerCase().contains(query);
       bool matchClass = p.woodClass != null && p.woodClass!.toLowerCase().contains(query);
       
       return matchName || matchSource || matchDim || matchClass;
-      // ---------------------------------------------------------------
     }).toList();
 
     setState(() {
@@ -70,6 +69,63 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
 
   String _formatRp(num amount) {
     return NumberFormat.currency(locale: 'id', symbol: 'Rp ', decimalDigits: 0).format(amount);
+  }
+
+  // --- REVISI: ANIMASI SUKSES POP-UP BESAR ---
+  void _showSuccessMsg(String msg) {
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: false, // User tidak bisa tap luar untuk tutup (tunggu timer)
+      barrierLabel: "Success",
+      transitionDuration: const Duration(milliseconds: 400), // Durasi animasi muncul
+      pageBuilder: (ctx, anim1, anim2) => Container(), // Placeholder
+      transitionBuilder: (ctx, anim1, anim2, child) {
+        // ANIMASI SCALE (MEMBESAR DENGAN EFEK MEMANTUL/ELASTIC)
+        return ScaleTransition(
+          scale: CurvedAnimation(parent: anim1, curve: Curves.elasticOut), 
+          child: AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            contentPadding: const EdgeInsets.all(20),
+            content: Column(
+              mainAxisSize: MainAxisSize.min, // Ukuran card menyesuaikan konten
+              children: [
+                const SizedBox(height: 10),
+                // ICON CENTANG BESAR ANIMASI
+                TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0.0, end: 1.0),
+                  duration: const Duration(milliseconds: 600),
+                  builder: (context, value, child) {
+                    return Transform.scale(
+                      scale: value,
+                      child: Container(
+                        padding: const EdgeInsets.all(15),
+                        decoration: BoxDecoration(
+                          color: Colors.green.withOpacity(0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.check_circle, color: Colors.green, size: 80),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 20),
+                const Text("BERHASIL!", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.green)),
+                const SizedBox(height: 10),
+                Text(msg, textAlign: TextAlign.center, style: const TextStyle(fontSize: 16, color: Colors.grey)),
+                const SizedBox(height: 10),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    // AUTO CLOSE SETELAH 2 DETIK
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted && Navigator.canPop(context)) {
+        Navigator.pop(context);
+      }
+    });
   }
 
   @override
@@ -142,7 +198,10 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
           backgroundColor: Colors.white,
           onPressed: () async {
             final res = await Navigator.push(context, MaterialPageRoute(builder: (_) => const ProductFormScreen()));
-            if (res == true) _loadProducts();
+            if (res == true) {
+              _loadProducts();
+              _showSuccessMsg("Produk baru disimpan"); // Trigger Animasi
+            }
           },
           icon: Icon(Icons.add, color: _bgStart),
           label: Text("PRODUK BARU", style: TextStyle(color: _bgStart, fontWeight: FontWeight.bold)),
@@ -174,7 +233,6 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
           labelJualGrosir = "Jual per Ikat";
         }
 
-        // --- TAMPILAN REVISI (Judul & Subtitle) ---
         String displayTitle = p.name;
         String displaySubtitle = "Ukuran: ${p.dimensions ?? '-'} | Stok: ${p.stock}";
 
@@ -187,7 +245,6 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
           displayTitle = "Kayu ${p.dimensions ?? ''} $jenisKayu";
           displaySubtitle = "Kelas: ${p.woodClass ?? '-'} | Stok: ${p.stock}";
         }
-        // ------------------------------------------
 
         return Card(
           margin: const EdgeInsets.only(bottom: 12),
@@ -245,7 +302,10 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
                           _actionButton(Icons.add_circle, "Tambah Stok", Colors.green, () => _showQuickAddStock(p)),
                           _actionButton(Icons.edit, "Edit", Colors.orange, () async {
                             final res = await Navigator.push(context, MaterialPageRoute(builder: (_) => ProductFormScreen(product: p)));
-                            if (res == true) _loadProducts();
+                            if (res == true) {
+                              _loadProducts();
+                              _showSuccessMsg("Data produk diperbarui"); // Trigger Animasi
+                            }
                           }),
                           _actionButton(Icons.delete, "Hapus", Colors.red, () => _confirmDelete(p)),
                         ],
@@ -297,19 +357,25 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
         builder: (context, setDialogState) {
           String inputLabel = "Jumlah Pcs";
           String toggleLabel = "Grosir";
+          String satuanKecil = "Pcs";
           
           if(p.type == 'KAYU') {
             inputLabel = isGrosirMode ? "Jumlah Kubik" : "Jumlah Batang";
             toggleLabel = "Kubik";
+            satuanKecil = "Batang";
           } else if (p.type == 'RENG') {
             inputLabel = isGrosirMode ? "Jumlah Ikat" : "Jumlah Batang";
             toggleLabel = "Ikat";
+            satuanKecil = "Batang";
           } else if (isBulat) {
             inputLabel = "Jumlah Batang (Bulat)";
           } else {
             inputLabel = isGrosirMode ? "Jumlah Dus/Grosir" : "Jumlah Satuan";
             toggleLabel = "Grosir/Dus";
           }
+
+          double currentInput = double.tryParse(stockController.text.replaceAll(',', '.')) ?? 0;
+          double convertedPcs = isGrosirMode ? (currentInput * p.packContent) : currentInput;
 
           return AlertDialog(
             title: Text("Tambah Stok: ${p.name}", style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
@@ -320,9 +386,17 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
                 const SizedBox(height: 15),
                 if (!isBulat) 
                   Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    ChoiceChip(label: const Text("Satuan"), selected: !isGrosirMode, onSelected: (s) => setDialogState(() => isGrosirMode = false)),
+                    ChoiceChip(label: const Text("Satuan"), selected: !isGrosirMode, onSelected: (s) => setDialogState(() {
+                      isGrosirMode = false;
+                      stockController.clear();
+                      moneyController.clear();
+                    })),
                     const SizedBox(width: 8),
-                    ChoiceChip(label: Text(toggleLabel), selected: isGrosirMode, onSelected: (s) => setDialogState(() => isGrosirMode = true)),
+                    ChoiceChip(label: Text(toggleLabel), selected: isGrosirMode, onSelected: (s) => setDialogState(() {
+                      isGrosirMode = true;
+                      stockController.clear();
+                      moneyController.clear();
+                    })),
                   ]),
                 
                 const SizedBox(height: 15),
@@ -331,15 +405,28 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   decoration: InputDecoration(labelText: inputLabel, border: const OutlineInputBorder()),
                   onChanged: (v) {
-                    double qty = double.tryParse(v.replaceAll(',', '.')) ?? 0;
-                    double total = isGrosirMode ? (qty * p.buyPriceCubic) : (qty * p.buyPriceUnit);
-                    moneyController.text = total.toInt().toString();
+                    setDialogState(() {
+                      double qty = double.tryParse(v.replaceAll(',', '.')) ?? 0;
+                      double total = isGrosirMode ? (qty * p.buyPriceCubic) : (qty * p.buyPriceUnit);
+                      moneyController.text = NumberFormat('#,###', 'id_ID').format(total);
+                    });
                   },
                 ),
+                
+                if (isGrosirMode && p.packContent > 1 && currentInput > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 5, bottom: 5),
+                    child: Text(
+                      "Info: ${stockController.text} $toggleLabel setara ${NumberFormat('#,###').format(convertedPcs)} $satuanKecil",
+                      style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 12),
+                    ),
+                  ),
+
                 const SizedBox(height: 15),
                 TextField(
                   controller: moneyController,
                   keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly, CurrencyInputFormatter()],
                   decoration: const InputDecoration(labelText: "Total Uang Keluar (Modal)", prefixText: "Rp ", border: OutlineInputBorder()),
                 ),
               ],
@@ -350,7 +437,8 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
                 onPressed: () async {
                   double addedInput = double.tryParse(stockController.text.replaceAll(',', '.')) ?? 0;
-                  int totalExpense = int.tryParse(moneyController.text) ?? 0;
+                  int totalExpense = int.tryParse(moneyController.text.replaceAll('.', '')) ?? 0;
+                  
                   if (addedInput > 0) {
                     double finalStockAdd = 0;
                     if (isGrosirMode) {
@@ -365,6 +453,7 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
                     await DatabaseHelper.instance.updateStockQuick(p.id!, p.stock + finalStockAdd, totalExpense);
                     if(mounted) Navigator.pop(ctx);
                     _loadProducts();
+                    _showSuccessMsg("Stok berhasil ditambahkan"); // Trigger Animasi
                   }
                 },
                 child: const Text("SIMPAN STOK", style: TextStyle(color: Colors.white)),
@@ -386,8 +475,25 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
           await DatabaseHelper.instance.deleteProduct(p.id!);
           Navigator.pop(ctx);
           _loadProducts();
+          _showSuccessMsg("Produk dihapus"); // Trigger Animasi
         }, child: const Text("HAPUS")),
       ],
     ));
+  }
+}
+
+class CurrencyInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+    if (newValue.selection.baseOffset == 0) return newValue;
+    
+    String newText = newValue.text.replaceAll(RegExp(r'[^0-9]'), ''); 
+    int value = int.tryParse(newText) ?? 0;
+    String formatted = NumberFormat('#,###', 'id_ID').format(value);
+    
+    return newValue.copyWith(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
   }
 }

@@ -291,8 +291,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                         
                         const Divider(color: Colors.black, thickness: 1.5),
                         
-                        // REVISI: Header Tabel (Item Dikecilkan, Harga & Total Dilebarkan)
-                        // "Hrg" -> "Harga", "Q" -> "B"
+                        // REVISI: Header Tabel
                         Table(
                           columnWidths: const { 0: FlexColumnWidth(1.8), 1: FlexColumnWidth(0.7), 2: FlexColumnWidth(1.4), 3: FlexColumnWidth(0.5), 4: FlexColumnWidth(1.6) },
                           children: const [
@@ -307,31 +306,45 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                         ),
                         const Divider(color: Colors.black, thickness: 1.5),
 
-                        // REVISI: Isi Tabel (Logika RequestQty & Tanpa Rp)
+                        // REVISI: Isi Tabel (Logic Fix Unit Price)
                         Table(
                           columnWidths: const { 0: FlexColumnWidth(1.8), 1: FlexColumnWidth(0.7), 2: FlexColumnWidth(1.4), 3: FlexColumnWidth(0.5), 4: FlexColumnWidth(1.6) },
                           children: _items.map((item) {
                             
-                            // LOGIKA: Gunakan request_qty jika ada (transaksi baru), jika 0 gunakan quantity (lama)
+                            // 1. DATA DATABASE
                             double reqQty = (item['request_qty'] as num?)?.toDouble() ?? 0;
                             double stockQty = (item['quantity'] as num).toDouble();
+                            double dbUnitPrice = (item['sell_price'] as num).toDouble();
+
+                            // 2. QTY TAMPILAN (Prioritas Input User)
                             double finalDisplayQty = reqQty > 0 ? reqQty : stockQty;
 
-                            // Hitung subtotal tampilan
-                            double subtotal = (item['sell_price'] as num).toDouble() * finalDisplayQty;
+                            // 3. HITUNG TOTAL UANG NYATA (Real Total)
+                            // Ini adalah harga total dari semua barang yang keluar
+                            double realTotalMoney = dbUnitPrice * stockQty;
+
+                            // 4. HITUNG HARGA SATUAN TAMPILAN (Reverse Calc)
+                            // Jika Grosir: Total Uang / Jumlah Grosir = Harga Grosir
+                            // Jika Ecer: Total Uang / Jumlah Ecer = Harga Ecer
+                            double displayUnitPrice = 0;
+                            if (finalDisplayQty > 0) {
+                               displayUnitPrice = realTotalMoney / finalDisplayQty;
+                            } else {
+                               displayUnitPrice = dbUnitPrice;
+                            }
 
                             return TableRow(children: [
                                 Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text(item['product_name'], style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
                                 Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text((item['dimensions'] as String?) ?? "-", style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
                                 
-                                // Harga Satuan (Tanpa Rp)
-                                Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text(_formatRpNoSymbol(item['sell_price']), textAlign: TextAlign.right, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
+                                // HARGA (Sudah dikoreksi jadi Harga Grosir jika perlu)
+                                Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text(_formatRpNoSymbol(displayUnitPrice), textAlign: TextAlign.right, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
                                 
-                                // Qty (Tampilkan Final Display)
+                                // QTY (Input User: 2)
                                 Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text(finalDisplayQty % 1 == 0 ? finalDisplayQty.toInt().toString() : finalDisplayQty.toString(), textAlign: TextAlign.center, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
                                 
-                                // Total (Tanpa Rp)
-                                Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text(_formatRpNoSymbol(subtotal), textAlign: TextAlign.right, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
+                                // TOTAL (Real Total: 4.600.000)
+                                Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text(_formatRpNoSymbol(realTotalMoney), textAlign: TextAlign.right, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
                             ]);
                           }).toList(),
                         ),

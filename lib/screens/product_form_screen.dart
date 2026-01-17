@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../models/product.dart';
 import '../helpers/database_helper.dart';
 
+// HELPER FORMATTER TITIK RIBUAN
 class CurrencyInputFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(TextEditingValue o, TextEditingValue n) {
@@ -250,25 +251,18 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
           }
         }
       } else if (_selectedWoodType == 1) {
-        // --- FIX BUG RENG (SATUAN vs GROSIR) ---
         int qty = int.tryParse(_inputQtyMasukController.text.replaceAll('.', '')) ?? 0;
-        
-        // Cek dulu apakah inputnya mode Grosir/Ikat atau Satuan
         if (_isInputGrosirBangunan) {
            int isi = int.tryParse(_inputIsiPerDusController.text.replaceAll('.', '')) ?? 1;
-           inputVal = qty * isi; // Jika Ikat, dikalikan isi per ikat
+           inputVal = qty * isi; 
         } else {
-           inputVal = qty; // Jika Satuan, ambil apa adanya
+           inputVal = qty; 
         }
-        // ----------------------------------------
-        
       } else {
-        // KAYU BULAT
         inputVal = int.tryParse(_inputQtyMasukController.text.replaceAll('.', '')) ?? 0;
       }
     } 
     else { 
-      // TAB BANGUNAN
       int qty = int.tryParse(_inputQtyMasukController.text.replaceAll('.', '')) ?? 0;
       int isi = int.tryParse(_inputIsiPerDusController.text.replaceAll('.', '')) ?? 1;
       inputVal = _isInputGrosirBangunan ? (qty * isi) : qty;
@@ -294,9 +288,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
           totalEstimasi = (qtyKubik * modalKubik).round();
         }
       } else if (_selectedWoodType == 1) {
-        // --- FIX BUG RENG JUGA DI SINI (Uang Keluar) ---
         if (_isInputGrosirBangunan) {
-           // Jika Mode Ikat
            int qtyIkat = int.tryParse(_inputQtyMasukController.text.replaceAll('.', '')) ?? 0;
            int hargaIkat = _parseMoney(_modalGrosirController.text);
            if (hargaIkat == 0) {
@@ -306,21 +298,17 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
            }
            totalEstimasi = qtyIkat * hargaIkat;
         } else {
-           // Jika Mode Satuan
            int qtyBatang = int.tryParse(_inputQtyMasukController.text.replaceAll('.', '')) ?? 0;
            int modalSatuan = _parseMoney(_modalSatuanController.text);
            totalEstimasi = qtyBatang * modalSatuan;
         }
-        // -----------------------------------------------
       } else {
-        // BULAT
         int qtyBatang = int.tryParse(_inputQtyMasukController.text.replaceAll('.', '')) ?? 0;
         int modalSatuan = _parseMoney(_modalSatuanController.text);
         totalEstimasi = qtyBatang * modalSatuan;
       }
     } 
     else { 
-      // BANGUNAN
       int qty = int.tryParse(_inputQtyMasukController.text.replaceAll('.', '')) ?? 0;
       if (_isInputGrosirBangunan) {
         int hargaDus = _parseMoney(_modalGrosirController.text);
@@ -372,6 +360,59 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
     }
     
     setState(() {});
+  }
+
+  // --- FITUR BARU: POP-UP SUKSES ---
+  void _showSuccessDialog(String message) {
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: false,
+      barrierLabel: "Success",
+      transitionDuration: const Duration(milliseconds: 400),
+      pageBuilder: (ctx, anim1, anim2) => Container(),
+      transitionBuilder: (ctx, anim1, anim2, child) {
+        return ScaleTransition(
+          scale: CurvedAnimation(parent: anim1, curve: Curves.elasticOut), 
+          child: AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            contentPadding: const EdgeInsets.all(20),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 10),
+                TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0.0, end: 1.0),
+                  duration: const Duration(milliseconds: 600),
+                  builder: (context, value, child) {
+                    return Transform.scale(
+                      scale: value,
+                      child: Container(
+                        padding: const EdgeInsets.all(15),
+                        decoration: BoxDecoration(color: Colors.green.withOpacity(0.1), shape: BoxShape.circle),
+                        child: const Icon(Icons.check_circle, color: Colors.green, size: 80),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 20),
+                const Text("BERHASIL!", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.green)),
+                const SizedBox(height: 10),
+                Text(message, textAlign: TextAlign.center, style: const TextStyle(fontSize: 16, color: Colors.grey)),
+                const SizedBox(height: 10),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    // Auto Close & Back
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted) {
+        Navigator.pop(context); // Close Dialog
+        Navigator.pop(context, true); // Return result to previous screen
+      }
+    });
   }
 
   Future<void> _saveData() async {
@@ -453,8 +494,12 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
         if (addedQty > 0) await DatabaseHelper.instance.addStockLog(widget.product!.id!, type, addedQty.toDouble(), modalLog, "Koreksi Stok (Edit)");
       }
 
-      if (mounted) { Navigator.pop(context, true); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Berhasil disimpan!"), backgroundColor: Colors.green)); }
-    } catch (e) { ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal: $e"), backgroundColor: Colors.red)); }
+      if (mounted) {
+        _showSuccessDialog("Data produk berhasil disimpan"); // PANGGIL ANIMASI SUKSES
+      }
+    } catch (e) { 
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal: $e"), backgroundColor: Colors.red)); 
+    }
   }
 
   int _parseMoney(String val) => int.tryParse(val.replaceAll('.', '').replaceAll('Rp ', '')) ?? 0;
@@ -711,7 +756,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
                 // 3. LAINNYA (Toko Bangunan / Bulat)
                 else ...[
                   Row(children: [Expanded(child: _moneyField("Modal Eceran", _modalSatuanController)), const SizedBox(width: 15), Expanded(child: _moneyField("Jual Eceran", _jualSatuanController))]),
-                  if (_mainTabController.index == 1 || _selectedWoodType == 1) ...[ // Menampilkan Grosir untuk Bangunan
+                  if (_mainTabController.index == 1 || _selectedWoodType == 1) ...[ 
                     const SizedBox(height: 15),
                     Row(children: [
                       Expanded(child: _moneyField("Modal Grosir", _modalGrosirController)), 
@@ -724,6 +769,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
               ])),
 
               const SizedBox(height: 30),
+              // KOLOM TOTAL UANG DENGAN FORMATTER
               Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: Colors.green[50], borderRadius: BorderRadius.circular(15), border: Border.all(color: Colors.green.shade200)), child: Column(children: [const Text("TOTAL UANG KELUAR (BELI STOK)", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green)), const SizedBox(height: 5), TextFormField(controller: _totalUangKeluarController, textAlign: TextAlign.center, keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly, CurrencyInputFormatter()], style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.green), decoration: const InputDecoration(prefixText: "Rp ", border: InputBorder.none, hintText: "0"), onChanged: (v) => _userEditedTotalManual = true)])),
               
               const SizedBox(height: 40),

@@ -376,7 +376,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         productName: c.product.name, 
         productType: c.product.type, 
         quantity: c.stockDeduction, 
-        requestQty: c.qty, // <--- REVISI UTAMA: SIMPAN QTY ASLI (INPUTAN)
+        requestQty: c.qty, 
         unitType: c.unitName, 
         capitalPrice: realCapitalPerUnit, 
         sellPrice: realSellPricePerUnit
@@ -413,7 +413,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     }
   }
 
-  // --- REVISI: LAYOUT NOTA & FORMAT ANGKA ---
   void _showReceiptDialog(int q, int finalTotal, int bensin, int tId, int discount) {
     showDialog(
       context: context, 
@@ -429,7 +428,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 child: RepaintBoundary(
                   key: _printKey,
                   child: Container(
-                    // WIDTH 380 + PIXEL RATIO 1.5 = 570px (Pas 80mm)
                     constraints: const BoxConstraints(maxWidth: 380, minHeight: 300),
                     decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(0)),
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 20),
@@ -448,7 +446,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text("INV-#$tId (No: $q)", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)), Text(DateFormat('dd/MM HH:mm').format(DateTime.now()), style: const TextStyle(fontSize: 14))]),
                         const SizedBox(height: 10),
 
-                        // TABEL PELANGGAN (Font 14)
                         Table(
                           columnWidths: const {0: FixedColumnWidth(80), 1: FixedColumnWidth(10), 2: FlexColumnWidth()},
                           children: [
@@ -475,8 +472,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         const SizedBox(height: 10),
                         const Divider(color: Colors.black, thickness: 1.5),
                         
-                        // REVISI: Header Tabel (Item Dikecilkan, Harga & Total Dilebarkan)
-                        // "Hrg" -> "Harga", "Q" -> "B"
                         Table(
                           columnWidths: const { 0: FlexColumnWidth(1.8), 1: FlexColumnWidth(0.7), 2: FlexColumnWidth(1.4), 3: FlexColumnWidth(0.5), 4: FlexColumnWidth(1.6) },
                           children: const [
@@ -491,7 +486,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         ),
                         const Divider(color: Colors.black, thickness: 1.5),
 
-                        // REVISI: Isi Tabel (Format Tanpa Rp)
                         Table(
                           columnWidths: const { 0: FlexColumnWidth(1.8), 1: FlexColumnWidth(0.7), 2: FlexColumnWidth(1.4), 3: FlexColumnWidth(0.5), 4: FlexColumnWidth(1.6) },
                           children: widget.cartItems.map((i) {
@@ -500,11 +494,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                               children: [
                                 Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text(i.product.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
                                 Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text(ukuran, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
-                                // Hapus Rp di Harga Satuan
                                 Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text(_formatRpNoSymbol(i.sellPrice), textAlign: TextAlign.right, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
-                                // Tampilkan Qty Asli (Inputan)
                                 Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text(i.qty % 1 == 0 ? i.qty.toInt().toString() : i.qty.toString(), textAlign: TextAlign.center, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
-                                // Hapus Rp di Total Per Item
                                 Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text(_formatRpNoSymbol(i.agreedPriceTotal), textAlign: TextAlign.right, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
                               ]
                             );
@@ -526,14 +517,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                            const Divider(),
                         ],
                         
-                        // TOTAL AKHIR (FONT 32)
                         const SizedBox(height: 10),
                         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("TOTAL", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24)), Text(_formatRp(finalTotal), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 32))]), 
                         
                         const SizedBox(height: 30), 
                         const Text("Terima Kasih", style: TextStyle(color: Colors.black, fontStyle: FontStyle.italic, fontSize: 16)),
                         
-                        const SizedBox(height: 100), // SPACER BAWAH
+                        const SizedBox(height: 100), 
                       ],
                     ),
                   ),
@@ -585,7 +575,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   Future<void> _captureAndPrint() async {
     try {
       RenderRepaintBoundary boundary = _printKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
-      // Pixel Ratio 1.5 untuk Printer 80mm
       ui.Image image = await boundary.toImage(pixelRatio: 1.5); 
       ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
       Uint8List pngBytes = byteData!.buffer.asUint8List();
@@ -598,7 +587,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   Future<void> _captureAndSharePng(int tId, int queue, String custName) async {
     try {
       RenderRepaintBoundary boundary = _printKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
-      // Share ke WA tetap High Res (3.0)
       ui.Image image = await boundary.toImage(pixelRatio: 3.0); 
       ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
       Uint8List pngBytes = byteData!.buffer.asUint8List();
@@ -667,6 +655,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 const SizedBox(height: 20),
                 const Text("Rincian Barang", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.blue)),
                 const SizedBox(height: 5),
+                
+                // --- REVISI TAMPILAN ITEM ---
                 ListView.separated(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
@@ -674,10 +664,48 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   separatorBuilder: (ctx, i) => const Divider(),
                   itemBuilder: (ctx, i) {
                     final item = widget.cartItems[i];
+                    final p = item.product;
+
+                    // 1. Logic Judul Pintar
+                    String title = p.name;
+                    if (p.type == 'KAYU') {
+                      String jenis = "";
+                      if (p.name.contains("(") && p.name.contains(")")) {
+                        int start = p.name.indexOf("(");
+                        jenis = p.name.substring(start).trim();
+                      }
+                      title = "Kayu ${p.dimensions ?? '-'} $jenis";
+                    } else if (p.type == 'RENG') {
+                      title = "Reng ${p.dimensions ?? '-'}";
+                    }
+
+                    // 2. Logic Subtitle (Kelas | Sumber)
+                    List<String> subParts = [];
+                    if (p.woodClass != null && p.woodClass!.isNotEmpty) {
+                      subParts.add(p.woodClass!);
+                    }
+                    if (p.source.isNotEmpty) {
+                      subParts.add("Sumber : ${p.source}");
+                    }
+                    String subtitle = subParts.join(" | ");
+
+                    // 3. Logic Harga & Jumlah Bersih (No .0, No @)
+                    String qtyStr = item.qty % 1 == 0 ? item.qty.toInt().toString() : item.qty.toString();
+                    int pricePerUnit = item.isGrosir ? p.sellPriceCubic : p.sellPriceUnit;
+                    String priceStr = "$qtyStr ${item.unitName} x ${_formatRp(pricePerUnit)}";
+
                     return ListTile(
                       contentPadding: EdgeInsets.zero,
-                      title: Text(item.product.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text("${item.qty} ${item.unitName} @ ${_formatRp(item.isGrosir ? item.product.sellPriceCubic : item.product.sellPriceUnit)}"),
+                      title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if(subtitle.isNotEmpty)
+                            Text(subtitle, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                          const SizedBox(height: 4),
+                          Text(priceStr, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
+                        ],
+                      ),
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
