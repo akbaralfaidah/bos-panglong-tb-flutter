@@ -154,18 +154,114 @@ class DatabaseHelper {
   }
 
   // ==========================================
-  // HELPER: SMART ROUNDING (PEMBULATAN CERDAS)
+  // HELPER: SMART ROUNDING
   // ==========================================
   int _smartRound(int value) {
     if (value == 0) return 0;
     if (value.abs() < 500) return value;
-    
     double val = value.toDouble();
     return (val / 500).round() * 500;
   }
 
   // ==========================================
-  // FITUR DASHBOARD PROFIT REAL (REVISI KONSERVATIF + ROUNDING)
+  // FITUR BARU: UNIVERSAL HISTORY (GABUNGAN)
+  // ==========================================
+  
+  Future<List<Map<String, dynamic>>> getUniversalHistory({String? keyword}) async {
+    final db = await instance.database;
+    List<Map<String, dynamic>> combined = [];
+
+    // 1. AMBIL TRANSAKSI (PENJUALAN)
+    // Keyword bisa ID Transaksi atau Nama Customer
+    String transWhere = "";
+    List<dynamic> transArgs = [];
+    
+    if (keyword != null && keyword.isNotEmpty) {
+      // Cek apakah keyword angka (ID) atau teks (Nama)
+      if (int.tryParse(keyword) != null) {
+        transWhere = "WHERE id = ?";
+        transArgs = [keyword];
+      } else {
+        transWhere = "WHERE customer_name LIKE ?";
+        transArgs = ['%$keyword%'];
+      }
+    }
+
+    final trans = await db.rawQuery("SELECT * FROM transactions $transWhere", transArgs);
+    for (var t in trans) {
+      combined.add({
+        'raw_id': t['id'], // ID Asli Tabel
+        'display_id': "#${t['id']}", 
+        'date': t['transaction_date'],
+        'title': "Penjualan: ${t['customer_name']}",
+        'subtitle': "Total Nota (Termasuk Bensin)",
+        'amount': t['total_price'], // Total Tagihan
+        'category': 'TRANSACTION',
+        'color_code': 1, // 1: Hijau (Masuk)
+        'extra_info': t['payment_status'] // Lunas/Belum
+      });
+    }
+
+    // JIKA SEDANG CARI ID TRANSAKSI, TIDAK PERLU LOAD STOK & PENGELUARAN
+    // KECUALI keyword kosong (Tampilkan semua)
+    bool isSearchId = (keyword != null && int.tryParse(keyword) != null);
+
+    if (!isSearchId) {
+      // 2. AMBIL STOK MASUK (PENGELUARAN MODAL)
+      final stocks = await db.rawQuery('''
+        SELECT s.*, p.name as product_name 
+        FROM stock_logs s
+        LEFT JOIN products p ON s.product_id = p.id
+        WHERE s.quantity_added > 0
+      ''');
+      
+      for (var s in stocks) {
+        double qty = (s['quantity_added'] as num).toDouble();
+        double modal = (s['capital_price'] as num).toDouble();
+        int totalModal = (qty * modal).toInt();
+
+        combined.add({
+          'raw_id': s['id'],
+          'display_id': "STOK",
+          'date': s['date'],
+          'title': "Stok Masuk: ${s['product_name']}",
+          'subtitle': "${s['note']}",
+          'amount': totalModal,
+          'category': 'STOCK_IN',
+          'color_code': 2, // 2: Merah/Oranye (Keluar Modal)
+          'extra_info': "-"
+        });
+      }
+
+      // 3. AMBIL PENGELUARAN BENSIN (SPBU)
+      final expenses = await db.query('expenses', where: "type='FUEL'");
+      for (var e in expenses) {
+        combined.add({
+          'raw_id': e['id'],
+          'display_id': "BBM",
+          'date': e['date'],
+          'title': "Pengeluaran SPBU",
+          'subtitle': e['note'],
+          'amount': e['amount'],
+          'category': 'EXPENSE_FUEL',
+          'color_code': 3, // 3: Merah (Keluar Operasional)
+          'extra_info': "-"
+        });
+      }
+    }
+
+    // SORTING BERDASARKAN TANGGAL TERBARU
+    combined.sort((a, b) {
+      DateTime dA = DateTime.parse(a['date']);
+      DateTime dB = DateTime.parse(b['date']);
+      return dB.compareTo(dA); // Descending
+    });
+
+    return combined;
+  }
+
+  // ==========================================
+  // FITUR DASHBOARD & LAINNYA
   // ==========================================
 
   Future<int> getRealNetProfit({required String startDate, required String endDate}) async {
@@ -173,7 +269,6 @@ class DatabaseHelper {
     String start = "$startDate 00:00:00";
     String end = "$endDate 23:59:59";
 
-    // A. Hitung Gross Profit Barang (Jual - Modal)
     final resSales = await db.rawQuery('''
       SELECT SUM((ti.sell_price - ti.capital_price) * ti.quantity) as profit
       FROM transaction_items ti
@@ -182,7 +277,6 @@ class DatabaseHelper {
     ''', [start, end]);
     int salesProfit = (resSales.first['profit'] as int?) ?? 0;
 
-    // B. Hitung Dana Cadangan Bensin (Dari Customer)
     final resOp = await db.rawQuery('''
       SELECT SUM(operational_cost) as total
       FROM transactions
@@ -190,7 +284,6 @@ class DatabaseHelper {
     ''', [start, end]);
     int shippingIncome = (resOp.first['total'] as int?) ?? 0;
 
-    // C. Hitung Pengeluaran Bensin Asli (SPBU)
     final resExp = await db.rawQuery('''
       SELECT SUM(amount) as total
       FROM expenses
@@ -198,7 +291,6 @@ class DatabaseHelper {
     ''', [start, end]);
     int fuelExpense = (resExp.first['total'] as int?) ?? 0;
 
-    // D. Hitung Total Diskon
     final resDisc = await db.rawQuery('''
       SELECT SUM(discount) as total
       FROM transactions
@@ -206,17 +298,13 @@ class DatabaseHelper {
     ''', [start, end]);
     int totalDiscount = (resDisc.first['total'] as int?) ?? 0;
 
-    // --- LOGIKA BARU (KONSERVATIF) ---
-    // 1. Profit Murni dari Dagang
     int tradeProfit = salesProfit - totalDiscount;
 
-    // 2. Cek Apakah Bensin Nombok?
     int fuelDeficit = 0;
     if (fuelExpense > shippingIncome) {
       fuelDeficit = fuelExpense - shippingIncome;
     } 
 
-    // 3. Profit Akhir (Dibulatkan)
     int rawProfit = tradeProfit - fuelDeficit;
     return _smartRound(rawProfit); 
   }
@@ -226,7 +314,6 @@ class DatabaseHelper {
     String start = "$startDate 00:00:00";
     String end = "$endDate 23:59:59";
 
-    // A. Transaksi
     final List<Map<String, dynamic>> transactions = await db.rawQuery('''
       SELECT 
         t.id,
@@ -242,7 +329,6 @@ class DatabaseHelper {
       GROUP BY t.id
     ''', [start, end]);
 
-    // B. Pengeluaran
     final List<Map<String, dynamic>> expenses = await db.rawQuery('''
       SELECT 
         id,
@@ -256,7 +342,6 @@ class DatabaseHelper {
 
     List<Map<String, dynamic>> merged = [];
 
-    // Proses Transaksi
     for (var t in transactions) {
       int gross = (t['gross_profit'] as int?) ?? 0;
       int op = (t['operational_cost'] as int?) ?? 0;
@@ -275,7 +360,6 @@ class DatabaseHelper {
       });
     }
 
-    // Proses Pengeluaran
     for (var e in expenses) {
       merged.add({
         'id': e['id'],
@@ -291,10 +375,6 @@ class DatabaseHelper {
 
     return merged;
   }
-
-  // ==========================================
-  // FITUR MANAJEMEN BENSIN (TAB BENSIN)
-  // ==========================================
 
   Future<int> addFuelExpense(int amount, String note, String date) async {
     final db = await instance.database;
@@ -342,11 +422,6 @@ class DatabaseHelper {
     return await db.delete('expenses', where: 'id = ?', whereArgs: [id]);
   }
 
-  // ==========================================
-  // FITUR LAMA LAINNYA (DIPERBAIKI QUERY TOP 5)
-  // ==========================================
-
-  // --- REVISI QUERY TOP 5: PAKSA SATUAN JADI 'Batang'/'Pcs' ---
   Future<List<Map<String, dynamic>>> getTopProducts({required String startDate, required String endDate}) async {
     final db = await instance.database;
     String start = "$startDate 00:00:00";

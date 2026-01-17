@@ -9,9 +9,9 @@ import 'cashier_screen.dart';
 import 'settings_screen.dart';
 import 'history_screen.dart';
 import 'report_screen.dart'; 
-import 'customer_list_screen.dart';
 import 'login_screen.dart'; 
 import 'profit_detail_screen.dart'; 
+import 'data_menu_screen.dart'; // IMPORT FILE MENU BARU
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -117,7 +117,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     String startOfDay = "$today 00:00:00";
     String endOfDay = "$today 23:59:59";
 
-    // 1. PROFIT BERSIH REAL (Sudah dipotong bensin di database_helper)
+    // 1. PROFIT BERSIH REAL
     int realNetProfit = await db.getRealNetProfit(startDate: today, endDate: today);
 
     // 2. OMSET & BENSIN
@@ -131,8 +131,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       double totalBelanja = (t['total_price'] as num).toDouble();
       double opCost = (t['operational_cost'] as num).toDouble();
       
-      // REVISI: Hitung Omset dari SEMUA transaksi (Lunas & Hutang)
-      // Omset Murni = Total Nota - Uang Bensin
+      // Hitung Omset dari SEMUA transaksi (Lunas & Hutang) - Ongkos Bensin
       omsetReal += (totalBelanja - opCost);
       
       // Hitung Pendapatan Bensin dari SEMUA transaksi
@@ -342,7 +341,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   Expanded(child: _menuBtn("RIWAYAT", Icons.history, [Colors.blueGrey, Colors.blueGrey.shade700], () => _openHistory(HistoryType.transactions, "Riwayat Transaksi"))),
 
                 const SizedBox(width: 12),
-                Expanded(child: _menuBtn("DATA PELANGGAN", Icons.people_alt, [Colors.purple[400]!, Colors.purple[700]!], () => _nav(const CustomerListScreen()))),
+                // REVISI TOMBOL MENU DATA
+                Expanded(child: _menuBtn("MENU DATA", Icons.folder_shared, [Colors.purple[400]!, Colors.purple[700]!], () => _nav(const DataMenuScreen()))),
               ]),
 
               const SizedBox(height: 50),

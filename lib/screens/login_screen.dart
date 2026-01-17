@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'dart:io'; // Wajib untuk menampilkan File Gambar Logo
+import 'dart:io'; 
+import 'package:local_auth/local_auth.dart'; // IMPORT LOCAL AUTH
 import '../helpers/database_helper.dart';
 import '../helpers/session_manager.dart';
 import 'dashboard_screen.dart';
@@ -23,10 +24,61 @@ class _LoginScreenState extends State<LoginScreen> {
   String _storeName = "Bos Panglong & TB";
   String? _logoPath;
 
+  // VARIABEL BIOMETRIK
+  final LocalAuthentication auth = LocalAuthentication();
+  bool _canCheckBiometrics = false;
+  bool _isAuthenticating = false;
+
   @override
   void initState() {
     super.initState();
-    _loadStoreIdentity(); // Load data saat masuk halaman login
+    _loadStoreIdentity(); 
+    _checkBiometrics(); // Cek kemampuan HP saat aplikasi dibuka
+  }
+
+  // --- CEK APAKAH HP SUPPORT FINGERPRINT/FACE ID/POLA ---
+  Future<void> _checkBiometrics() async {
+    late bool canCheckBiometrics;
+    try {
+      // Cek hardware dan cek apakah user sudah set kunci layar
+      canCheckBiometrics = await auth.canCheckBiometrics || await auth.isDeviceSupported();
+    } on PlatformException catch (_) {
+      canCheckBiometrics = false;
+    }
+    if (!mounted) return;
+
+    setState(() {
+      _canCheckBiometrics = canCheckBiometrics;
+    });
+  }
+
+  // --- PROSES LOGIN DENGAN BIOMETRIK ---
+  Future<void> _authenticate() async {
+    bool authenticated = false;
+    try {
+      setState(() => _isAuthenticating = true);
+      
+      authenticated = await auth.authenticate(
+        localizedReason: 'Scan sidik jari, wajah, atau gunakan Pola HP untuk masuk',
+        options: const AuthenticationOptions(
+          stickyAuth: true, // Agar dialog tidak hilang jika app ke background sebentar
+          biometricOnly: false, // FALSE = Membolehkan pakai Pola/PIN HP jika sidik jari gagal
+        ),
+      );
+      
+      setState(() => _isAuthenticating = false);
+    } on PlatformException catch (e) {
+      debugPrint("Error Auth: $e");
+      setState(() => _isAuthenticating = false);
+      return;
+    }
+
+    if (!mounted) return;
+
+    if (authenticated) {
+      // JIKA SUKSES -> LANGSUNG LOGIN PEMILIK
+      _processOwnerLogin();
+    }
   }
 
   // --- 1. LOAD NAMA & LOGO TOKO DARI DB ---
@@ -57,7 +109,7 @@ class _LoginScreenState extends State<LoginScreen> {
     });
   }
 
-  // --- LOGIKA LOGIN PEMILIK ---
+  // --- LOGIKA LOGIN PEMILIK (PIN MANUAL) ---
   void _showOwnerPinDialog() {
     final TextEditingController pinController = TextEditingController();
     bool isObscure = true;
@@ -164,27 +216,26 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // --- REVISI: LOGO FULL SIZE (TIDAK BULAT) ---
+                  // --- LOGO FULL SIZE ---
                   Container(
-                    // Ukuran Container Logo
                     height: 150, 
                     width: double.infinity,
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.1), // Background transparan tipis
-                      borderRadius: BorderRadius.circular(15), // Sudut tumpul sedikit
+                      color: Colors.white.withOpacity(0.1), 
+                      borderRadius: BorderRadius.circular(15), 
                     ),
                     child: (_logoPath != null && File(_logoPath!).existsSync())
                       ? Image.file(
                           File(_logoPath!),
-                          fit: BoxFit.contain, // Fit contain agar gambar UTUH (Full Size) tidak terpotong
+                          fit: BoxFit.contain, 
                         )
                       : const Icon(Icons.store_mall_directory, size: 80, color: Colors.white),
                   ),
                   
                   const SizedBox(height: 20),
                   
-                  // --- NAMA TOKO DINAMIS ---
+                  // --- NAMA TOKO ---
                   Text(
                     _storeName.toUpperCase(),
                     textAlign: TextAlign.center,
@@ -238,7 +289,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         const Row(children: [Expanded(child: Divider()), Padding(padding: EdgeInsets.symmetric(horizontal: 10), child: Text("ATAU", style: TextStyle(fontSize: 10, color: Colors.grey))), Expanded(child: Divider())]),
                         const SizedBox(height: 15),
 
-                        // TOMBOL PEMILIK
+                        // TOMBOL PEMILIK (PIN MANUAL)
                         OutlinedButton.icon(
                           onPressed: _showOwnerPinDialog,
                           icon: Icon(Icons.admin_panel_settings, color: _bgStart),
@@ -249,6 +300,31 @@ class _LoginScreenState extends State<LoginScreen> {
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))
                           ),
                         ),
+
+                        // --- TOMBOL BIOMETRIK (MUNCUL JIKA HP SUPPORT) ---
+                        if (_canCheckBiometrics) ...[
+                          const SizedBox(height: 12),
+                          InkWell(
+                            onTap: _authenticate,
+                            borderRadius: BorderRadius.circular(10),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.grey.shade300),
+                                borderRadius: BorderRadius.circular(10),
+                                color: Colors.grey.shade50
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.fingerprint, color: _bgStart),
+                                  const SizedBox(width: 8),
+                                  Text("Masuk dengan Biometrik / Pola", style: TextStyle(color: _bgStart, fontWeight: FontWeight.bold, fontSize: 13)),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),

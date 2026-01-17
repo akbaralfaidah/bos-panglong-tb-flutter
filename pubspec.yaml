@@ -20,6 +20,7 @@ dependencies:
   permission_handler: ^11.3.1 # WAJIB UPDATE KE VERSI INI (Fix error Registrar)
   path_provider: ^2.1.3 # Versi lebih baru
   share_plus: ^9.0.0 # Versi lebih baru untuk fitur share
+  local_auth: ^2.1.6  # Tambahkan ini
 
   # Database
   sqflite: ^2.3.3 # Database utama
