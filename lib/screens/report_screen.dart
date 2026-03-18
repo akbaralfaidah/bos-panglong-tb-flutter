@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:csv/csv.dart';
-import 'dart:io';
-import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
-import '../helpers/database_helper.dart';
-import 'transaction_detail_screen.dart'; 
+import 'dart:io';
+import 'package:url_launcher/url_launcher.dart'; 
+import 'package:fl_chart/fl_chart.dart'; 
+import '../controllers/report_controller.dart';
+import '../theme/app_colors.dart';
+import 'transaction_detail_screen.dart'; // IMPORT LAYAR NOTA
 
 class ReportScreen extends StatefulWidget {
-  final int initialIndex; // Parameter agar bisa loncat tab dari Dashboard
+  final int initialIndex; 
   const ReportScreen({super.key, this.initialIndex = 0});
 
   @override
@@ -16,530 +17,681 @@ class ReportScreen extends StatefulWidget {
 }
 
 class _ReportScreenState extends State<ReportScreen> with SingleTickerProviderStateMixin {
-  final Color _bgStart = const Color(0xFF0052D4);
-  final Color _bgEnd = const Color(0xFF4364F7);
-
   late TabController _tabController;
-  DateTimeRange? _selectedDateRange;
-  String _activeFilter = "Semua"; // DEFAULT DIGANTI JADI "SEMUA"
+  final ReportController _controller = ReportController();
+
   bool _isLoading = false;
 
-  // State untuk Tab Piutang
-  String _debtSubTab = "Belum Lunas"; // Pilihan: "Belum Lunas" atau "Riwayat Lunas"
+  // State Tab 1 (Dashboard)
+  double _assetValue = 0;
+  List<Map<String, dynamic>> _topProducts = [];
+  Map<String, double> _monthlyOmset = {};
+  Map<String, double> _monthlyProfit = {}; 
+  String _topProductFilter = 'SEMUA'; 
 
-  // Data Statistik Keuangan
+  // State Tab 2 (CRM Pelanggan)
+  List<Map<String, dynamic>> _crmCustomers = [];
+  List<Map<String, dynamic>> _filteredCustomers = [];
+  final TextEditingController _searchController = TextEditingController();
+
+  // State Tab 3 (Keuangan CSV)
+  bool _isAllTimeRekap = true; 
+  DateTimeRange? _selectedDateRange;
   double _totalOmset = 0;
   double _totalModal = 0;
   double _totalBensin = 0;
   double _totalProfit = 0;
-  
-  // Data Piutang
-  int _totalPiutangNet = 0; // Sisa hutang di luar
-  int _totalPelunasanPeriode = 0; // Total yang sudah dilunasi (periode terpilih)
-
-  List<Map<String, dynamic>> _topProducts = [];
-  List<Map<String, dynamic>> _transactionList = []; // List Keuangan
-  List<Map<String, dynamic>> _debtUnpaidList = []; // List Belum Lunas
-  List<Map<String, dynamic>> _debtPaidHistoryList = []; // List Riwayat Lunas
   List<Map<String, dynamic>> _exportData = [];
 
   @override
   void initState() {
     super.initState();
-    // Gunakan initialIndex dari widget agar bisa loncat tab
-    _tabController = TabController(length: 2, vsync: this, initialIndex: widget.initialIndex);
-    _setFilter("Semua"); // SET DEFAULT FILTER KE "SEMUA"
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
-
-  void _setFilter(String type) {
-    DateTime now = DateTime.now();
-    DateTime start;
-    DateTime end;
-
-    switch (type) {
-      case "Hari Ini":
-        start = now; end = now; break;
-      case "Kemarin":
-        start = now.subtract(const Duration(days: 1)); end = now.subtract(const Duration(days: 1)); break;
-      case "7 Hari": 
-        start = now.subtract(const Duration(days: 6)); end = now; break;
-      case "Bulan Ini":
-        start = DateTime(now.year, now.month, 1); end = DateTime(now.year, now.month + 1, 0); break;
-      case "Semua":
-        start = DateTime(2010, 1, 1); end = now; break; // Ambil data dari 2010
-      default:
-        start = now; end = now;
-    }
-
-    setState(() {
-      _activeFilter = type;
-      _selectedDateRange = DateTimeRange(start: start, end: end);
-    });
+    _tabController = TabController(length: 3, vsync: this, initialIndex: widget.initialIndex);
     
-    _loadReportData();
+    final now = DateTime.now();
+    _selectedDateRange = DateTimeRange(start: now.subtract(const Duration(days: 7)), end: now);
+    
+    _loadDashboardData();
+    _loadCrmData();
+    _loadFinanceData();
   }
 
-  Future<void> _loadReportData() async {
+  Future<void> _loadDashboardData() async {
+    final data = await _controller.getDashboardAnalytics(topProductFilter: _topProductFilter);
+    if (mounted) {
+      setState(() {
+        _assetValue = data['asset_value'];
+        _topProducts = List<Map<String, dynamic>>.from(data['top_products']);
+        _monthlyOmset = Map<String, double>.from(data['monthly_omset']);
+        _monthlyProfit = Map<String, double>.from(data['monthly_profit']); 
+      });
+    }
+  }
+
+  Future<void> _loadCrmData() async {
+    final data = await _controller.getCustomerCRM();
+    if (mounted) {
+      setState(() {
+        _crmCustomers = data;
+        _filteredCustomers = data;
+      });
+    }
+  }
+
+  Future<void> _loadFinanceData() async {
     setState(() => _isLoading = true);
     
-    String start = DateFormat('yyyy-MM-dd').format(_selectedDateRange!.start);
-    String end = DateFormat('yyyy-MM-dd').format(_selectedDateRange!.end);
+    String start = _isAllTimeRekap ? '2000-01-01' : DateFormat('yyyy-MM-dd').format(_selectedDateRange!.start);
+    String end = _isAllTimeRekap ? '2100-12-31' : DateFormat('yyyy-MM-dd').format(_selectedDateRange!.end);
 
-    final db = DatabaseHelper.instance;
-
-    // 1. DATA KEUANGAN
-    final detailData = await db.getCompleteReportData(startDate: start, endDate: end);
-    final transData = await db.getTransactionHistory(startDate: start, endDate: end);
-    final topProds = await db.getTopProducts(startDate: start, endDate: end);
-    
-    // 2. DATA PIUTANG BELUM LUNAS
-    // LOGIKA REVISI: Sekarang ikut filter tanggal!
-    // Jika filter "Semua", start=2010, end=now (jadi ambil semua).
-    // Jika filter "Hari Ini", start=now, end=now (hanya hutang hari ini).
-    final debtUnpaid = await db.getAllDebtHistory(startDate: start, endDate: end);
-    
-    // Total Piutang Net (Tetap ambil Global All Time untuk Info Card biar tau total uang nyangkut)
-    final piutangTotal = await db.getTotalPiutangAllTime();
-
-    // 3. DATA RIWAYAT LUNAS (Sesuai Filter Tanggal)
-    final debtPaid = await db.getDebtReport(status: 'Lunas', startDate: start, endDate: end);
-
-    // Hitung Statistik Keuangan
-    double omsetItem = 0;
-    double modalItem = 0;
-    double bensin = 0;
-
-    for (var row in detailData) {
-      double qty = (row['quantity'] as num).toDouble();
-      double sell = (row['sell_price'] as num).toDouble();
-      double cap = (row['capital_price'] as num).toDouble();
-      omsetItem += (qty * sell);
-      modalItem += (qty * cap);
-    }
-
-    for (var t in transData) {
-      bensin += (t['operational_cost'] as num).toDouble();
-    }
-
-    // Hitung Statistik Pelunasan (Periode Ini)
-    int pelunasan = 0;
-    for (var t in debtPaid) {
-      pelunasan += (t['total_price'] as int);
-    }
+    final stats = await _controller.calculateFinancialStats(start, end);
+    final reportItems = await _controller.getCompleteReport(start, end);
 
     if (mounted) {
       setState(() {
-        _exportData = detailData;
-        _transactionList = transData; 
-        _debtUnpaidList = debtUnpaid;
-        _debtPaidHistoryList = debtPaid;
-        _topProducts = topProds;
-        
-        _totalOmset = omsetItem;
-        _totalModal = modalItem;
-        _totalBensin = bensin;
-        _totalProfit = (omsetItem - modalItem) - bensin;
-        
-        _totalPiutangNet = piutangTotal;
-        _totalPelunasanPeriode = pelunasan;
-        
+        _totalOmset = stats['omset']!;
+        _totalBensin = stats['bensin']!;
+        _totalModal = stats['modal']!;
+        _totalProfit = stats['profit']!;
+        _exportData = reportItems;
         _isLoading = false;
       });
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(gradient: LinearGradient(colors: [_bgStart, _bgEnd], begin: Alignment.topCenter, end: Alignment.bottomCenter)),
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        appBar: AppBar(
-          title: const Text("Laporan & Piutang"),
-          backgroundColor: Colors.transparent, foregroundColor: Colors.white, elevation: 0,
-          bottom: TabBar(
-            controller: _tabController,
-            indicatorColor: Colors.white,
-            labelColor: Colors.white, 
-            unselectedLabelColor: Colors.white60,
-            tabs: const [
-              Tab(icon: Icon(Icons.analytics), text: "KEUANGAN"),
-              Tab(icon: Icon(Icons.book), text: "PIUTANG"),
-            ],
+  void _filterCustomers(String query) {
+    setState(() {
+      if (query.isEmpty) {
+        _filteredCustomers = _crmCustomers;
+      } else {
+        _filteredCustomers = _crmCustomers.where((c) => c['name'].toString().toLowerCase().contains(query.toLowerCase())).toList();
+      }
+    });
+  }
+
+  Future<void> _launchUrl(String type, String phone) async {
+    if (phone.isEmpty) return;
+    String formattedPhone = phone.replaceAll(RegExp(r'[^0-9]'), '');
+    if (formattedPhone.startsWith('0')) {
+      formattedPhone = '62${formattedPhone.substring(1)}';
+    }
+    
+    Uri url = type == 'WA' 
+      ? Uri.parse('https://wa.me/$formattedPhone')
+      : Uri.parse('tel:$phone');
+
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    } else {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Gagal membuka aplikasi!")));
+    }
+  }
+
+  Future<void> _pickDateRange() async {
+    DateTimeRange? picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+      initialDateRange: _selectedDateRange,
+      builder: (context, child) => Theme(data: ThemeData.light().copyWith(colorScheme: const ColorScheme.light(primary: AppColors.primaryNavy)), child: child!),
+    );
+
+    if (picked != null) {
+      setState(() {
+        _selectedDateRange = picked;
+        _isAllTimeRekap = false; 
+      });
+      _loadFinanceData();
+    }
+  }
+
+  Future<void> _exportToCsv() async {
+    if (_exportData.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Tidak ada data untuk diexport!"), backgroundColor: Colors.red));
+      return;
+    }
+    setState(() => _isLoading = true);
+    try {
+      File? file = await _controller.generateCsvReport(
+        exportData: _exportData, 
+        activeFilter: "Semua",
+        dateRange: _selectedDateRange!, 
+        isAllTime: _isAllTimeRekap,
+        totalProfit: _totalProfit,
+      );
+      if (file != null && mounted) Share.shareXFiles([XFile(file.path)], text: 'Laporan Keuangan Bos Panglong');
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal Export: $e")));
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  String _formatRp(num number) => NumberFormat.currency(locale: 'id', symbol: 'Rp ', decimalDigits: 0).format(number);
+
+  Color _getPieColor(int index) {
+    List<Color> colors = [Colors.blue, Colors.green, Colors.amber, Colors.purple, Colors.red, Colors.teal];
+    return colors[index % colors.length];
+  }
+
+  // ===================================================================
+  // FUNGSI POPUP RIWAYAT TRANSAKSI PELANGGAN
+  // ===================================================================
+  void _showCustomerTransactions(String customerName) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => FractionallySizedBox(
+        heightFactor: 0.85,
+        child: Container(
+          decoration: const BoxDecoration(
+            color: AppColors.backgroundWhite,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20))
+          ),
+          child: FutureBuilder<List<Map<String, dynamic>>>(
+            future: _controller.getTransactionsByCustomer(customerName),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator(color: AppColors.primaryNavy));
+              }
+              if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                return const Center(child: Text("Belum ada riwayat transaksi."));
+              }
+
+              final transList = snapshot.data!;
+              return Column(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    width: double.infinity,
+                    decoration: const BoxDecoration(color: AppColors.primaryNavy, borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text("Riwayat Transaksi:", style: TextStyle(color: Colors.white70, fontSize: 12)),
+                        Text(customerName, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: ListView.builder(
+                      padding: const EdgeInsets.all(10),
+                      itemCount: transList.length,
+                      itemBuilder: (context, i) {
+                        final t = transList[i];
+                        bool isLunas = t['payment_status'] == 'Lunas';
+                        return Card(
+                          elevation: 1,
+                          margin: const EdgeInsets.only(bottom: 10),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                          child: ListTile(
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 5),
+                            leading: CircleAvatar(
+                              backgroundColor: isLunas ? AppColors.statusGreen.withOpacity(0.1) : AppColors.statusRed.withOpacity(0.1), 
+                              child: Icon(Icons.receipt_long, color: isLunas ? AppColors.statusGreen : AppColors.statusRed)
+                            ),
+                            title: Text("INV-${t['id']}", style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryNavy)),
+                            subtitle: Text(DateFormat('dd MMM yyyy, HH:mm').format(DateTime.parse(t['transaction_date'])), style: const TextStyle(fontSize: 11)),
+                            trailing: Column(
+                              mainAxisAlignment: MainAxisAlignment.center, 
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(_formatRp(t['total_price']), style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: isLunas ? AppColors.textDark : AppColors.statusRed)),
+                                Text(isLunas ? "LUNAS" : "HUTANG", style: TextStyle(fontSize: 10, color: isLunas ? AppColors.statusGreen : AppColors.statusRed, fontWeight: FontWeight.bold)),
+                              ],
+                            ),
+                            onTap: () {
+                              Navigator.pop(ctx); 
+                              Navigator.push(context, MaterialPageRoute(builder: (_) => TransactionDetailScreen(transaction: t))).then((_) => _loadFinanceData()); // Refresh jika hutang dibayar
+                            },
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         ),
-        body: _isLoading 
-          ? const Center(child: CircularProgressIndicator(color: Colors.white))
-          : TabBarView(
-              controller: _tabController,
-              children: [
-                _buildFinanceTab(), // Tab 1: Laporan Keuangan
-                _buildDebtTab(),    // Tab 2: Buku Piutang
-              ],
-            ),
-        floatingActionButton: _tabController.index == 0 ? FloatingActionButton.extended(
-          onPressed: _exportToCsv,
-          backgroundColor: Colors.green,
-          foregroundColor: Colors.white,
-          icon: const Icon(Icons.file_download),
-          label: Text("EXPORT (${_activeFilter.toUpperCase()})"),
-        ) : null,
       ),
     );
   }
 
-  // --- TAB 1: LAPORAN KEUANGAN ---
-  Widget _buildFinanceTab() {
-    return CustomScrollView(
-      slivers: [
-        SliverToBoxAdapter(
-          child: _buildFilterBar(), // Filter Tanggal
-        ),
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Center(child: Text("${DateFormat('dd MMM yyyy').format(_selectedDateRange!.start)} - ${DateFormat('dd MMM yyyy').format(_selectedDateRange!.end)}", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
-                const SizedBox(height: 15),
-
-                // SUMMARY CARDS
-                Row(children: [_summaryCard("Omset", _totalOmset, Colors.blue), const SizedBox(width: 10), _summaryCard("Modal Stok", _totalModal, Colors.orange)]),
-                const SizedBox(height: 10),
-                Row(children: [_summaryCard("Bensin", _totalBensin, Colors.red), const SizedBox(width: 10), _summaryCard("PROFIT BERSIH", _totalProfit, Colors.green, isBig: true)]),
-                
-                const SizedBox(height: 25),
-                const Text("🏆 Top 5 Produk Terlaris", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-                const SizedBox(height: 10),
-                _buildTopProducts(),
-
-                const SizedBox(height: 25),
-                const Text("📜 Riwayat Transaksi", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-                const SizedBox(height: 10),
-              ],
-            ),
-          ),
-        ),
-        _buildTransactionList(_transactionList), // Gunakan fungsi helper list
-        const SliverToBoxAdapter(child: SizedBox(height: 80)),
-      ],
-    );
-  }
-
-  // --- TAB 2: BUKU PIUTANG ---
-  Widget _buildDebtTab() {
-    bool isUnpaidTab = _debtSubTab == "Belum Lunas";
-    // Jika tab Belum Lunas, pakai list unpaid. Jika Riwayat, pakai paid history.
-    List<Map<String, dynamic>> activeList = isUnpaidTab ? _debtUnpaidList : _debtPaidHistoryList;
+  Widget _buildBarChart(String title, Map<String, double> dataMap, Color barColor) {
+    double maxRaw = dataMap.values.isEmpty ? 0 : dataMap.values.reduce((a, b) => a > b ? a : b);
+    double minRaw = dataMap.values.isEmpty ? 0 : dataMap.values.reduce((a, b) => a < b ? a : b);
+    
+    double maxYChart = maxRaw <= 0 ? 10 : (maxRaw / 1000000) * 1.4; 
+    double minYChart = minRaw >= 0 ? 0 : (minRaw / 1000000) * 1.2;
 
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Filter Bar (Berlaku untuk KEDUANYA)
-        _buildFilterBar(),
-
-        // SUB-TAB BUTTONS (PILIHAN MENU)
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          child: Container(
-            decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(10)),
-            child: Row(
-              children: [
-                Expanded(child: _subTabBtn("Belum Lunas", isUnpaidTab)),
-                Expanded(child: _subTabBtn("Riwayat Lunas", !isUnpaidTab)),
-              ],
-            ),
-          ),
-        ),
-
-        // INFO CARD (Dinamis sesuai Tab)
+        Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textDark)),
+        const SizedBox(height: 15),
         Container(
-          margin: const EdgeInsets.symmetric(horizontal: 16),
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15)),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Jika di tab Belum Lunas, info "Total Piutang Aktif" adalah GLOBAL (Semua waktu) agar Bos tau total aset.
-                  // Jika di tab Riwayat Lunas, infonya sesuai PERIODE FILTER.
-                  Text(isUnpaidTab ? "TOTAL PIUTANG (SEMUA WAKTU)" : "PELUNASAN (PERIODE INI)", style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold, fontSize: 11)),
-                  Text(isUnpaidTab ? "Uang di luar" : "Hutang yang sudah lunas", style: const TextStyle(fontSize: 10, color: Colors.grey)),
-                ],
+          height: 250,
+          padding: const EdgeInsets.all(15),
+          decoration: BoxDecoration(color: AppColors.pureWhite, borderRadius: BorderRadius.circular(15), border: Border.all(color: Colors.grey.shade200)),
+          child: dataMap.isEmpty 
+            ? const Center(child: Text("Belum ada data grafik"))
+            : BarChart(
+                BarChartData(
+                  alignment: BarChartAlignment.spaceAround,
+                  maxY: maxYChart, 
+                  minY: minYChart, 
+                  barTouchData: BarTouchData(
+                    enabled: false, 
+                    touchTooltipData: BarTouchTooltipData(
+                      getTooltipColor: (group) => Colors.transparent, 
+                      tooltipPadding: EdgeInsets.zero,
+                      tooltipMargin: 4, 
+                      getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                        if (rod.toY == 0) return null; 
+                        return BarTooltipItem(
+                          "${NumberFormat.currency(locale: 'id', symbol: '', decimalDigits: 1).format(rod.toY)} Jt", 
+                          const TextStyle(color: AppColors.textDark, fontWeight: FontWeight.bold, fontSize: 10)
+                        );
+                      }
+                    )
+                  ),
+                  titlesData: FlTitlesData(
+                    show: true,
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        getTitlesWidget: (value, meta) {
+                          int index = value.toInt();
+                          if (index < 0 || index >= dataMap.keys.length) return const Text("");
+                          String rawMonth = dataMap.keys.elementAt(index); 
+                          String mName = DateFormat('MMM').format(DateTime.parse("$rawMonth-01"));
+                          return Padding(padding: const EdgeInsets.only(top: 8.0), child: Text(mName, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.textGrey)));
+                        },
+                      ),
+                    ),
+                    leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  ),
+                  gridData: const FlGridData(show: false),
+                  borderData: FlBorderData(show: false),
+                  barGroups: dataMap.entries.toList().asMap().entries.map((e) {
+                    return BarChartGroupData(
+                      x: e.key,
+                      showingTooltipIndicators: [0], 
+                      barRods: [
+                        BarChartRodData(
+                          toY: e.value.value / 1000000, 
+                          color: barColor,
+                          width: 18,
+                          borderRadius: const BorderRadius.vertical(top: Radius.circular(5))
+                        )
+                      ]
+                    );
+                  }).toList(),
+                )
               ),
-              Text(
-                _formatRp(isUnpaidTab ? _totalPiutangNet : _totalPelunasanPeriode), 
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: isUnpaidTab ? Colors.red : Colors.green)
-              ),
-            ],
-          ),
         ),
-        
-        const SizedBox(height: 10),
-        
-        // LIST DATA (DENGAN GROUPING TANGGAL UNTUK KEDUANYA)
-        Expanded(
-          child: activeList.isEmpty 
-          ? Center(child: Text(isUnpaidTab ? "Tidak ada hutang pada periode ini! 👍" : "Belum ada pelunasan di periode ini.", style: const TextStyle(color: Colors.white70)))
-          : _buildGroupedList(activeList, isUnpaid: isUnpaidTab), // List dengan Grouping Tanggal untuk SEMUA
-        ),
+        const SizedBox(height: 25),
       ],
     );
   }
 
-  // --- BUILDER LIST GROUPING (Sama seperti Keuangan) ---
-  Widget _buildGroupedList(List<Map<String, dynamic>> dataList, {bool isUnpaid = false}) {
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      itemCount: dataList.length,
-      itemBuilder: (ctx, index) {
-        final t = dataList[index];
-        bool showHeader = false;
-        String currentDate = t['transaction_date'].substring(0, 10);
-        
-        if (index == 0) { 
-          showHeader = true; 
-        } else {
-          String prevDate = dataList[index - 1]['transaction_date'].substring(0, 10);
-          if (currentDate != prevDate) showHeader = true;
-        }
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (showHeader) 
-              Padding(
-                padding: const EdgeInsets.only(top: 15, bottom: 8, left: 4), 
-                child: Text(_getGroupLabel(t['transaction_date']), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white))
-              ),
-            _buildTransactionCard(t, isUnpaid: isUnpaid), // Pass status unpaid dari parameter
-          ],
-        );
-      },
-    );
-  }
-
-  // --- CARD TRANSAKSI UNIVERSAL ---
-  Widget _buildTransactionCard(Map<String, dynamic> t, {bool isUnpaid = false}) {
-    // Logika visual: Jika di tab Belum Lunas -> Merah. Jika Riwayat Lunas -> Hijau.
-    
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: ListTile(
-        onTap: () {
-          Navigator.push(context, MaterialPageRoute(builder: (_) => TransactionDetailScreen(transaction: t))).then((_) => _loadReportData());
-        },
-        leading: CircleAvatar(
-          backgroundColor: isUnpaid ? Colors.red[50] : Colors.green[50], 
-          child: Icon(
-            isUnpaid ? Icons.pending_actions : Icons.check_circle, 
-            color: isUnpaid ? Colors.red : Colors.green
-          )
-        ),
-        title: Text(t['customer_name'], style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text("#${t['id']} • ${DateFormat('dd MMM yyyy').format(DateTime.parse(t['transaction_date']))}"),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text(_formatRp(t['total_price']), style: TextStyle(fontWeight: FontWeight.bold, color: isUnpaid ? Colors.red : Colors.green[700])),
-            if(isUnpaid) const Text("KLIK UNTUK BAYAR", style: TextStyle(fontSize: 9, color: Colors.blue, fontWeight: FontWeight.bold)),
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.backgroundWhite,
+      appBar: AppBar(
+        title: const Text("Master Laporan", style: TextStyle(color: AppColors.pureWhite, fontWeight: FontWeight.bold)),
+        backgroundColor: AppColors.primaryNavy,
+        iconTheme: const IconThemeData(color: AppColors.pureWhite),
+        elevation: 0,
+        bottom: TabBar(
+          controller: _tabController,
+          labelColor: AppColors.accentGold,
+          unselectedLabelColor: Colors.white60,
+          indicatorColor: AppColors.accentGold,
+          indicatorWeight: 4,
+          tabs: const [
+            Tab(text: "RINGKASAN", icon: Icon(Icons.analytics)),
+            Tab(text: "PELANGGAN", icon: Icon(Icons.people_alt)),
+            Tab(text: "REKAP", icon: Icon(Icons.request_quote)),
           ],
         ),
       ),
-    );
-  }
-
-  // --- HELPER UNTUK TAB KEUANGAN (Biar kodenya rapi pakai grouping juga) ---
-  Widget _buildTransactionList(List<Map<String, dynamic>> list) {
-    if (list.isEmpty) return const SliverToBoxAdapter(child: Padding(padding: EdgeInsets.all(20), child: Center(child: Text("Tidak ada riwayat transaksi.", style: TextStyle(color: Colors.white54)))));
-    return SliverList(
-      delegate: SliverChildBuilderDelegate((context, index) {
-        final t = list[index];
-        bool showHeader = false;
-        String currentDate = t['transaction_date'].substring(0, 10);
-        if (index == 0) { showHeader = true; } 
-        else {
-          String prevDate = list[index - 1]['transaction_date'].substring(0, 10);
-          if (currentDate != prevDate) showHeader = true;
-        }
-
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (showHeader) Padding(padding: const EdgeInsets.only(top: 15, bottom: 8, left: 4), child: Text(_getGroupLabel(t['transaction_date']), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white))),
-              _buildTransactionCard(t, isUnpaid: t['payment_status'] != 'Lunas'), // Reuse card logic
-            ],
-          ),
-        );
-      }, childCount: list.length),
-    );
-  }
-
-  // --- WIDGET PENDUKUNG ---
-
-  Widget _subTabBtn(String label, bool isActive) {
-    return InkWell(
-      onTap: () {
-        setState(() => _debtSubTab = label);
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: isActive ? Colors.white : Colors.transparent,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        alignment: Alignment.center,
-        child: Text(
-          label, 
-          style: TextStyle(
-            fontWeight: FontWeight.bold, 
-            color: isActive ? _bgStart : Colors.white70
-          )
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFilterBar() {
-    return Container(
-      height: 50,
-      margin: const EdgeInsets.symmetric(vertical: 15),
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
+      body: TabBarView(
+        controller: _tabController,
         children: [
-          _filterBtn("Semua"), const SizedBox(width: 8), // "Semua" PINDAH KE DEPAN
-          _filterBtn("Hari Ini"), const SizedBox(width: 8),
-          _filterBtn("Kemarin"), const SizedBox(width: 8),
-          _filterBtn("7 Hari"), const SizedBox(width: 8),
-          _filterBtn("Bulan Ini"), const SizedBox(width: 8),
-          _customDateBtn(),
+          _buildDashboardTab(),
+          _buildCustomerTab(),
+          _buildFinanceTab(),
         ],
       ),
     );
   }
 
-  Widget _filterBtn(String label) {
-    bool isActive = _activeFilter == label;
-    return InkWell(
-      onTap: () => _setFilter(label),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: isActive ? Colors.white : Colors.black26, 
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withOpacity(0.5)), 
-        ),
-        child: Text(label, style: TextStyle(color: isActive ? _bgStart : Colors.white, fontWeight: FontWeight.bold)),
-      ),
-    );
-  }
-
-  Widget _customDateBtn() {
-    return InkWell(
-      onTap: _pickCustomDate,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        decoration: BoxDecoration(color: _activeFilter == "Custom" ? Colors.amber : Colors.black26, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.white)),
-        child: Row(children: [Icon(Icons.calendar_month, size: 16, color: _activeFilter == "Custom" ? Colors.black : Colors.white), const SizedBox(width: 5), Text("Pilih Tanggal", style: TextStyle(color: _activeFilter == "Custom" ? Colors.black : Colors.white, fontWeight: FontWeight.bold))]),
-      ),
-    );
-  }
-
-  Widget _summaryCard(String title, double value, Color color, {bool isBig = false}) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(15),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15), boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 5)]),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(title, style: TextStyle(color: Colors.grey[600], fontSize: 12)),
-          const SizedBox(height: 5),
-          FittedBox(child: Text(_formatRp(value), style: TextStyle(color: color, fontSize: isBig ? 20 : 16, fontWeight: FontWeight.bold))),
-        ]),
-      ),
-    );
-  }
-
-  Widget _buildTopProducts() {
-    if (_topProducts.isEmpty) return const Center(child: Text("Belum ada penjualan.", style: TextStyle(color: Colors.white54)));
-    return Container(
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15)),
+  Widget _buildDashboardTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
       child: Column(
-        children: List.generate(_topProducts.length, (i) {
-          final item = _topProducts[i];
-          return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(colors: [AppColors.menuIndigoIcon, AppColors.primaryNavy]),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, 5))]
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.inventory_2, color: AppColors.pureWhite, size: 20),
+                    SizedBox(width: 10),
+                    Text("Total Nilai Aset di Gudang", style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(_formatRp(_assetValue), style: const TextStyle(color: AppColors.pureWhite, fontSize: 30, fontWeight: FontWeight.w900)),
+                const SizedBox(height: 5),
+                const Text("Berdasarkan jumlah stok fisik dikali harga modal.", style: TextStyle(color: Colors.white54, fontSize: 11)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 25),
+
+          _buildBarChart("Omset 6 Bulan Terakhir", _monthlyOmset, AppColors.primaryNavy),
+          _buildBarChart("Profit Bersih 6 Bulan Terakhir", _monthlyProfit, AppColors.statusGreen),
+
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              ListTile(
-                leading: CircleAvatar(backgroundColor: _bgStart.withOpacity(0.1), child: Text("${i+1}", style: TextStyle(color: _bgStart, fontWeight: FontWeight.bold))),
-                title: Text(item['product_name'], style: const TextStyle(fontWeight: FontWeight.bold)),
-                trailing: Text("${item['total_qty']} ${item['unit_type']}", style: const TextStyle(fontWeight: FontWeight.bold)),
-              ),
-              if (i < _topProducts.length - 1) const Divider(height: 1),
+              const Text("Top 5 Produk Terlaris", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textDark)),
+              Container(
+                decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(20)),
+                child: Row(
+                  children: [
+                    _buildTopProductFilterBtn("Gabung", "SEMUA"),
+                    _buildTopProductFilterBtn("Kayu", "KAYU"),
+                    _buildTopProductFilterBtn("Bangunan", "BANGUNAN"),
+                  ],
+                ),
+              )
             ],
-          );
-        }),
+          ),
+          const SizedBox(height: 15),
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(color: AppColors.pureWhite, borderRadius: BorderRadius.circular(15), border: Border.all(color: Colors.grey.shade200)),
+            child: _topProducts.isEmpty 
+              ? const Center(child: Text("Belum ada penjualan lunas."))
+              : Column(
+                  children: [
+                    ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: _topProducts.length,
+                      itemBuilder: (context, i) {
+                        final item = _topProducts[i];
+                        String cleanName = item['product_name'].toString().replaceAll(RegExp(r'Kelas \d+\s?'), '').replaceAll('()', '').trim();
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 12.0),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Container(width: 14, height: 14, decoration: BoxDecoration(color: _getPieColor(i), shape: BoxShape.circle)),
+                              const SizedBox(width: 12),
+                              Expanded(child: Text(cleanName, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textDark), maxLines: 2, overflow: TextOverflow.ellipsis)),
+                              Text("${item['qty']} Terjual", style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.statusGreen)),
+                            ],
+                          ),
+                        );
+                      }
+                    ),
+                    const SizedBox(height: 25),
+                    
+                    SizedBox(
+                      height: 220,
+                      child: PieChart(
+                        PieChartData(
+                          sectionsSpace: 2,
+                          centerSpaceRadius: 40,
+                          sections: _topProducts.asMap().entries.map((entry) {
+                            int idx = entry.key;
+                            var item = entry.value;
+                            int qty = (item['qty'] as num).toInt();
+                            return PieChartSectionData(
+                              color: _getPieColor(idx),
+                              value: qty.toDouble(),
+                              title: qty.toString(),
+                              radius: 65, 
+                              titleStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)
+                            );
+                          }).toList(),
+                        )
+                      ),
+                    ),
+                  ],
+                ),
+          ),
+          const SizedBox(height: 100),
+        ],
       ),
     );
   }
 
-  // --- LOGIC HELPER ---
-
-  Future<void> _pickCustomDate() async {
-    final picked = await showDateRangePicker(context: context, firstDate: DateTime(2010), lastDate: DateTime(2030), initialDateRange: _selectedDateRange);
-    if (picked != null) {
-      setState(() { _selectedDateRange = picked; _activeFilter = "Custom"; });
-      _loadReportData();
-    }
+  Widget _buildTopProductFilterBtn(String label, String value) {
+    bool isSelected = _topProductFilter == value;
+    return InkWell(
+      onTap: () {
+        setState(() => _topProductFilter = value);
+        _loadDashboardData();
+      },
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.primaryNavy : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isSelected ? AppColors.pureWhite : AppColors.textGrey)),
+      ),
+    );
   }
 
-  String _getGroupLabel(String dateStr) {
-    DateTime date = DateTime.parse(dateStr);
-    DateTime now = DateTime.now();
-    DateTime today = DateTime(now.year, now.month, now.day);
-    DateTime yesterday = today.subtract(const Duration(days: 1));
-    DateTime checkDate = DateTime(date.year, date.month, date.day);
-    if (checkDate == today) return "Hari Ini";
-    if (checkDate == yesterday) return "Kemarin";
-    return DateFormat('EEEE, d MMM yyyy', 'id_ID').format(date);
+  Widget _buildCustomerTab() {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: TextField(
+            controller: _searchController, onChanged: _filterCustomers,
+            decoration: InputDecoration(hintText: "Cari Nama Pelanggan...", prefixIcon: const Icon(Icons.search), border: OutlineInputBorder(borderRadius: BorderRadius.circular(30)), filled: true, fillColor: AppColors.pureWhite),
+          ),
+        ),
+        Expanded(
+          child: _filteredCustomers.isEmpty
+            ? const Center(child: Text("Tidak ada data pelanggan."))
+            : ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: _filteredCustomers.length,
+                itemBuilder: (context, i) {
+                  final c = _filteredCustomers[i];
+                  int utang = c['total_debt'] as int;
+                  
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                    child: InkWell( // FITUR BARU: BISA DIKLIK BUAT LIHAT RIWAYAT
+                      onTap: () => _showCustomerTransactions(c['name']),
+                      borderRadius: BorderRadius.circular(15),
+                      child: Padding(
+                        padding: const EdgeInsets.all(15),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                CircleAvatar(backgroundColor: AppColors.menuBlueBg, child: const Icon(Icons.person, color: AppColors.menuBlueIcon)),
+                                const SizedBox(width: 15),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(c['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.primaryNavy)),
+                                      if (c['phone'].toString().isNotEmpty)
+                                        Text(c['phone'], style: const TextStyle(color: AppColors.textGrey, fontSize: 12)),
+                                    ],
+                                  ),
+                                ),
+                                if (c['phone'].toString().isNotEmpty) ...[
+                                  IconButton(icon: const Icon(Icons.phone, color: Colors.green), onPressed: () => _launchUrl('CALL', c['phone'])),
+                                  IconButton(icon: const Icon(Icons.chat, color: Colors.teal), onPressed: () => _launchUrl('WA', c['phone'])),
+                                ]
+                              ],
+                            ),
+                            const Divider(height: 25),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text("Total Belanja Lunas", style: TextStyle(fontSize: 10, color: AppColors.textGrey)),
+                                    Text(_formatRp(c['total_spent']), style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.statusGreen)),
+                                  ],
+                                ),
+                                if (utang > 0)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                    decoration: BoxDecoration(color: AppColors.statusRed.withOpacity(0.1), borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.statusRed.withOpacity(0.3))),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.end,
+                                      children: [
+                                        const Text("Hutang (Piutang)", style: TextStyle(fontSize: 10, color: AppColors.statusRed, fontWeight: FontWeight.bold)),
+                                        Text(_formatRp(utang), style: const TextStyle(fontWeight: FontWeight.w900, color: AppColors.statusRed)),
+                                      ],
+                                    ),
+                                  )
+                              ],
+                            )
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+        ),
+      ],
+    );
   }
 
-  String _formatRp(dynamic number) => NumberFormat.currency(locale: 'id', symbol: 'Rp ', decimalDigits: 0).format(number);
+  Widget _buildFinanceTab() {
+    return _isLoading 
+      ? const Center(child: CircularProgressIndicator())
+      : Stack(
+          children: [
+            SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          icon: const Icon(Icons.date_range, color: AppColors.primaryNavy),
+                          label: Text(_isAllTimeRekap ? "Periode: Semua Waktu" : "Periode: ${DateFormat('dd MMM').format(_selectedDateRange!.start)} - ${DateFormat('dd MMM yyyy').format(_selectedDateRange!.end)}", style: const TextStyle(color: AppColors.primaryNavy, fontWeight: FontWeight.bold, fontSize: 13)),
+                          style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 15), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                          onPressed: _pickDateRange,
+                        ),
+                      ),
+                      if (!_isAllTimeRekap) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          decoration: BoxDecoration(color: AppColors.statusRed.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
+                          child: IconButton(
+                            icon: const Icon(Icons.close, color: AppColors.statusRed),
+                            onPressed: () {
+                              setState(() => _isAllTimeRekap = true);
+                              _loadFinanceData();
+                            }
+                          ),
+                        )
+                      ]
+                    ],
+                  ),
+                  const SizedBox(height: 20),
 
-  Future<void> _exportToCsv() async {
-    if (_exportData.isEmpty) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Tidak ada data!"))); return; }
-    try {
-      List<List<dynamic>> csvData = [
-        ["LAPORAN KEUANGAN BOS PANGLONG"],
-        ["Filter", _activeFilter],
-        ["Periode", "${DateFormat('dd/MM/yyyy').format(_selectedDateRange!.start)} - ${DateFormat('dd/MM/yyyy').format(_selectedDateRange!.end)}"],
-        [], ["Tanggal", "No. Invoice", "Pelanggan", "Status", "Barang", "Qty", "Satuan", "Harga Modal", "Harga Jual", "Subtotal Jual", "Estimasi Laba Item"],
-      ];
-      for (var row in _exportData) {
-        double qty = (row['quantity'] as num).toDouble();
-        double cap = (row['capital_price'] as num).toDouble();
-        double sell = (row['sell_price'] as num).toDouble();
-        csvData.add([row['transaction_date'], "#${row['invoice_id']}", row['customer_name'], row['payment_status'], row['product_name'], qty, row['unit_type'], cap, sell, (qty * sell), (sell - cap) * qty]);
-      }
-      csvData.add([]);
-      csvData.add(["", "", "", "", "", "", "", "TOTAL PROFIT BERSIH:", _totalProfit]);
-      String csvContent = const ListToCsvConverter().convert(csvData);
-      final tempDir = await getTemporaryDirectory();
-      File file = File("${tempDir.path}/Laporan_${DateFormat('yyyyMMdd').format(DateTime.now())}.csv");
-      await file.writeAsString(csvContent);
-      await Share.shareXFiles([XFile(file.path)], text: "Laporan Keuangan");
-    } catch (e) { debugPrint("Gagal Export: $e"); }
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(color: AppColors.pureWhite, borderRadius: BorderRadius.circular(15), boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 8)]),
+                    child: Column(
+                      children: [
+                        const Text("ESTIMASI PROFIT BERSIH", style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textGrey)),
+                        const SizedBox(height: 10),
+                        FittedBox(child: Text(_formatRp(_totalProfit), style: TextStyle(fontSize: 34, fontWeight: FontWeight.w900, color: _totalProfit >= 0 ? AppColors.statusGreen : AppColors.statusRed))),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 15),
+
+                  Row(
+                    children: [
+                      Expanded(child: _statBox("Omset (Lunas)", _totalOmset, AppColors.menuBlueIcon, AppColors.menuBlueBg)),
+                      const SizedBox(width: 10),
+                      Expanded(child: _statBox("Potong Bensin", _totalBensin, AppColors.menuAmberIcon, AppColors.menuAmberBg)),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  _statBox("Potong Modal Terjual", _totalModal, AppColors.statusRed, AppColors.statusRed.withOpacity(0.1), isFullWidth: true),
+                  
+                  const SizedBox(height: 120),
+                ],
+              ),
+            ),
+            
+            Positioned(
+              bottom: 20,
+              left: 20,
+              right: 20,
+              child: SizedBox(
+                height: 55,
+                child: ElevatedButton.icon(
+                  onPressed: _exportToCsv,
+                  icon: const Icon(Icons.download, color: AppColors.accentGold),
+                  label: const Text("Export Laporan (CSV)", style: TextStyle(color: AppColors.accentGold, fontWeight: FontWeight.bold, fontSize: 16)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryNavy,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+  }
+
+  Widget _statBox(String label, double val, Color color, Color bgColor, {bool isFullWidth = false}) {
+    return Container(
+      width: isFullWidth ? double.infinity : null,
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(color: bgColor, borderRadius: BorderRadius.circular(10), border: Border.all(color: color.withOpacity(0.2))),
+      child: Column(
+        crossAxisAlignment: isFullWidth ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+        children: [
+          Text(label, style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 5),
+          FittedBox(child: Text(_formatRp(val), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textDark))),
+        ],
+      ),
+    );
   }
 }

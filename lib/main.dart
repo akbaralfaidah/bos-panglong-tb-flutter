@@ -1,18 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'screens/login_screen.dart'; // REVISI: Arahkan import ke Login Screen
+import 'screens/login_screen.dart'; 
+import 'theme/app_colors.dart'; // IMPORT FILE TEMA BARU
 
 void main() async {
-  // 1. Pastikan binding flutter terinisialisasi
   WidgetsFlutterBinding.ensureInitialized();
-
-  // 2. Kunci layar ke posisi tegak (Portrait)
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
-
-  // 3. Jalankan aplikasi
   runApp(const BosPanglongApp());
 }
 
@@ -21,42 +17,31 @@ class BosPanglongApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Mengatur warna status bar lewat AnnotatedRegion
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent, 
-        statusBarIconBrightness: Brightness.light, 
+        statusBarIconBrightness: Brightness.dark, // Icon jam/baterai warna gelap karena background putih
         systemNavigationBarColor: Colors.white,
         systemNavigationBarIconBrightness: Brightness.dark,
       ),
       child: MaterialApp(
         title: 'Bos Panglong & TB',
         debugShowCheckedModeBanner: false,
-
-        // --- TEMA GLOBAL: ROYAL SAPPHIRE (SIMPLIFIED) ---
         theme: ThemeData(
           useMaterial3: true,
-          // Menggunakan primarySwatch agar kompatibel dengan versi Flutter lama & baru
-          primarySwatch: Colors.blue, 
-          
+          scaffoldBackgroundColor: AppColors.backgroundWhite, // PAKAI WARNA BACKGROUND BARU
+          colorScheme: ColorScheme.fromSeed(seedColor: AppColors.primaryNavy), // SEED WARNA NAVY
           appBarTheme: const AppBarTheme(
-            backgroundColor: Colors.transparent,
+            backgroundColor: AppColors.pureWhite,
             elevation: 0,
-            iconTheme: IconThemeData(color: Colors.white),
+            iconTheme: IconThemeData(color: AppColors.primaryNavy), // Icon Navy
             titleTextStyle: TextStyle(
-              color: Colors.white, 
-              fontSize: 20, 
+              color: AppColors.primaryNavy, // Teks Navy
+              fontSize: 18, 
               fontWeight: FontWeight.bold
             ),
           ),
-
-          // Kita hapus CardTheme dari sini karena sering menyebabkan error versi
-          // Kita akan atur tampilan Card langsung di file Screen masing-masing
-          
-          scaffoldBackgroundColor: const Color(0xFFF5F5F5), 
         ),
-        
-        // REVISI: Home sekarang adalah LoginScreen, bukan DashboardScreen
         home: const LoginScreen(),
       ),
     );

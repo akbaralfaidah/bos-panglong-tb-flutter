@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../helpers/database_helper.dart';
+import '../controllers/history_controller.dart';
 import 'transaction_detail_screen.dart';
 
 enum HistoryType { transactions, piutang, bensin, stock, soldItems }
@@ -16,13 +16,12 @@ class HistoryScreen extends StatefulWidget {
 }
 
 class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProviderStateMixin {
-  final Color _bgStart = const Color(0xFF0052D4);
-  final Color _bgEnd = const Color(0xFF4364F7);
+  final Color _bgStart = const Color(0xFF00223E);
+  final Color _bgEnd = const Color(0xFF1D976C);
   
-  // Data untuk History Biasa
+  final HistoryController _controller = HistoryController(); // Gunakan Controller Baru
+  
   List<Map<String, dynamic>> _generalData = [];
-  
-  // Data Khusus Piutang (Dibagi 2)
   List<Map<String, dynamic>> _unpaidDebts = [];
   List<Map<String, dynamic>> _paidDebtsHistory = [];
 
@@ -33,7 +32,6 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
   @override
   void initState() {
     super.initState();
-    // Inisialisasi Tab Controller jika mode Piutang
     if (widget.type == HistoryType.piutang) {
       _tabController = TabController(length: 2, vsync: this);
     }
@@ -50,83 +48,32 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
-    final db = DatabaseHelper.instance;
+    
     String startDate = "2024-01-01"; 
     String endDate = DateFormat('yyyy-MM-dd').format(DateTime.now());
 
-    List<Map<String, dynamic>> rawResult = [];
-    double total = 0;
-
     try {
-      // --- LOGIKA KHUSUS PIUTANG (TAB) ---
       if (widget.type == HistoryType.piutang) {
-        // Ambil SEMUA sejarah hutang (Lunas & Belum)
-        rawResult = await db.getAllDebtHistory();
-        
-        List<Map<String, dynamic>> unpaid = [];
-        List<Map<String, dynamic>> paid = [];
-        
-        for (var t in rawResult) {
-          // Pisahkan berdasarkan status
-          if (t['payment_status'] == 'Belum Lunas') {
-            unpaid.add(t);
-            // Total di header hanya menghitung yang BELUM LUNAS
-            total += (t['total_price'] as num).toDouble();
-          } else {
-            paid.add(t);
-          }
-        }
-        
+        // Ambil data Piutang lewat Controller
+        final res = await _controller.loadPiutangData();
         if (mounted) {
           setState(() {
-            _unpaidDebts = unpaid;
-            _paidDebtsHistory = paid;
-            _totalValue = total;
+            _unpaidDebts = res['unpaid'];
+            _paidDebtsHistory = res['paid'];
+            _totalValue = res['total'];
             _isLoading = false;
           });
         }
-        return; 
-      }
-
-      // --- LOGIKA HISTORY BIASA (Omset, Stok, dll) ---
-      if (widget.type == HistoryType.stock) {
-        rawResult = await db.getStockLogsDetail(startDate: startDate, endDate: endDate);
-        for (var item in rawResult) total += (item['quantity_added'] * item['capital_price']);
-      } 
-      else if (widget.type == HistoryType.soldItems) {
-        rawResult = await db.getSoldItemsDetail(startDate: startDate, endDate: endDate);
-        for (var item in rawResult) total += item['quantity']; 
-      } 
-      else if (widget.type == HistoryType.bensin) {
-        final allTrans = await db.getTransactionHistory(startDate: startDate, endDate: endDate);
-        rawResult = allTrans.where((t) => (t['operational_cost'] as num) > 0).toList();
-        for (var t in rawResult) total += (t['operational_cost'] as num).toDouble();
-      } 
-      else {
-        // History Transaksi Umum (Omset)
-        rawResult = await db.getTransactionHistory(startDate: startDate, endDate: endDate);
-        for (var t in rawResult) {
-           if (t['payment_status'] != 'Belum Lunas') {
-             double grand = (t['total_price'] as num).toDouble();
-             double bensin = (t['operational_cost'] as num).toDouble();
-             total += (grand - bensin);
-           }
+      } else {
+        // Ambil data History Umum lewat Controller
+        final res = await _controller.loadGeneralHistory(widget.type, startDate, endDate);
+        if (mounted) {
+          setState(() {
+            _generalData = res['data'];
+            _totalValue = res['total'];
+            _isLoading = false;
+          });
         }
-      }
-
-      List<Map<String, dynamic>> sortedResult = List<Map<String, dynamic>>.from(rawResult);
-      sortedResult.sort((a, b) {
-        DateTime dateA = DateTime.parse(_getRawDate(a));
-        DateTime dateB = DateTime.parse(_getRawDate(b));
-        return dateB.compareTo(dateA); 
-      });
-
-      if (mounted) {
-        setState(() {
-          _generalData = sortedResult;
-          _totalValue = total;
-          _isLoading = false;
-        });
       }
     } catch (e) {
       print("Error: $e");
@@ -134,7 +81,6 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
     }
   }
 
-  // --- BUILDER UTAMA ---
   @override
   Widget build(BuildContext context) {
     if (widget.type == HistoryType.piutang) {
@@ -143,7 +89,6 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
     return _buildGeneralHistoryView();
   }
 
-  // === TAMPILAN KHUSUS PIUTANG (DENGAN TAB) ===
   Widget _buildPiutangTabView() {
     return Container(
       decoration: BoxDecoration(gradient: LinearGradient(colors: [_bgStart, _bgEnd], begin: Alignment.topCenter, end: Alignment.bottomCenter)),
@@ -192,7 +137,6 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
     );
   }
 
-  // === TAMPILAN HISTORY BIASA (Omset, Stok, dll) ===
   Widget _buildGeneralHistoryView() {
     return Container(
       decoration: BoxDecoration(gradient: LinearGradient(colors: [_bgStart, _bgEnd], begin: Alignment.topCenter, end: Alignment.bottomCenter)),
@@ -204,7 +148,7 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
             Container(
               width: double.infinity, padding: const EdgeInsets.all(20), color: Colors.white.withOpacity(0.1),
               child: Column(children: [
-                  Text("Total Terdata (Semua Waktu)", style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                  const Text("Total Terdata (Semua Waktu)", style: TextStyle(color: Colors.white70, fontSize: 12)),
                   const SizedBox(height: 5),
                   Text(widget.type == HistoryType.soldItems ? "${_formatNum(_totalValue)} Unit" : _formatRp(_totalValue), style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold)),
               ]),
@@ -216,7 +160,6 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
     );
   }
 
-  // --- WIDGET LIST DENGAN GROUPING TANGGAL (REUSABLE) ---
   Widget _buildGroupedListView(List<Map<String, dynamic>> dataList, {bool? isPiutangLunas}) {
     return Container(
       decoration: const BoxDecoration(color: Color(0xFFF5F5F5), borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
@@ -278,7 +221,7 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
       String date = item['transaction_date'];
       String cust = item['customer_name'];
       int tId = item['id'];
-      int queueNo = item['queue_number'] ?? 0; // REVISI: Ambil No Antrian
+      int queueNo = item['queue_number'] ?? 0;
       double totalBayar = (item['total_price'] as num).toDouble();
       double bensin = (item['operational_cost'] as num).toDouble();
       String status = item['payment_status'];
@@ -314,18 +257,16 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
         icon = status == 'Lunas' ? Icons.check : Icons.watch_later;
       }
 
-      // REVISI SUBTITLE: Tampilkan Antrian jika ada
       String antrianStr = queueNo > 0 ? " • Antrian $queueNo" : "";
 
       return ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         onTap: () async {
           await Navigator.push(context, MaterialPageRoute(builder: (_) => TransactionDetailScreen(transaction: item)));
-          _loadData();
+          _loadData(); // Refresh jika ada perubahan status di detail
         },
         leading: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle), child: Icon(icon, color: color, size: 20)),
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-        // SUBTITLE BARU
         subtitle: Text("#$tId$antrianStr • ${DateFormat('HH:mm').format(DateTime.parse(date))}", style: TextStyle(color: Colors.grey[600], fontSize: 12)),
         trailing: Row(mainAxisSize: MainAxisSize.min, children: [Text(trailingVal, style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 14)), const SizedBox(width: 5), const Icon(Icons.arrow_forward_ios, size: 12, color: Colors.grey)]),
       );

@@ -1,24 +1,19 @@
 class Product {
   final int? id;
   final String name;
-  final String type;        // 'KAYU' atau 'BANGUNAN'
-  final String? dimensions; // Opsional: PxLxT (Ex: 400x2x3)
-  final String source;      // Penanda: Supplier Agus / Stok Lama
-  
-  // --- PROPERTY BARU: KELAS KAYU ---
-  final String? woodClass;  // Contoh: 'Kelas 1', 'Kelas 2', 'Kelas 3'
-
+  final String type;        
+  final String? dimensions; 
+  final String source;      
+  final String? woodClass;  
   final int stock;          
   
-  // HARGA MODAL
-  final int buyPriceUnit;   // Modal Eceran
-  final int buyPriceCubic;  // Modal Kubik / Modal Grosir
+  final int buyPriceUnit;   
+  final int buyPriceCubic;  
+  final int sellPriceUnit;  
+  final int sellPriceCubic; 
+  final int packContent;    
   
-  // HARGA JUAL
-  final int sellPriceUnit;  // Jual Eceran
-  final int sellPriceCubic; // Jual Kubik / Jual Grosir
-
-  final int packContent;    // Isi per Dus (Misal: 1 Dus = 12 Pcs)
+  int orderIndex; // VARIABEL BARU UNTUK URUTAN DRAG N DROP
 
   Product({
     this.id,
@@ -33,9 +28,9 @@ class Product {
     required this.sellPriceUnit,
     this.sellPriceCubic = 0,
     this.packContent = 1, 
+    this.orderIndex = 0,
   });
 
-  // Konversi dari Map Database ke Object Dart
   factory Product.fromMap(Map<String, dynamic> json) => Product(
     id: json['id'],
     name: json['name'],
@@ -49,9 +44,9 @@ class Product {
     sellPriceUnit: json['sell_price_unit'],
     sellPriceCubic: json['sell_price_cubic'] ?? 0,
     packContent: json['pack_content'] ?? 1, 
+    orderIndex: json['order_index'] ?? 0,
   );
 
-  // Konversi dari Object Dart ke Map Database
   Map<String, dynamic> toMap() => {
     'id': id,
     'name': name,
@@ -65,29 +60,26 @@ class Product {
     'sell_price_unit': sellPriceUnit,
     'sell_price_cubic': sellPriceCubic,
     'pack_content': packContent,
+    'order_index': orderIndex,
   };
 }
 
 class CartItemModel {
   final int productId;
   final String productName;
-  final String productType; // KAYU / RENG / BANGUNAN
-  final int quantity;       // Jumlah Final (Batang/Pcs) yang mengurangi stok
-  
-  // FIELD PENTING: Menyimpan input asli (misal 5 Kubik) 
-  // agar di history tidak berubah jadi 350 Batang
+  final String productType; 
+  final int quantity;       
   final double requestQty;  
-  
-  final String unitType;    // Satuan Label di Struk (Ikat, Kubik, Dus, Pcs)
-  final int capitalPrice;   // Modal per unit (sesuai unitType)
-  final int sellPrice;      // Harga Jual per unit (sesuai unitType)
+  final String unitType;    
+  final int capitalPrice;   
+  final int sellPrice;      
   
   CartItemModel({
     required this.productId, 
     required this.productName, 
     required this.productType,
     required this.quantity, 
-    required this.requestQty, // Wajib diisi
+    required this.requestQty, 
     required this.unitType, 
     required this.capitalPrice, 
     required this.sellPrice
