@@ -12,7 +12,6 @@ import 'dart:io';
 import '../data/datasources/local/core_local_datasource.dart';
 import '../helpers/database_helper.dart';
 import '../theme/app_colors.dart';
-import '../controllers/tester_controller.dart'; // IMPORT CONTROLLER TESTER
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -247,38 +246,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  // ===========================================================================
-  // FUNGSI SAKTI: STRESS TESTING
-  // ===========================================================================
-  Future<void> _injectStressTestData() async {
-    bool confirm = await showDialog(
-      context: context, 
-      builder: (c) => AlertDialog(
-        backgroundColor: AppColors.pureWhite,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text("INJECT 3000 DATA?", style: TextStyle(color: AppColors.statusGreen, fontWeight: FontWeight.bold)),
-        content: const Text("Tindakan ini akan memasukkan 3.000 transaksi palsu dari tahun 2010 hingga sekarang.\n\nPASTIKAN ANDA SUDAH BACKUP DATABASE ASLI ANDA!", style: TextStyle(color: AppColors.textDark)),
-        actions: [
-          TextButton(onPressed: ()=>Navigator.pop(c, false), child: const Text("Batal", style: TextStyle(color: AppColors.textGrey))),
-          ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: AppColors.statusGreen, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))), onPressed: ()=>Navigator.pop(c, true), child: const Text("SUNTIK SEKARANG", style: TextStyle(color: AppColors.pureWhite)))
-        ],
-      )
-    ) ?? false;
-
-    if (confirm) {
-      setState(() => _isLoading = true);
-      try {
-        await Future.delayed(const Duration(milliseconds: 500)); // Biar UI Loading muncul dulu
-        await TesterController().injectMassiveDummyData();
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("SUKSES! 3000 Data Dummy Berhasil Diinjeksi."), backgroundColor: AppColors.primaryNavy));
-      } catch (e) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal Inject: $e"), backgroundColor: AppColors.statusRed));
-      } finally {
-        if (mounted) setState(() => _isLoading = false);
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -386,22 +353,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   bgColor: AppColors.statusRed.withOpacity(0.1), 
                   onTap: _resetDatabase,
                   isDestructive: true
-                ),
-
-                // ========================================================
-                // ZONA DEVELOPER: TOMBOL STRESS TESTING
-                // ========================================================
-                const SizedBox(height: 40), 
-                const Center(child: Text("--- Developer Tools ---", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold, letterSpacing: 2))), 
-                const SizedBox(height: 10),
-                
-                _buildMenuCard(
-                  title: "STRESS TEST (Inject 3000 Data)", 
-                  subtitle: "Menyuntik data transaksi dr 2010 - 2026", 
-                  icon: Icons.bug_report, 
-                  iconColor: Colors.white, 
-                  bgColor: Colors.black87, 
-                  onTap: _injectStressTestData,
                 ),
                 
                 const SizedBox(height: 40),

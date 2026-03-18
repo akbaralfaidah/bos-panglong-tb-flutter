@@ -161,25 +161,24 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
     });
   }
 
+  // LOGIKA FIX: Hitung Volume Papan (Hasil dalam 'cm', tidak dibagi 100)
   double _getVolumePerBatang() {
     double t = double.tryParse(_tebalController.text.replaceAll(',', '.')) ?? 0;
     double l = double.tryParse(_lebarController.text.replaceAll(',', '.')) ?? 0;
     double p = double.tryParse(_panjangController.text.replaceAll(',', '.')) ?? 0;
     if (t > 0 && l > 0 && p > 0) {
-      return (t / 100) * (l / 100) * p; 
+      return t * l * p; // Cth: 2 * 25 * 4 = 200
     }
     return 0;
   }
 
+  // LOGIKA FIX: Hitung Volume Reng (Hasil dalam 'cm')
   double _getVolumePerBatangReng() {
-    if (_selectedUkuranReng == "2x3") return 0.02 * 0.03 * 4.0;
-    if (_selectedUkuranReng == "3x4") return 0.03 * 0.04 * 4.0;
+    if (_selectedUkuranReng == "2x3") return 24.0; // Asumsi panjang 4m -> 2*3*4 = 24
+    if (_selectedUkuranReng == "3x4") return 48.0; // Asumsi panjang 4m -> 3*4*4 = 48
     return 0;
   }
 
-  // ==========================================================
-  // FITUR BARU: AUTO CALCULATE RENG MURNI (KUBIK -> SATUAN -> IKAT)
-  // ==========================================================
   void _autoCalculateFromPackage({required bool isModal}) {
     if (_mainTabController.index != 0) return; 
 
@@ -188,11 +187,11 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
       if (vol > 0) {
         if (isModal) {
           int hargaKubik = _parseMoney(_modalGrosirController.text);
-          int hargaSatuan = (hargaKubik * vol).round();
+          int hargaSatuan = (hargaKubik * (vol / 10000)).round(); // Konversi ke pecahan kubik
           _modalSatuanController.text = _formatMoney(hargaSatuan);
         } else {
           int hargaKubik = _parseMoney(_jualGrosirController.text);
-          double rawPrice = hargaKubik * vol;
+          double rawPrice = hargaKubik * (vol / 10000);
           int hargaSatuan = (rawPrice / 1000).ceil() * 1000; 
           _jualSatuanController.text = _formatMoney(hargaSatuan);
         }
@@ -201,27 +200,21 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
     else if (_selectedWoodType == 1) { 
       double vol = _getVolumePerBatangReng();
       if (vol > 0) {
-        int batangPerKubik = (1 / vol).round();
+        int batangPerKubik = (10000 / vol).floor();
         int isiPerIkat = int.tryParse(_inputIsiPerDusController.text.replaceAll('.', '')) ?? 1;
         if (isiPerIkat <= 0) isiPerIkat = 1;
 
         if (isModal) {
           int hargaKubik = _parseMoney(_modalGrosirController.text);
-          
-          // 1. Cari modal satuannya dulu biar akurat persis hitungan Bos!
           int hargaSatuan = (hargaKubik / batangPerKubik).round();
-          // 2. Modal Ikat tinggal dikali isinya
           int hargaIkat = hargaSatuan * isiPerIkat; 
           
           _modalSatuanController.text = _formatMoney(hargaSatuan);
           _modalIkatController.text = _formatMoney(hargaIkat);
         } else {
           int hargaKubik = _parseMoney(_jualGrosirController.text);
-          
-          // 1. Jual Satuan dibuletin ke ratusan atas biar untung
           double rawSatuan = hargaKubik / batangPerKubik;
           int hargaSatuan = (rawSatuan / 100).ceil() * 100; 
-          // 2. Jual Ikat tinggal dikali
           int hargaIkat = hargaSatuan * isiPerIkat;
           
           _jualSatuanController.text = _formatMoney(hargaSatuan);
@@ -242,7 +235,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
   void _updateRengLogic(String ukuran) {
     setState(() {
       _selectedUkuranReng = ukuran;
-      if (ukuran == "2x3") _inputIsiPerDusController.text = "20"; 
+      if (ukuran == "2x3") _inputIsiPerDusController.text = "21"; // Normalnya 417 btg / 20 atau 21 ikat
       else if (ukuran == "3x4") _inputIsiPerDusController.text = "10"; 
     });
     _generateName();
@@ -250,14 +243,13 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
     _recalculateAll();
   }
 
+  // LOGIKA FIX: Preview Teks Kayu Papan/Balok
   void _recalculateWood() {
     double vol = _getVolumePerBatang();
     if (vol > 0) {
-      int batangPerKubik = (1 / vol).round(); 
-      int volCm3 = (vol * 1000000).round(); 
-      
+      int batangPerKubik = (10000 / vol).floor(); 
       setState(() {
-        _infoKubikasi = "1 Kubik setara $batangPerKubik Batang\n1 Batang = $volCm3 cm³";
+        _infoKubikasi = "1 kubik setara $batangPerKubik batang\n1 batang setara ${vol.round()} cm";
       });
     } else {
       setState(() => _infoKubikasi = "Lengkapi dimensi...");
@@ -266,18 +258,18 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
     _recalculateAll(); 
   }
 
+  // LOGIKA FIX: Preview Teks Reng
   void _recalculateRengInfo() {
     double vol = _getVolumePerBatangReng();
     if (vol > 0) {
-      int batangPerKubik = (1 / vol).round();
+      int batangPerKubik = (10000 / vol).floor();
       int isiPerIkat = int.tryParse(_inputIsiPerDusController.text) ?? 1;
       if (isiPerIkat == 0) isiPerIkat = 1;
       
-      int ikatPerKubik = (batangPerKubik / isiPerIkat).ceil();
-      int volCm3 = (vol * 1000000).round();
+      int ikatPerKubik = (batangPerKubik / isiPerIkat).round(); // Dibulatkan
       
       setState(() {
-        _infoKubikasi = "1 Kubik setara $batangPerKubik Batang ($ikatPerKubik Ikat)\n1 Batang = $volCm3 cm³";
+        _infoKubikasi = "1 kubik setara $batangPerKubik batang ($ikatPerKubik ikat)\n1 batang setara ${vol.round()} cm";
       });
     }
   }
@@ -299,7 +291,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
           double inputKubik = double.tryParse(_inputKubikController.text.replaceAll(',', '.')) ?? 0;
           double vol = _getVolumePerBatang();
           if (vol > 0 && inputKubik > 0) {
-            inputVal = (inputKubik / vol).round(); 
+            inputVal = (inputKubik * (10000 / vol)).round(); // LOGIKA FIX
           }
         }
       } else if (_selectedWoodType == 1) { 
@@ -313,7 +305,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
           double qtyKubik = double.tryParse(_inputKubikController.text.replaceAll(',', '.')) ?? 0;
           double vol = _getVolumePerBatangReng();
           if (vol > 0 && qtyKubik > 0) {
-            inputVal = (qtyKubik / vol).round();
+            inputVal = (qtyKubik * (10000 / vol)).round(); // LOGIKA FIX
           }
         }
       } else {
@@ -335,15 +327,15 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
     if (_mainTabController.index == 0) {
       if (_selectedWoodType == 0) {
         double vol = _getVolumePerBatang();
-        double kubik = totalBatang * vol;
-        _kayuPreviewText = "Setara: $totalBatang Batang ≈ ${kubik.toStringAsFixed(4)} m³";
+        double kubik = totalBatang * (vol / 10000); // LOGIKA FIX
+        _kayuPreviewText = "Setara: $totalBatang Batang ≈ ${kubik.toStringAsFixed(4).replaceAll(RegExp(r'0*$'), '').replaceAll(RegExp(r'\.$'), '')} m³";
       } else if (_selectedWoodType == 1) {
         int isi = int.tryParse(_inputIsiPerDusController.text.replaceAll('.', '')) ?? 1;
         if (isi == 0) isi = 1;
         
         int ikat = (totalBatang / isi).ceil();
-        double kubik = totalBatang * _getVolumePerBatangReng();
-        _rengPreviewText = "Setara: $totalBatang Batang ≈ $ikat Ikat ≈ ${kubik.toStringAsFixed(4)} m³";
+        double kubik = totalBatang * (_getVolumePerBatangReng() / 10000); // LOGIKA FIX
+        _rengPreviewText = "Setara: $totalBatang Batang ≈ $ikat Ikat ≈ ${kubik.toStringAsFixed(4).replaceAll(RegExp(r'0*$'), '').replaceAll(RegExp(r'\.$'), '')} m³";
       }
     }
     setState(() {});
@@ -694,9 +686,11 @@ Future<void> _saveData() async {
                 const SizedBox(height: 20), _header("JENIS & UKURAN"),
                 _box(Column(children: [
                   Row(children: [
-                    Expanded(child: RadioListTile<int>(title: const Text("Papan/Balok", style: TextStyle(fontSize: 12)), value: 0, groupValue: _selectedWoodType, activeColor: AppColors.primaryNavy, contentPadding: EdgeInsets.zero, onChanged: (v)=>setState((){_selectedWoodType=v!; _generateName();}))), 
-                    Expanded(child: RadioListTile<int>(title: const Text("Reng", style: TextStyle(fontSize: 12)), value: 1, groupValue: _selectedWoodType, activeColor: AppColors.primaryNavy, contentPadding: EdgeInsets.zero, onChanged: (v)=>setState((){_selectedWoodType=v!; _generateName();}))),
-                    Expanded(child: RadioListTile<int>(title: const Text("Bulat", style: TextStyle(fontSize: 12)), value: 2, groupValue: _selectedWoodType, activeColor: AppColors.primaryNavy, contentPadding: EdgeInsets.zero, onChanged: (v)=>setState((){_selectedWoodType=v!; _nameController.text="Kayu Tunjang"; _generateName();}))),
+                    // LOGIKA FIX: Tambahkan call _recalculateWood biar otomatis ter-update UI-nya
+                    Expanded(child: RadioListTile<int>(title: const Text("Papan/Balok", style: TextStyle(fontSize: 12)), value: 0, groupValue: _selectedWoodType, activeColor: AppColors.primaryNavy, contentPadding: EdgeInsets.zero, onChanged: (v) { setState((){_selectedWoodType=v!; _generateName(); _recalculateWood();}); })), 
+                    // LOGIKA FIX: Tambahkan call _recalculateRengInfo biar otomatis ter-update UI-nya
+                    Expanded(child: RadioListTile<int>(title: const Text("Reng", style: TextStyle(fontSize: 12)), value: 1, groupValue: _selectedWoodType, activeColor: AppColors.primaryNavy, contentPadding: EdgeInsets.zero, onChanged: (v) { setState((){_selectedWoodType=v!; _generateName(); _recalculateRengInfo();}); })),
+                    Expanded(child: RadioListTile<int>(title: const Text("Bulat", style: TextStyle(fontSize: 12)), value: 2, groupValue: _selectedWoodType, activeColor: AppColors.primaryNavy, contentPadding: EdgeInsets.zero, onChanged: (v) { setState((){_selectedWoodType=v!; _nameController.text="Kayu Tunjang"; _generateName();}); })),
                   ]),
                   
                   if (_selectedWoodType == 0) ...[
@@ -806,9 +800,6 @@ Future<void> _saveData() async {
                 
                 const Divider(height: 30),
                 
-                // ==============================================
-                // FITUR HARGA 3 TINGKAT UNTUK RENG
-                // ==============================================
                 if (isReng) ...[
                   Row(children: [
                     Expanded(child: _moneyField("Modal per Kubik", _modalGrosirController)), 

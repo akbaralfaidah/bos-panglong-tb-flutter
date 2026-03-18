@@ -124,15 +124,16 @@ class _CashierScreenState extends State<CashierScreen> with SingleTickerProvider
       return "Batang";
     }
 
+    // LOGIKA FIX: Hitung potongan stok murni pakai (T x L x P)
     int getStockDeduction(double q, int mode) {
       if (product.type == 'RENG') {
         if (mode == 0) return q.round();
         if (mode == 1) return (q * product.packContent).round();
         if (mode == 2) {
           double vol = 0;
-          if (product.dimensions == '2x3') vol = 0.02 * 0.03 * 4.0;
-          else if (product.dimensions == '3x4') vol = 0.03 * 0.04 * 4.0;
-          if (vol > 0) return (q / vol).round();
+          if (product.dimensions == '2x3') vol = 24.0;
+          else if (product.dimensions == '3x4') vol = 48.0;
+          if (vol > 0) return (q * (10000 / vol)).round();
         }
         return q.round();
       } else if (product.type == 'KAYU') {
@@ -145,10 +146,10 @@ class _CashierScreenState extends State<CashierScreen> with SingleTickerProvider
                double t = double.tryParse(d[0]) ?? 0;
                double l = double.tryParse(d[1]) ?? 0;
                double p = double.tryParse(d[2]) ?? 0;
-               vol = (t/100)*(l/100)*p;
+               vol = t * l * p;
              }
           }
-          if (vol > 0) return (q / vol).round();
+          if (vol > 0) return (q * (10000 / vol)).round();
         }
         return q.round();
       } else {
@@ -180,16 +181,18 @@ class _CashierScreenState extends State<CashierScreen> with SingleTickerProvider
                }
                
                double vol = 0;
-               if (product.dimensions == '2x3') vol = 0.02 * 0.03 * 4.0;
-               else if (product.dimensions == '3x4') vol = 0.03 * 0.04 * 4.0;
+               if (product.dimensions == '2x3') vol = 24.0;
+               else if (product.dimensions == '3x4') vol = 48.0;
                
                int isi = product.packContent > 0 ? product.packContent : 1;
                int btg = activeDeduction;
                int ikat = (btg / isi).ceil();
-               double kubik = btg * vol;
-               int cm3 = (kubik * 1000000).round();
                
-               stockInfo = "Setara: $btg Batang ≈ $ikat Ikat ≈ $cm3 cm³";
+               // LOGIKA FIX: Preview cm murni
+               double totalCm = btg * vol;
+               String volStr = totalCm.toStringAsFixed(0);
+               
+               stockInfo = "Setara: $btg Batang ≈ $ikat Ikat ≈ $volStr cm";
             } else if (product.type == 'KAYU') {
                if (unitMode == 0) {
                  activeModalPerUnit = product.buyPriceUnit;
@@ -206,14 +209,16 @@ class _CashierScreenState extends State<CashierScreen> with SingleTickerProvider
                      double t = double.tryParse(d[0]) ?? 0;
                      double l = double.tryParse(d[1]) ?? 0;
                      double p = double.tryParse(d[2]) ?? 0;
-                     vol = (t/100)*(l/100)*p;
+                     vol = t * l * p;
                   }
                }
-               int btg = activeDeduction;
-               double kubik = btg * vol;
-               int cm3 = (kubik * 1000000).round();
                
-               stockInfo = "Setara: $btg Batang ≈ $cm3 cm³";
+               int btg = activeDeduction;
+               // LOGIKA FIX: Preview cm murni
+               double totalCm = btg * vol;
+               String volStr = totalCm.toStringAsFixed(0);
+               
+               stockInfo = "Setara: $btg Batang ≈ $volStr cm";
             } else {
                if (unitMode == 0) {
                  activeModalPerUnit = product.buyPriceUnit;

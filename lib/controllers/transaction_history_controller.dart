@@ -1,14 +1,15 @@
 import 'package:intl/intl.dart';
-import '../helpers/database_helper.dart';
+import '../data/datasources/local/transaction_local_datasource.dart';
 
 class TransactionHistoryController {
+  final TransactionLocalDataSource _transDS = TransactionLocalDataSource();
+
   Future<List<Map<String, dynamic>>> getTransactions(String tabType, String filterDate) async {
-    final db = await DatabaseHelper.instance.database;
-    
     DateTime now = DateTime.now();
     String startDate = '';
     String endDate = DateFormat('yyyy-MM-dd').format(now);
 
+    // Logika filter tanggal lu tetap utuh!
     if (filterDate == 'Hari Ini') {
       startDate = endDate;
     } else if (filterDate == 'Kemarin') {
@@ -24,12 +25,11 @@ class TransactionHistoryController {
 
     String statusCondition = tabType == 'LUNAS' ? "payment_status = 'Lunas'" : "payment_status != 'Lunas'";
 
-    final List<Map<String, dynamic>> res = await db.rawQuery('''
-      SELECT * FROM transactions
-      WHERE $statusCondition AND substr(transaction_date, 1, 10) BETWEEN ? AND ?
-      ORDER BY id DESC
-    ''', [startDate, endDate]);
-
-    return res;
+    // Controller bersih! Tinggal suruh Datasource yang kerja
+    return await _transDS.getFilteredTransactionHistory(
+      statusCondition: statusCondition, 
+      startDate: startDate, 
+      endDate: endDate
+    );
   }
 }

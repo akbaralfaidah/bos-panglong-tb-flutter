@@ -14,8 +14,8 @@ class GasManagementScreen extends StatefulWidget {
 class _GasManagementScreenState extends State<GasManagementScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   bool _isLoading = true;
-  String _selectedFilter = 'Hari Ini';
-  final List<String> _filters = ['Hari Ini', 'Kemarin', '7 Hari', 'Bulan Ini', 'Semua'];
+  String _selectedFilter = 'Semua';
+  final List<String> _filters = ['Semua', 'Hari Ini', 'Kemarin', '7 Hari', 'Bulan Ini',];
 
   List<Map<String, dynamic>> _pemasukanList = [];
   List<Map<String, dynamic>> _pengeluaranList = [];

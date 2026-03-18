@@ -22,13 +22,13 @@ class _StockHistoryScreenState extends State<StockHistoryScreen>
   List<Map<String, dynamic>> _historyData = [];
   bool _isLoading = true;
 
-  String _selectedFilter = 'Hari Ini';
+  String _selectedFilter = 'Semua';
   final List<String> _filters = [
+    'Semua',
     'Hari Ini',
     'Kemarin',
     '7 Hari',
     'Bulan Ini',
-    'Semua',
   ];
 
   @override

@@ -17,8 +17,8 @@ class _ProfitHistoryScreenState extends State<ProfitHistoryScreen> {
   List<Map<String, dynamic>> _historyData = [];
   bool _isLoading = true;
 
-  String _selectedFilter = 'Hari Ini';
-  final List<String> _filters = ['Hari Ini', 'Kemarin', '7 Hari', 'Bulan Ini', 'Semua'];
+  String _selectedFilter = 'Semua';
+  final List<String> _filters = ['Semua', 'Hari Ini', 'Kemarin', '7 Hari', 'Bulan Ini'];
 
   @override
   void initState() {

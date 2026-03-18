@@ -1,4 +1,4 @@
-import '../helpers/database_helper.dart';
+import '../data/datasources/local/cash_flow_local_datasource.dart';
 
 class CashFlowItem {
   final String id;
@@ -18,13 +18,13 @@ class CashFlowItem {
 }
 
 class CashFlowController {
+  final CashFlowLocalDataSource _cashFlowDS = CashFlowLocalDataSource();
   
   Future<List<CashFlowItem>> getSuperHistory() async {
-    final db = await DatabaseHelper.instance.database;
     List<CashFlowItem> items = [];
 
     // 1. PENJUALAN KASIR
-    final trans = await db.query('transactions');
+    final trans = await _cashFlowDS.getAllTransactions();
     for (var t in trans) {
       if (t['payment_status'] == 'Lunas') {
         items.add(CashFlowItem(
@@ -51,7 +51,7 @@ class CashFlowController {
     }
 
     // 3. PEMBAYARAN CICILAN PIUTANG
-    final debts = await db.query('debt_payments');
+    final debts = await _cashFlowDS.getAllDebtPayments();
     for (var d in debts) {
       items.add(CashFlowItem(
         id: 'DBT-${d['id']}', date: d['payment_date'].toString(),
@@ -61,19 +61,13 @@ class CashFlowController {
     }
 
     // 4. KULAKAN (STOK BARANG MASUK / PRODUK BARU)
-    final stocks = await db.rawQuery('''
-      SELECT s.*, p.name as product_name, p.type as product_category 
-      FROM stock_logs s 
-      LEFT JOIN products p ON s.product_id = p.id
-    ''');
+    final stocks = await _cashFlowDS.getAllStockLogsWithProducts();
     
     for (var s in stocks) {
-      // =========================================================================
-      // FIX BUG: Database nyimpen Harga Satuan, jadi harus dikali Quantity-nya!
-      // =========================================================================
+      // Logic fix bug lu aman 100% di sini!
       int unitPrice = (s['price'] as int?) ?? 0;
       int qty = (s['quantity'] as int?) ?? 1;
-      int totalModalKeluar = unitPrice * qty; // <--- INI DIA OBATNYA!
+      int totalModalKeluar = unitPrice * qty; 
       
       String logType = (s['type']?.toString() ?? '').toUpperCase();
       
@@ -93,7 +87,7 @@ class CashFlowController {
     }
 
     // 5. BENSIN MANUAL / PENGELUARAN LAINNYA DARI MENU BENSIN
-    final gas = await db.query('gas_expenses');
+    final gas = await _cashFlowDS.getAllGasExpenses();
     for (var g in gas) {
       items.add(CashFlowItem(
         id: 'GAS-${g['id']}', date: g['date'].toString(),
@@ -108,11 +102,7 @@ class CashFlowController {
     return items;
   }
 
-  // Fungsi tambahan buat nyari transaksi asli kalau kita ngeklik cicilan piutang
   Future<Map<String, dynamic>?> getTransactionById(int id) async {
-    final db = await DatabaseHelper.instance.database;
-    final res = await db.query('transactions', where: 'id = ?', whereArgs: [id]);
-    if (res.isNotEmpty) return res.first;
-    return null;
+    return await _cashFlowDS.getTransactionById(id);
   }
 }
