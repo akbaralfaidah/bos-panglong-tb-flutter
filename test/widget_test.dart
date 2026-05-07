@@ -7,7 +7,7 @@ void main() {
     await tester.pumpWidget(const BosPanglongApp());
 
     // 2. Cek apakah teks judul aplikasi muncul di layar
-    expect(find.text('Bos Panglong & TB'), findsOneWidget);
+    expect(find.text('Bos Depot & TB'), findsOneWidget);
 
     // 3. Cek apakah tombol Menu Utama muncul
     expect(find.text('GUDANG'), findsOneWidget);

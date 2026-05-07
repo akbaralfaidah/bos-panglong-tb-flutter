@@ -1,6 +1,6 @@
-# 🧱 Bos Panglong & TB – Smart POS & Inventory System
+# 🧱 Bos Depot & TB – Smart POS & Inventory System
 
-Bos Panglong & TB Smart POS adalah aplikasi **mobile berbasis Flutter** yang dirancang khusus untuk **usaha Panglong & Toko Bangunan (TB)**.  
+Bos Depot & TB Smart POS adalah aplikasi **mobile berbasis Flutter** yang dirancang khusus untuk **usaha Panglong & Toko Bangunan (TB)**.  
 Aplikasi ini mengintegrasikan **manajemen gudang, kasir pintar dengan negosiasi harga, laporan keuangan, dashboard analitik**, serta **pencetakan nota thermal 80mm** dalam satu sistem.
 
 ---
@@ -8,6 +8,7 @@ Aplikasi ini mengintegrasikan **manajemen gudang, kasir pintar dengan negosiasi 
 ## 🚀 Fitur Utama
 
 ### 📦 Manajemen Gudang & Produk
+
 - Tambah produk
 - Edit produk
 - Hapus produk
@@ -18,6 +19,7 @@ Aplikasi ini mengintegrasikan **manajemen gudang, kasir pintar dengan negosiasi 
 ---
 
 ### 🧾 Kasir Pintar (Smart POS)
+
 - Tambah produk ke keranjang
 - Edit jumlah & harga produk
 - Hapus produk dari keranjang
@@ -30,6 +32,7 @@ Aplikasi ini mengintegrasikan **manajemen gudang, kasir pintar dengan negosiasi 
 ---
 
 ### 🖨️ Nota & Sharing
+
 - Nota otomatis format **Thermal 80mm**
 - Cetak ke thermal printer
 - Share nota ke **WhatsApp**
@@ -38,7 +41,9 @@ Aplikasi ini mengintegrasikan **manajemen gudang, kasir pintar dengan negosiasi 
 ---
 
 ### 📊 Dashboard Pintar
+
 Menampilkan data real-time:
+
 - 💰 Keuntungan Bersih
 - 📈 Omset
 - ⛽ Biaya bensin / operasional
@@ -46,6 +51,7 @@ Menampilkan data real-time:
 - 🛒 Jumlah produk terjual hari ini
 
 Setiap item dashboard:
+
 - Bisa diklik
 - Menampilkan histori detail
 - Bisa dicetak atau dibagikan
@@ -53,6 +59,7 @@ Setiap item dashboard:
 ---
 
 ### 📑 Laporan & Export
+
 - Laporan:
   - Harian
   - Mingguan
@@ -64,6 +71,7 @@ Setiap item dashboard:
 ---
 
 ### ☁️ Backup & Restore Data
+
 - Backup data produk & transaksi
 - Restore data saat pindah perangkat
 - Menghindari kehilangan data
@@ -73,12 +81,14 @@ Setiap item dashboard:
 ## 🔄 Flow Kasir + Negosiasi + Nota
 
 ### 1️⃣ Mulai Transaksi
+
 - Kasir membuka menu **Kasir**
 - Sistem membuat transaksi baru
 
 ---
 
 ### 2️⃣ Tambah Produk ke Keranjang
+
 - Kasir memilih produk
 - Menginput jumlah produk
 - Sistem mengambil:
@@ -89,7 +99,9 @@ Setiap item dashboard:
 ---
 
 ### 3️⃣ Negosiasi Harga
+
 Saat kasir mengubah harga:
+
 - 🔴 **Jika harga jual < harga modal**
   - Sistem menampilkan **alert kerugian**
   - Menunjukkan nominal rugi
@@ -102,6 +114,7 @@ Saat kasir mengubah harga:
 ---
 
 ### 4️⃣ Kelola Keranjang
+
 - Edit jumlah produk
 - Edit harga produk
 - Hapus produk dari keranjang
@@ -110,6 +123,7 @@ Saat kasir mengubah harga:
 ---
 
 ### 5️⃣ Input Data Customer
+
 - Nama customer
 - Nomor HP customer
 - Pilih metode pembayaran
@@ -118,6 +132,7 @@ Saat kasir mengubah harga:
 ---
 
 ### 6️⃣ Checkout Transaksi
+
 - Sistem memvalidasi data
 - Stok otomatis berkurang
 - Transaksi disimpan ke database
@@ -126,7 +141,9 @@ Saat kasir mengubah harga:
 ---
 
 ### 7️⃣ Generate Nota Otomatis
+
 Nota berisi:
+
 - Nama toko
 - Tanggal & waktu transaksi
 - Data customer
@@ -139,6 +156,7 @@ Nota berisi:
 ---
 
 ### 8️⃣ Output Nota
+
 - Cetak ke **Thermal Printer 80mm**
 - Share nota ke **WhatsApp**
 - Simpan histori transaksi
@@ -146,6 +164,7 @@ Nota berisi:
 ---
 
 ### 9️⃣ Update Dashboard
+
 - Omset bertambah
 - Keuntungan bersih ter-update
 - Jumlah produk terjual hari ini bertambah
@@ -154,6 +173,7 @@ Nota berisi:
 ---
 
 ## 🛠️ Teknologi
+
 - Flutter & Dart
 - Local Database (SQLite / Hive)
 - State Management (Provider / Riverpod / Bloc)
@@ -164,6 +184,7 @@ Nota berisi:
 ---
 
 ## 🎯 Target Pengguna
+
 - Panglong kayu
 - Toko bangunan (TB)
 - Usaha material konstruksi
@@ -172,6 +193,8 @@ Nota berisi:
 ---
 
 ## 👨‍💻 Developer
+
 **Akbar Alfaidah**  
 FreshGraduate Informatics Sriwijaya UnIversity 2026
+
 ---

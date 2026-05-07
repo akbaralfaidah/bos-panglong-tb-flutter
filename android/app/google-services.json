@@ -1,0 +1,55 @@
+{
+  "project_info": {
+    "project_number": "569348071896",
+    "project_id": "bos-panglong-tb",
+    "storage_bucket": "bos-panglong-tb.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:569348071896:android:b4892aa358ff769528d2ad",
+        "android_client_info": {
+          "package_name": "com.bospanglong.pos"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "569348071896-fn0kh5ont5uojl996v4r4h57fj3a0q6b.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.bospanglong.pos",
+            "certificate_hash": "97e26d76fed09fb3036afe3c369153711d073716"
+          }
+        },
+        {
+          "client_id": "569348071896-mg5gq3jqaipdram8bt4l01b4qo0gkkuq.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.bospanglong.pos",
+            "certificate_hash": "eb6f9739816c7a724951b7a20704a33ea0afa439"
+          }
+        },
+        {
+          "client_id": "569348071896-8gl6h24bk4echlj6oga3ht7c7mvvcugp.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAeJAS9WEXw55OVJJcmG1_8-uLpNpAQYR0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "569348071896-8gl6h24bk4echlj6oga3ht7c7mvvcugp.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

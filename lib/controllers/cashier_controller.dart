@@ -1,10 +1,9 @@
-import 'package:sqflite/sqflite.dart';
-import '../helpers/database_helper.dart';
-import '../data/datasources/local/product_local_datasource.dart';
+import '../data/datasources/firebase/product_firebase_datasource.dart'; // IMPORT FIREBASE
 import '../models/product.dart';
 
 class CashierController {
-  final ProductLocalDataSource _productDS = ProductLocalDataSource();
+  // SWAP MESIN KE FIREBASE
+  final ProductFirebaseDataSource _productDS = ProductFirebaseDataSource();
 
   // AMBIL PRODUK LALU URUTKAN BERDASARKAN HASIL DRAG & DROP
   Future<List<Product>> getAllProducts() async {
@@ -13,19 +12,11 @@ class CashierController {
     return list;
   }
 
-  // SIMPAN POSISI URUTAN BARU KE DATABASE (SEKALI UPDATE SEMUA)
+  // SIMPAN POSISI URUTAN BARU KE FIREBASE
   Future<void> updateProductOrder(List<Product> products) async {
-    final db = await DatabaseHelper.instance.database;
-    Batch batch = db.batch();
     for (var p in products) {
-      batch.update(
-        'products', 
-        {'order_index': p.orderIndex}, 
-        where: 'id = ?', 
-        whereArgs: [p.id]
-      );
+      await _productDS.updateProduct(p);
     }
-    await batch.commit(noResult: true);
   }
 
   int calculateRealStockDeduction(Product p, double inputQty, bool isGrosir) {

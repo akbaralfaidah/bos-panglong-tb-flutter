@@ -1,4 +1,4 @@
-package com.example.bos_panglong_app
+package com.bospanglong.pos
 
 import io.flutter.embedding.android.FlutterFragmentActivity
 

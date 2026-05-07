@@ -1,9 +1,9 @@
-import '../data/datasources/local/debt_local_datasource.dart';
+import '../data/datasources/firebase/debt_firebase_datasource.dart'; // KABEL FIREBASE
 
 class DebtController {
-  final DebtLocalDataSource _debtDS = DebtLocalDataSource();
+  final DebtFirebaseDataSource _debtDS = DebtFirebaseDataSource();
 
-  // Memisahkan logika perhitungan dari UI
+  // Memisahkan logika perhitungan dari UI (LOGIKA ASLI LU KEMBALI!)
   Future<Map<String, dynamic>> getDebtSummary() async {
     final result = await _debtDS.getActiveDebtsWithDetails();
 
@@ -11,9 +11,9 @@ class DebtController {
     List<Map<String, dynamic>> processedDebts = [];
 
     for (var row in result) {
-      int totalPrice = (row['total_price'] as int?) ?? 0;
-      int discount = (row['discount'] as int?) ?? 0;
-      int dicicil = (row['total_dicicil'] as int?) ?? 0;
+      int totalPrice = (row['total_price'] as num?)?.toInt() ?? 0;
+      int discount = (row['discount'] as num?)?.toInt() ?? 0;
+      int dicicil = (row['total_dicicil'] as num?)?.toInt() ?? 0;
 
       // Logika lu aman di sini bro!
       int sisa = (totalPrice - discount) - dicicil;

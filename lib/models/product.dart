@@ -13,7 +13,12 @@ class Product {
   final int sellPriceCubic; 
   final int packContent;    
   
-  int orderIndex; // VARIABEL BARU UNTUK URUTAN DRAG N DROP
+  int orderIndex; 
+  final String? barcode; 
+  final String? category; 
+  
+  // 🔥 TAMBAHAN KHUSUS BANGUNAN: Nyimpen nama satuan grosir (Cth: Kodi, Dus, Roll)
+  final String? grosirUnit; 
 
   Product({
     this.id,
@@ -29,6 +34,9 @@ class Product {
     this.sellPriceCubic = 0,
     this.packContent = 1, 
     this.orderIndex = 0,
+    this.barcode, 
+    this.category, 
+    this.grosirUnit, // 🔥
   });
 
   factory Product.fromMap(Map<String, dynamic> json) => Product(
@@ -45,6 +53,9 @@ class Product {
     sellPriceCubic: json['sell_price_cubic'] ?? 0,
     packContent: json['pack_content'] ?? 1, 
     orderIndex: json['order_index'] ?? 0,
+    barcode: json['barcode'], 
+    category: json['category'], 
+    grosirUnit: json['grosir_unit'], // 🔥 TARIK DARI FIREBASE
   );
 
   Map<String, dynamic> toMap() => {
@@ -61,6 +72,9 @@ class Product {
     'sell_price_cubic': sellPriceCubic,
     'pack_content': packContent,
     'order_index': orderIndex,
+    'barcode': barcode, 
+    'category': category, 
+    'grosir_unit': grosirUnit, // 🔥 SIMPAN KE FIREBASE
   };
 }
 

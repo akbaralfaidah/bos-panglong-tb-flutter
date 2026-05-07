@@ -1,14 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'screens/login_screen.dart'; 
-import 'theme/app_colors.dart'; // IMPORT FILE TEMA BARU
+import 'package:firebase_core/firebase_core.dart'; // 🔥 Wajib di-import
+import 'package:get/get.dart'; // 🔥 Wajib untuk fitur notifikasi Get.snackbar()
+import 'screens/splash_screen.dart'; 
+import 'theme/app_colors.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await SystemChrome.setPreferredOrientations([
+  
+  await Firebase.initializeApp();
+  
+  SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
+  
   runApp(const BosPanglongApp());
 }
 
@@ -20,29 +26,27 @@ class BosPanglongApp extends StatelessWidget {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent, 
-        statusBarIconBrightness: Brightness.dark, // Icon jam/baterai warna gelap karena background putih
+        statusBarIconBrightness: Brightness.light, // Terang karena layar loading warna Navy
         systemNavigationBarColor: Colors.white,
         systemNavigationBarIconBrightness: Brightness.dark,
       ),
-      child: MaterialApp(
-        title: 'Bos Panglong & TB',
+      // 🔥 DIUBAH MENJADI GetMaterialApp
+      child: GetMaterialApp(
+        title: 'Bos Depot & TB',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
           useMaterial3: true,
-          scaffoldBackgroundColor: AppColors.backgroundWhite, // PAKAI WARNA BACKGROUND BARU
-          colorScheme: ColorScheme.fromSeed(seedColor: AppColors.primaryNavy), // SEED WARNA NAVY
+          scaffoldBackgroundColor: AppColors.backgroundWhite, 
+          colorScheme: ColorScheme.fromSeed(seedColor: AppColors.primaryNavy),
           appBarTheme: const AppBarTheme(
             backgroundColor: AppColors.pureWhite,
             elevation: 0,
-            iconTheme: IconThemeData(color: AppColors.primaryNavy), // Icon Navy
-            titleTextStyle: TextStyle(
-              color: AppColors.primaryNavy, // Teks Navy
-              fontSize: 18, 
-              fontWeight: FontWeight.bold
-            ),
+            iconTheme: IconThemeData(color: AppColors.primaryNavy), 
+            titleTextStyle: TextStyle(color: AppColors.primaryNavy, fontSize: 18, fontWeight: FontWeight.bold),
           ),
         ),
-        home: const LoginScreen(),
+        // 🔥 LANGSUNG TEMBAK KE SPLASH SCREEN!
+        home: const SplashScreen(), 
       ),
     );
   }

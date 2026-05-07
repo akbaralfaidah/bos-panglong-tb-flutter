@@ -17,9 +17,7 @@ class TransactionLocalDataSource {
     int discount = 0,
   }) async {
     final db = await _dbHelper.database;
-    String dateNow =
-        transactionDate ??
-        DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now());
+    String dateNow = transactionDate ?? DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now());
 
     try {
       return await db.transaction((txn) async {
@@ -35,7 +33,6 @@ class TransactionLocalDataSource {
         });
 
         for (var item in items) {
-          // Cast ke CartItemModel
           CartItemModel cartItem = item as CartItemModel;
 
           await txn.insert('transaction_items', {
@@ -54,6 +51,15 @@ class TransactionLocalDataSource {
             'UPDATE products SET stock = stock - ? WHERE id = ?',
             [cartItem.quantity, cartItem.productId],
           );
+
+          // 🔥 FIX: KEBAL HURUF BESAR KECIL 🔥
+          if (paymentStatus.toLowerCase() == 'lunas') {
+            double capitalAdded = (cartItem.capitalPrice * cartItem.quantity).toDouble();
+            await txn.rawUpdate(
+              'UPDATE products SET modal_cair = COALESCE(modal_cair, 0) + ? WHERE id = ?',
+              [capitalAdded, cartItem.productId],
+            );
+          }
         }
         return tId;
       });
@@ -62,69 +68,31 @@ class TransactionLocalDataSource {
     }
   }
 
-  Future<List<Map<String, dynamic>>> getTransactionHistory({
-    required String startDate,
-    required String endDate,
-  }) async {
+  Future<List<Map<String, dynamic>>> getTransactionHistory({required String startDate, required String endDate}) async {
     final db = await _dbHelper.database;
-    String start = "$startDate 00:00:00";
-    String end = "$endDate 23:59:59";
-
-    return await db.query(
-      'transactions',
-      where: 'transaction_date BETWEEN ? AND ?',
-      whereArgs: [start, end],
-      orderBy: 'transaction_date DESC',
-    );
+    return await db.query('transactions', where: 'transaction_date BETWEEN ? AND ?', whereArgs: ["$startDate 00:00:00", "$endDate 23:59:59"], orderBy: 'transaction_date DESC');
   }
 
-  Future<List<Map<String, dynamic>>> getTransactionItems(
-    int transactionId,
-  ) async {
+  Future<List<Map<String, dynamic>>> getTransactionItems(int transactionId) async {
     final db = await _dbHelper.database;
-    return await db.query(
-      'transaction_items',
-      where: 'transaction_id = ?',
-      whereArgs: [transactionId],
-    );
+    return await db.query('transaction_items', where: 'transaction_id = ?', whereArgs: [transactionId]);
   }
 
   Future<void> updateTransactionStatus(int id, String status) async {
     final db = await _dbHelper.database;
-    await db.update(
-      'transactions',
-      {'payment_status': status},
-      where: 'id = ?',
-      whereArgs: [id],
-    );
+    await db.update('transactions', {'payment_status': status}, where: 'id = ?', whereArgs: [id]);
   }
 
-  Future<List<Map<String, dynamic>>> getFilteredTransactionHistory({
-    required String statusCondition,
-    required String startDate,
-    required String endDate,
-  }) async {
+  Future<List<Map<String, dynamic>>> getFilteredTransactionHistory({required String statusCondition, required String startDate, required String endDate}) async {
     final db = await _dbHelper.database;
-    return await db.rawQuery(
-      '''
-      SELECT * FROM transactions
-      WHERE $statusCondition AND substr(transaction_date, 1, 10) BETWEEN ? AND ?
-      ORDER BY id DESC
-    ''',
-      [startDate, endDate],
-    );
+    return await db.rawQuery('SELECT * FROM transactions WHERE $statusCondition AND substr(transaction_date, 1, 10) BETWEEN ? AND ? ORDER BY id DESC', [startDate, endDate]);
   }
 
   Future<int> getNextQueueNumber() async {
     final db = await _dbHelper.database;
-    String todayStart =
-        DateFormat('yyyy-MM-dd').format(DateTime.now()) + " 00:00:00";
-    String todayEnd =
-        DateFormat('yyyy-MM-dd').format(DateTime.now()) + " 23:59:59";
-    final result = await db.rawQuery(
-      "SELECT MAX(queue_number) as max_q FROM transactions WHERE transaction_date BETWEEN ? AND ?",
-      [todayStart, todayEnd],
-    );
+    String todayStart = DateFormat('yyyy-MM-dd').format(DateTime.now()) + " 00:00:00";
+    String todayEnd = DateFormat('yyyy-MM-dd').format(DateTime.now()) + " 23:59:59";
+    final result = await db.rawQuery("SELECT MAX(queue_number) as max_q FROM transactions WHERE transaction_date BETWEEN ? AND ?", [todayStart, todayEnd]);
     return ((result.first['max_q'] as int?) ?? 0) + 1;
   }
 }
