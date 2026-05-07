@@ -1,12 +1,10 @@
-import 'package:sqflite/sqflite.dart';
-import '../helpers/database_helper.dart';
-import '../data/datasources/local/product_local_datasource.dart';
+import '../data/datasources/firebase/product_firebase_datasource.dart';
 import '../models/product.dart';
 
 class ProductController {
-  final ProductLocalDataSource _productDS = ProductLocalDataSource();
+  
+  final ProductFirebaseDataSource _productDS = ProductFirebaseDataSource();
 
-  // AMBIL LALU URUTKAN BERDASARKAN HASIL DRAG & DROP
   Future<List<Product>> getAllProducts() async {
     List<Product> list = await _productDS.getAllProducts();
     list.sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
@@ -29,22 +27,18 @@ class ProductController {
     await _productDS.updateStockQuick(id, newStock, expense);
   }
 
-  Future<void> addStockLog(int pid, String type, double qty, int modal, String note) async {
-    await _productDS.addStockLog(pid, type, qty, modal, note);
+  // 🔥 UPDATE: MENDUKUNG TANGGAL CUSTOM 🔥
+  Future<void> addStockLog(int pid, String type, double qty, int modal, String note, {int? totalExpense, double? inputQty, String? inputUnit, String? exactDate}) async {
+    await _productDS.addStockLog(pid, type, qty, modal, note, totalExpense: totalExpense, inputQty: inputQty, inputUnit: inputUnit, exactDate: exactDate);
   }
 
-  // SIMPAN POSISI URUTAN BARU KE DATABASE 
   Future<void> updateProductOrder(List<Product> products) async {
-    final db = await DatabaseHelper.instance.database;
-    Batch batch = db.batch();
     for (var p in products) {
-      batch.update(
-        'products', 
-        {'order_index': p.orderIndex}, 
-        where: 'id = ?', 
-        whereArgs: [p.id]
-      );
+      await _productDS.updateProduct(p);
     }
-    await batch.commit(noResult: true);
+  }
+
+  Future<void> voidStockReceipt(String exactDate) async {
+    await _productDS.voidStockReceipt(exactDate);
   }
 }

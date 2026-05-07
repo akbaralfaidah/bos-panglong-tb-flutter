@@ -1,39 +1,68 @@
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
 class SessionManager {
-  // Singleton Pattern (Agar data sesi bisa diakses dari mana saja)
   static final SessionManager _instance = SessionManager._internal();
-  
-  factory SessionManager() {
-    return _instance;
-  }
-  
+  factory SessionManager() => _instance;
   SessionManager._internal();
 
-  // Variabel untuk menyimpan peran (Role)
-  // Nilai: 'OWNER' (Pemilik) atau 'EMPLOYEE' (Karyawan)
-  String? _activeRole; 
+  // 🔥 UBAH JADI SECURE STORAGE BIAR HACKER LOKAL NANGIS
+  final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
-  // --- GETTERS (Untuk Cek Status) ---
-  
-  // Cek apakah ada user yang sedang login
+  String? _activeRole;
+  String? userName;
+  String? userEmail;
+  String? uid;
+
   bool get isLoggedIn => _activeRole != null;
-
-  // Cek apakah yang login adalah PEMILIK
   bool get isOwner => _activeRole == 'OWNER';
-
-  // Cek apakah yang login adalah KARYAWAN
   bool get isEmployee => _activeRole == 'EMPLOYEE';
 
-  // --- METHODS (Aksi Login/Logout) ---
+  Future<void> init() async {
+    // Baca dari brankas enkripsi
+    _activeRole = await _storage.read(key: 'role');
+    userName = await _storage.read(key: 'name');
+    userEmail = await _storage.read(key: 'email');
+    uid = await _storage.read(key: 'uid');
+  }
 
-  void loginAsOwner() {
+  Future<void> loginAsOwner({
+    String? name,
+    String? email,
+    String? userId,
+  }) async {
     _activeRole = 'OWNER';
+    userName = name;
+    userEmail = email;
+    uid = userId;
+    await _saveToLocal();
   }
 
-  void loginAsEmployee() {
+  Future<void> loginAsEmployee({
+    String? name,
+    String? email,
+    String? userId,
+  }) async {
     _activeRole = 'EMPLOYEE';
+    userName = name;
+    userEmail = email;
+    uid = userId;
+    await _saveToLocal();
   }
 
-  void logout() {
+  Future<void> _saveToLocal() async {
+    // Tulis ke brankas enkripsi
+    if (_activeRole != null) await _storage.write(key: 'role', value: _activeRole!);
+    if (userName != null) await _storage.write(key: 'name', value: userName!);
+    if (userEmail != null) await _storage.write(key: 'email', value: userEmail!);
+    if (uid != null) await _storage.write(key: 'uid', value: uid!);
+  }
+
+  Future<void> logout() async {
     _activeRole = null;
+    userName = null;
+    userEmail = null;
+    uid = null;
+    // Hancurkan semua kunci saat logout
+    await _storage.deleteAll();
   }
 }

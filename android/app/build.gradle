@@ -2,50 +2,44 @@ plugins {
     id "com.android.application"
     id "kotlin-android"
     id "dev.flutter.flutter-gradle-plugin"
+    id("com.google.gms.google-services")
 }
 
-// LOAD KEYSTORE
+// 🔥 BACA FILE PASSWORD SERTIFIKAT 🔥
 def keystoreProperties = new Properties()
 def keystorePropertiesFile = rootProject.file('key.properties')
 if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
 }
 
+dependencies {
+    implementation(platform("com.google.firebase:firebase-bom:34.10.0"))
+    implementation("com.google.firebase:firebase-analytics")
+}
+
 android {
-    namespace "com.example.bos_panglong_app" 
-    compileSdkVersion 36
-    ndkVersion flutter.ndkVersion
-
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
-    }
-
-    kotlinOptions {
-        jvmTarget = '1.8'
-    }
-
-    sourceSets {
-        main.java.srcDirs += 'src/main/kotlin'
-    }
+    namespace "com.bospanglong.pos"
+    compileSdk 36
 
     defaultConfig {
-        applicationId "com.example.bos_panglong_app"
+        applicationId "com.bospanglong.pos"
         minSdkVersion flutter.minSdkVersion
-        targetSdkVersion 34
+        targetSdk 36
         versionCode flutter.versionCode.toInteger()
         versionName flutter.versionName
     }
 
+    // 🔥 KONFIGURASI SERTIFIKAT DIGITAL LU 🔥
     signingConfigs {
         release {
-            keyAlias keystoreProperties['keyAlias']
-            keyPassword keystoreProperties['keyPassword']
-            storeFile file(keystoreProperties['storeFile'])
-            storePassword keystoreProperties['storePassword']
+            keyAlias = keystoreProperties['keyAlias']
+            keyPassword = keystoreProperties['keyPassword']
+            storeFile = keystoreProperties['storeFile'] ? file(keystoreProperties['storeFile']) : null
+            storePassword = keystoreProperties['storePassword']
         }
     }
 
+    // 🔥 PERINTAH BUILD RELEASE PAKAI SERTIFIKAT 🔥
     buildTypes {
         release {
             signingConfig signingConfigs.release
@@ -53,8 +47,13 @@ android {
             shrinkResources false
         }
     }
-}
 
-flutter {
-    source '../..'
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
 }

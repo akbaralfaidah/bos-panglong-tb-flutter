@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:io';
-import 'package:local_auth/local_auth.dart'; // IMPORT PLUGIN BIOMETRIK
-import '../data/datasources/local/core_local_datasource.dart';
+import 'package:local_auth/local_auth.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // 🔥 IMPORT WAJIB
+
+import '../data/datasources/firebase/core_firebase_datasource.dart';
+import '../data/datasources/firebase/employee_firebase_datasource.dart';
 import '../helpers/session_manager.dart';
 import 'dashboard_screen.dart';
 import '../theme/app_colors.dart';
@@ -16,12 +22,12 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
-  String _storeName = "Bos Panglong & TB";
+  String _storeName = "Bos Depot & TB";
   String? _logoPath;
+  
+  String _ownerPin = "260679"; 
 
-  final CoreLocalDataSource _coreDataSource = CoreLocalDataSource();
-
-  // SETUP BIOMETRIK
+  final CoreFirebaseDataSource _coreDataSource = CoreFirebaseDataSource();
   final LocalAuthentication _auth = LocalAuthentication();
   bool _canCheckBiometrics = false;
 
@@ -29,14 +35,13 @@ class _LoginScreenState extends State<LoginScreen> {
   void initState() {
     super.initState();
     _loadStoreIdentity();
-    _checkBiometrics(); // Cek ketersediaan Sidik Jari/Face ID
+    _checkBiometrics();
   }
 
   Future<void> _checkBiometrics() async {
     bool canCheck = false;
     try {
-      canCheck =
-          await _auth.canCheckBiometrics || await _auth.isDeviceSupported();
+      canCheck = await _auth.canCheckBiometrics || await _auth.isDeviceSupported();
     } catch (e) {
       print("Error ngecek biometrik: $e");
     }
@@ -46,34 +51,341 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _loadStoreIdentity() async {
     String? name = await _coreDataSource.getSetting('store_name');
     String? logo = await _coreDataSource.getSetting('store_logo');
+    
+    // 🔥 FIX AJAIB: VAKSIN ANTI AMNESIA 🔥
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? savedStoreId = prefs.getString('saved_store_id');
+    
+    // Kalau belum login, pakai ID Toko yang diselamatkan di memori lokal
+    String storeId = SessionManager().uid ?? savedStoreId ?? 'UNKNOWN_STORE';
+    String? fetchedPin;
+
+    try {
+      if (storeId != 'UNKNOWN_STORE') {
+        var doc = await FirebaseFirestore.instance.collection('stores').doc(storeId).collection('settings').doc('store_info').get(const GetOptions(source: Source.server));
+        if (doc.exists && doc.data()!.containsKey('owner_pin')) {
+          fetchedPin = doc.data()!['owner_pin'];
+          await prefs.setString('saved_owner_pin', fetchedPin!); // Simpan buat jaga-jaga offline
+        }
+      }
+    } catch (e) {
+      // Fallback kalau internet putus, tarik dari memori lokal
+      fetchedPin = prefs.getString('saved_owner_pin');
+    }
+
     if (mounted) {
       setState(() {
         if (name != null && name.isNotEmpty) _storeName = name;
         _logoPath = logo;
+        if (fetchedPin != null && fetchedPin.isNotEmpty) _ownerPin = fetchedPin; 
       });
     }
   }
 
-  void _loginAsEmployee() {
+  Future<bool> _showBossPinDialog() async {
+    final TextEditingController pinController = TextEditingController();
+    bool isAuthorized = false;
+
+    // Pastikan narik data paling fresh sebelum popup muncul
     setState(() => _isLoading = true);
-    SessionManager().loginAsEmployee();
-    Future.delayed(const Duration(milliseconds: 800), () {
-      if (mounted)
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const DashboardScreen()),
-        );
-    });
+    await _loadStoreIdentity(); 
+    setState(() => _isLoading = false);
+
+    if (!mounted) return false;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          "PIN Keamanan Bos",
+          style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryNavy),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text("Masukkan PIN Pemilik untuk membuka akses masuk."),
+            const SizedBox(height: 15),
+            TextField(
+              controller: pinController,
+              keyboardType: TextInputType.number,
+              obscureText: true,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, letterSpacing: 8),
+              decoration: InputDecoration(
+                hintText: "••••••",
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("BATAL", style: TextStyle(color: AppColors.textGrey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryNavy,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () {
+              if (pinController.text == _ownerPin) {
+                isAuthorized = true;
+                Navigator.pop(ctx);
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text("PIN SALAH!", style: TextStyle(fontWeight: FontWeight.bold)),
+                    backgroundColor: AppColors.statusRed,
+                  ),
+                );
+              }
+            },
+            child: const Text("MASUK", style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    return isAuthorized;
   }
 
-  // FUNGSI LOGIN BIOMETRIK (SYNTAX DISESUAIKAN DENGAN VERSI PACKAGE LU)
-  // FUNGSI LOGIN BIOMETRIK (SIDIK JARI / FACE ID) - SUPER BASIC
+  void _onOwnerLoginButtonPressed() async {
+    bool result = await _showBossPinDialog();
+    if (result) {
+      _loginWithGoogle();
+    }
+  }
+
+  void _showEmployeeLoginDialog() {
+    User? currentUser = FirebaseAuth.instance.currentUser;
+
+    if (currentUser == null) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text(
+            "Akses Ditolak",
+            style: TextStyle(
+              color: AppColors.statusRed,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          content: const Text(
+            "Tablet ini belum ditautkan ke database.\n\nMinta Bos Anda untuk login menggunakan 'Login Pemilik Toko' setidaknya 1 kali di perangkat ini.",
+            style: TextStyle(color: AppColors.textDark),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text(
+                "MENGERTI",
+                style: TextStyle(
+                  color: AppColors.primaryNavy,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    String bossId = currentUser.uid;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.pureWhite,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          "Pilih Nama Karyawan",
+          style: TextStyle(
+            color: AppColors.primaryNavy,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: StreamBuilder<QuerySnapshot>(
+            stream: EmployeeFirebaseDataSource().getEmployeesForLogin(bossId),
+            builder: (streamCtx, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(
+                  child: CircularProgressIndicator(
+                    color: AppColors.primaryNavy,
+                  ),
+                );
+              }
+              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 20),
+                  child: Text(
+                    "Belum ada data karyawan terdaftar.\n\nMinta Bos tambahkan dari menu Pengaturan.",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: AppColors.textGrey, fontSize: 13),
+                  ),
+                );
+              }
+
+              var docs = snapshot.data!.docs;
+              return ListView.builder(
+                shrinkWrap: true,
+                itemCount: docs.length,
+                itemBuilder: (listCtx, index) {
+                  var emp = docs[index];
+                  String empName = emp['name'] ?? "Tanpa Nama";
+
+                  return Card(
+                    elevation: 0,
+                    color: AppColors.backgroundWhite,
+                    margin: const EdgeInsets.only(bottom: 8),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(color: Colors.grey.shade200),
+                    ),
+                    child: ListTile(
+                      leading: const CircleAvatar(
+                        backgroundColor: AppColors.menuTealBg,
+                        child: Icon(Icons.badge, color: AppColors.menuTealIcon),
+                      ),
+                      title: Text(
+                        empName,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textDark,
+                        ),
+                      ),
+                      trailing: const Icon(
+                        Icons.arrow_forward_ios,
+                        size: 14,
+                        color: AppColors.primaryNavy,
+                      ),
+                      onTap: () async {
+                        Navigator.pop(listCtx);
+
+                        setState(() => _isLoading = true);
+
+                        await SessionManager().loginAsEmployee(
+                          name: empName,
+                          userId: bossId,
+                        );
+
+                        Future.delayed(const Duration(milliseconds: 500), () {
+                          if (mounted) {
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const DashboardScreen(),
+                              ),
+                            );
+                          }
+                        });
+                      },
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text(
+              "BATAL",
+              style: TextStyle(color: AppColors.textGrey),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _loginWithGoogle() async {
+    setState(() => _isLoading = true);
+    try {
+      User? currentUser = FirebaseAuth.instance.currentUser;
+
+      if (currentUser != null) {
+        // 🔥 SIMPAN ID TOKO PERMANEN DI HP 🔥
+        SharedPreferences prefs = await SharedPreferences.getInstance();
+        await prefs.setString('saved_store_id', currentUser.uid);
+
+        await SessionManager().loginAsOwner(
+          name: currentUser.displayName ?? "Bos",
+          email: currentUser.email ?? "",
+          userId: currentUser.uid,
+        );
+
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const DashboardScreen()),
+          );
+        }
+        return;
+      }
+
+      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+      if (googleUser == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
+      final AuthCredential credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      final UserCredential userCredential = await FirebaseAuth.instance
+          .signInWithCredential(credential);
+      final User? user = userCredential.user;
+
+      if (user != null) {
+        // 🔥 SIMPAN ID TOKO PERMANEN DI HP 🔥
+        SharedPreferences prefs = await SharedPreferences.getInstance();
+        await prefs.setString('saved_store_id', user.uid);
+
+        await SessionManager().loginAsOwner(
+          name: user.displayName ?? "Bos",
+          email: user.email ?? "",
+          userId: user.uid,
+        );
+
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const DashboardScreen()),
+          );
+        }
+      }
+    } catch (e) {
+      print("Error Google Login: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            "Gagal Login: $e\n(Pastikan ada internet untuk login pertama kali)",
+          ),
+          backgroundColor: AppColors.statusRed,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   Future<void> _authenticateBiometric() async {
     bool authenticated = false;
     try {
       setState(() => _isLoading = true);
-
-      // Syntax paling aman, cuma pakai parameter wajib aja
       authenticated = await _auth.authenticate(
         localizedReason: 'Scan Sidik Jari / Face ID',
       );
@@ -84,13 +396,13 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     if (authenticated) {
-      _processOwnerLogin();
+      _loginWithGoogle();
     } else {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              "Autentikasi biometrik dibatalkan / gagal.",
+              "Autentikasi dibatalkan.",
               style: TextStyle(color: Colors.white),
             ),
             backgroundColor: AppColors.statusRed,
@@ -98,136 +410,6 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       }
     }
-  }
-
-  void _showOwnerPinDialog() {
-    final TextEditingController pinController = TextEditingController();
-    bool isObscure = true;
-    String errorText = "";
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => StatefulBuilder(
-        // Ganti nama context biar gak bentrok
-        builder: (dialogContext, setStateDialog) => AlertDialog(
-          backgroundColor: AppColors.pureWhite,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: const Text(
-            "Akses Bos",
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: AppColors.primaryNavy,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                "Masukkan 6 digit PIN keamanan",
-                style: TextStyle(color: AppColors.textGrey, fontSize: 13),
-              ),
-              const SizedBox(height: 20),
-              TextField(
-                controller: pinController,
-                keyboardType: TextInputType.number,
-                obscureText: isObscure,
-                maxLength: 6,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 24,
-                  letterSpacing: 8,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.primaryNavy,
-                ),
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                decoration: InputDecoration(
-                  counterText: "",
-                  errorText: errorText.isNotEmpty ? errorText : null,
-                  filled: true,
-                  fillColor: AppColors.backgroundWhite,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(15),
-                    borderSide: BorderSide.none,
-                  ),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      isObscure ? Icons.visibility : Icons.visibility_off,
-                      color: AppColors.textGrey,
-                    ),
-                    onPressed: () =>
-                        setStateDialog(() => isObscure = !isObscure),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          actionsAlignment: MainAxisAlignment.center,
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text(
-                "Batal",
-                style: TextStyle(
-                  color: AppColors.textGrey,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primaryNavy,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 30,
-                  vertical: 12,
-                ),
-              ),
-              onPressed: () async {
-                setStateDialog(() => errorText = "");
-                String? savedPin = await _coreDataSource.getSetting(
-                  'owner_pin',
-                );
-                String realPin =
-                    savedPin ?? "123456"; // PIN DEFAULT JIKA KOSONG
-
-                if (pinController.text == realPin) {
-                  // FIX ERROR ASYNC: Tutup dialog dulu, baru panggil fungsi login
-                  if (dialogContext.mounted) Navigator.pop(dialogContext);
-                  _processOwnerLogin();
-                } else {
-                  setStateDialog(() => errorText = "PIN tidak valid!");
-                }
-              },
-              child: const Text(
-                "MASUK",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _processOwnerLogin() {
-    setState(() => _isLoading = true);
-    SessionManager().loginAsOwner();
-    Future.delayed(const Duration(milliseconds: 500), () {
-      if (mounted)
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const DashboardScreen()),
-        );
-    });
   }
 
   @override
@@ -244,7 +426,7 @@ class _LoginScreenState extends State<LoginScreen> {
               height: 200,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: Colors.white.withOpacity(0.05),
+                color: Colors.white.withAlpha(13),
               ),
             ),
           ),
@@ -256,7 +438,7 @@ class _LoginScreenState extends State<LoginScreen> {
               height: 300,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: Colors.white.withOpacity(0.03),
+                color: Colors.white.withAlpha(8),
               ),
             ),
           ),
@@ -311,7 +493,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               vertical: 6,
                             ),
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.15),
+                              color: Colors.white.withAlpha(38),
                               borderRadius: BorderRadius.circular(20),
                             ),
                             child: const Text(
@@ -329,7 +511,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
 
-                // KOTAK PUTIH DI BAWAH (DESAIN BARU SESUAI FOTO)
                 Expanded(
                   flex: 4,
                   child: Container(
@@ -361,16 +542,13 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         const SizedBox(height: 30),
 
-                        // TOMBOL LOGIN KARYAWAN (WARNA TEAL MUDA SESUAI FOTO)
                         ElevatedButton.icon(
-                          onPressed: _isLoading ? null : _loginAsEmployee,
+                          onPressed: _isLoading
+                              ? null
+                              : _showEmployeeLoginDialog,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(
-                              0xFFE0F2F1,
-                            ), // Hijau/Teal muda
-                            foregroundColor: const Color(
-                              0xFF00695C,
-                            ), // Hijau/Teal tua
+                            backgroundColor: const Color(0xFFE0F2F1),
+                            foregroundColor: const Color(0xFF00695C),
                             elevation: 0,
                             minimumSize: const Size(double.infinity, 55),
                             shape: RoundedRectangleBorder(
@@ -389,20 +567,18 @@ class _LoginScreenState extends State<LoginScreen> {
 
                         const SizedBox(height: 15),
 
-                        // ROW TOMBOL BOS & BIOMETRIK
                         Row(
                           children: [
                             Expanded(
                               child: ElevatedButton.icon(
-                                onPressed: _isLoading
-                                    ? null
-                                    : _showOwnerPinDialog,
+                                onPressed: _isLoading ? null : _onOwnerLoginButtonPressed,
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: AppColors.primaryNavy,
                                   foregroundColor: AppColors.pureWhite,
                                   elevation: 5,
-                                  shadowColor: AppColors.primaryNavy
-                                      .withOpacity(0.4),
+                                  shadowColor: AppColors.primaryNavy.withAlpha(
+                                    102,
+                                  ),
                                   minimumSize: const Size(0, 55),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(15),
@@ -422,7 +598,6 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             ),
 
-                            // TOMBOL FINGERPRINT (MUNCUL JIKA HP SUPPORT)
                             if (_canCheckBiometrics) ...[
                               const SizedBox(width: 12),
                               InkWell(
@@ -438,8 +613,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                     borderRadius: BorderRadius.circular(15),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: AppColors.primaryNavy
-                                            .withOpacity(0.4),
+                                        color: AppColors.primaryNavy.withAlpha(
+                                          102,
+                                        ),
                                         blurRadius: 5,
                                         offset: const Offset(0, 3),
                                       ),
@@ -475,7 +651,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
           if (_isLoading)
             Container(
-              color: AppColors.primaryNavy.withOpacity(0.8),
+              color: AppColors.primaryNavy.withAlpha(204),
               child: const Center(
                 child: CircularProgressIndicator(color: AppColors.accentGold),
               ),

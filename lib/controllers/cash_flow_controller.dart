@@ -1,4 +1,4 @@
-import '../data/datasources/local/cash_flow_local_datasource.dart';
+import '../data/datasources/firebase/cash_flow_firebase_datasource.dart';
 
 class CashFlowItem {
   final String id;
@@ -18,7 +18,7 @@ class CashFlowItem {
 }
 
 class CashFlowController {
-  final CashFlowLocalDataSource _cashFlowDS = CashFlowLocalDataSource();
+  final CashFlowFirebaseDataSource _cashFlowDS = CashFlowFirebaseDataSource();
   
   Future<List<CashFlowItem>> getSuperHistory() async {
     List<CashFlowItem> items = [];
@@ -26,26 +26,30 @@ class CashFlowController {
     // 1. PENJUALAN KASIR
     final trans = await _cashFlowDS.getAllTransactions();
     for (var t in trans) {
+      // KONVERSI AMAN DARI FIRESTORE
+      int totalPrice = (t['total_price'] as num?)?.toInt() ?? 0;
+      int opCost = (t['operational_cost'] as num?)?.toInt() ?? 0;
+
       if (t['payment_status'] == 'Lunas') {
         items.add(CashFlowItem(
           id: 'TRX-${t['id']}', date: t['transaction_date'].toString(),
           title: 'Penjualan Lunas (INV-${t['id']})', subtitle: 'Kpd: ${t['customer_name']}',
-          amount: t['total_price'] as int, type: 'IN', category: 'SALE', rawData: t
+          amount: totalPrice, type: 'IN', category: 'SALE', rawData: t
         ));
       } else {
         items.add(CashFlowItem(
           id: 'TRX-${t['id']}', date: t['transaction_date'].toString(),
           title: 'Penjualan Hutang (INV-${t['id']})', subtitle: 'Kpd: ${t['customer_name']} (Belum Lunas)',
-          amount: t['total_price'] as int, type: 'PENDING', category: 'SALE', rawData: t
+          amount: totalPrice, type: 'PENDING', category: 'SALE', rawData: t
         ));
       }
 
       // 2. BIAYA BENSIN DARI PENJUALAN
-      if ((t['operational_cost'] as int) > 0) {
+      if (opCost > 0) {
         items.add(CashFlowItem(
           id: 'OP-${t['id']}', date: t['transaction_date'].toString(),
           title: 'Biaya Bensin (INV-${t['id']})', subtitle: 'Potongan Operasional Pengiriman',
-          amount: t['operational_cost'] as int, type: 'OUT', category: 'GAS_TRX', rawData: t
+          amount: opCost, type: 'OUT', category: 'GAS_TRX', rawData: t
         ));
       }
     }
@@ -56,18 +60,18 @@ class CashFlowController {
       items.add(CashFlowItem(
         id: 'DBT-${d['id']}', date: d['payment_date'].toString(),
         title: 'Terima Cicilan (INV-${d['transaction_id']})', subtitle: 'Catatan: ${d['note']?.toString() == '' ? '-' : d['note']}',
-        amount: d['amount_paid'] as int, type: 'IN', category: 'DEBT', rawData: d
+        amount: (d['amount_paid'] as num?)?.toInt() ?? 0, type: 'IN', category: 'DEBT', rawData: d
       ));
     }
 
     // 4. KULAKAN (STOK BARANG MASUK / PRODUK BARU)
     final stocks = await _cashFlowDS.getAllStockLogsWithProducts();
-    
     for (var s in stocks) {
-      // Logic fix bug lu aman 100% di sini!
-      int unitPrice = (s['price'] as int?) ?? 0;
-      int qty = (s['quantity'] as int?) ?? 1;
-      int totalModalKeluar = unitPrice * qty; 
+      
+      // 🔥 TAMENG ANTI-KERITING MUTLAK: Ambil harga murni dari Datasource! 🔥
+      int totalModalKeluar = s.containsKey('total_price') && s['total_price'] != null 
+          ? (s['total_price'] as num).toInt() 
+          : (((s['price'] as num?)?.toDouble() ?? 0) * ((s['quantity'] as num?)?.toDouble() ?? 1.0)).round(); 
       
       String logType = (s['type']?.toString() ?? '').toUpperCase();
       
@@ -81,7 +85,7 @@ class CashFlowController {
           id: 'STK-${s['id']}', date: s['date'].toString(),
           title: category == 'STOCK_NEW' ? 'Produk Baru: ${s['product_name'] ?? 'Produk'}' : 'Stok Masuk: ${s['product_name'] ?? 'Produk'}', 
           subtitle: 'Sumber/Catatan: ${s['note']?.toString() == '' ? 'Modal Gudang' : s['note']}',
-          amount: totalModalKeluar, type: 'OUT', category: category, rawData: s
+          amount: totalModalKeluar, type: 'OUT', category: category, rawData: s // Raw Data dibawa utuh buat Nota
         ));
       }
     }
@@ -92,7 +96,7 @@ class CashFlowController {
       items.add(CashFlowItem(
         id: 'GAS-${g['id']}', date: g['date'].toString(),
         title: 'Biaya Bensin / Opr', subtitle: g['description']?.toString() ?? 'Pengeluaran Kendaraan',
-        amount: g['amount'] as int, type: 'OUT', category: 'GAS', rawData: g
+        amount: (g['amount'] as num?)?.toInt() ?? 0, type: 'OUT', category: 'GAS', rawData: g
       ));
     }
 

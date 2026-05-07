@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart'; 
 import '../controllers/bulk_stock_controller.dart'; 
 import '../theme/app_colors.dart';
 import 'product_list_screen.dart'; 
@@ -20,6 +21,8 @@ class _ReviewStockScreenState extends State<ReviewStockScreen> {
   late List<StockCartItem> _items;
   bool _isLoading = false;
 
+  DateTime _transactionDate = DateTime.now();
+
   @override
   void initState() {
     super.initState();
@@ -37,15 +40,18 @@ class _ReviewStockScreenState extends State<ReviewStockScreen> {
     setState(() => _isLoading = true);
 
     try {
-      await _bulkController.saveBulkStock(_items);
+      await _bulkController.saveBulkStock(_items, _transactionDate.toIso8601String());
       await Future.delayed(const Duration(milliseconds: 500)); 
 
       if (mounted) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove('warehouse_cart');
+
         Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => 
           StockReceiptScreen(
             items: _items,
             totalExpense: _totalExpense,
-            transactionDate: DateTime.now().toString(),
+            transactionDate: _transactionDate.toIso8601String(), 
           )
         ));
       }
@@ -56,9 +62,7 @@ class _ReviewStockScreenState extends State<ReviewStockScreen> {
     }
   }
 
-  // FUNGSI EDIT BARANG DI KERANJANG
   void _showEditDialog(int index, StockCartItem item) {
-    // Format angka tanpa .0
     String initialQty = item.addedQty == item.addedQty.toInt() ? item.addedQty.toInt().toString() : item.addedQty.toString();
     
     final TextEditingController stockController = TextEditingController(text: initialQty);
@@ -120,7 +124,6 @@ class _ReviewStockScreenState extends State<ReviewStockScreen> {
                   
                   if (newQty > 0) {
                     setState(() {
-                      // Update data keranjang
                       _items[index] = StockCartItem(
                         product: item.product,
                         addedQty: newQty,
@@ -146,156 +149,234 @@ class _ReviewStockScreenState extends State<ReviewStockScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.backgroundWhite,
-      appBar: AppBar(
-        title: const Text("Review Penambahan Stok", style: TextStyle(color: AppColors.pureWhite, fontWeight: FontWeight.bold)),
-        backgroundColor: AppColors.primaryNavy,
-        iconTheme: const IconThemeData(color: AppColors.pureWhite),
-        elevation: 0,
-      ),
-      body: _items.isEmpty 
-        ? const Center(child: Text("Tidak ada barang untuk di-review", style: TextStyle(color: AppColors.textGrey)))
-        : ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: _items.length,
-            itemBuilder: (ctx, i) {
-              final item = _items[i];
-              // LOGIKA HILANGKAN .0
-              String qtyStr = item.addedQty == item.addedQty.toInt() ? item.addedQty.toInt().toString() : item.addedQty.toString();
+    return WillPopScope(
+      onWillPop: () async {
+        Navigator.pop(context, _items);
+        return false; 
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.backgroundWhite,
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => Navigator.pop(context, _items), 
+          ),
+          title: const Text("Review Penambahan Stok", style: TextStyle(color: AppColors.pureWhite, fontWeight: FontWeight.bold)),
+          backgroundColor: AppColors.primaryNavy,
+          iconTheme: const IconThemeData(color: AppColors.pureWhite),
+          elevation: 0,
+        ),
+        body: _items.isEmpty 
+          ? const Center(child: Text("Tidak ada barang untuk di-review", style: TextStyle(color: AppColors.textGrey)))
+          : ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: _items.length,
+              itemBuilder: (ctx, i) {
+                final item = _items[i];
+                String qtyStr = item.addedQty == item.addedQty.toInt() ? item.addedQty.toInt().toString() : item.addedQty.toString();
 
-              return Card(
-                elevation: 0,
-                color: AppColors.pureWhite,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(15),
-                  side: BorderSide(color: Colors.grey.shade200)
-                ),
-                margin: const EdgeInsets.only(bottom: 12),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(color: AppColors.menuTealBg, borderRadius: BorderRadius.circular(10)),
-                            child: const Icon(Icons.inventory_2, color: AppColors.menuTealIcon, size: 24)
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
+                // 🔥 LOGIKA MENGHAPUS NAMA KELAS DAN MEMUNCULKAN DIMENSI SAJA 🔥
+                String displayName = item.product.name;
+                
+                if (item.product.type == 'KAYU') {
+                  displayName = displayName.replaceAll(RegExp(r'Kelas \d+\s?'), '').replaceAll('()', '').trim();
+                  if (item.product.dimensions != null && item.product.dimensions!.isNotEmpty) {
+                     if (!displayName.contains(item.product.dimensions!)) {
+                        displayName = "$displayName ${item.product.dimensions!}";
+                     }
+                  }
+                } else if (item.product.type == 'BANGUNAN' && item.product.dimensions != null) {
+                  String dimSuffix = "(${item.product.dimensions})";
+                  if (displayName.endsWith(dimSuffix)) {
+                    displayName = displayName.substring(0, displayName.length - dimSuffix.length).trim();
+                  }
+                }
+
+                return Card(
+                  elevation: 0,
+                  color: AppColors.pureWhite,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(15),
+                    side: BorderSide(color: Colors.grey.shade200)
+                  ),
+                  margin: const EdgeInsets.only(bottom: 12),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(color: AppColors.menuTealBg, borderRadius: BorderRadius.circular(10)),
+                              child: const Icon(Icons.inventory_2, color: AppColors.menuTealIcon, size: 24)
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(displayName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.primaryNavy)),
+                                  const SizedBox(height: 4),
+                                  Text("Masuk: $qtyStr ${item.unitName}", style: const TextStyle(color: AppColors.textGrey, fontSize: 13)),
+                                ],
+                              ),
+                            ),
+                            
+                            IconButton(
+                              icon: Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(color: AppColors.menuAmberBg, borderRadius: BorderRadius.circular(8)),
+                                child: const Icon(Icons.edit, color: AppColors.menuAmberIcon, size: 20)
+                              ),
+                              onPressed: () => _showEditDialog(i, item),
+                            ),
+                            
+                            IconButton(
+                              icon: Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(color: AppColors.statusRed.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+                                child: const Icon(Icons.delete, color: AppColors.statusRed, size: 20)
+                              ),
+                              onPressed: () => setState(() => _items.removeAt(i)),
+                            ),
+                          ],
+                        ),
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 12),
+                          child: Divider(height: 1, thickness: 1),
+                        ),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(item.product.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.primaryNavy)),
-                                const SizedBox(height: 4),
-                                // UBAH "INPUT" JADI "MASUK" & HILANGKAN DESIMAL .0
-                                Text("Masuk: $qtyStr ${item.unitName}", style: const TextStyle(color: AppColors.textGrey, fontSize: 13)),
+                                const Text("Total Diterima", style: TextStyle(fontSize: 11, color: AppColors.textGrey)),
+                                Text("${item.finalStockAdd} Pcs/Btg", style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.statusGreen, fontSize: 14)),
                               ],
                             ),
-                          ),
-                          
-                          // TOMBOL EDIT (BARU)
-                          IconButton(
-                            icon: Container(
-                              padding: const EdgeInsets.all(6),
-                              decoration: BoxDecoration(color: AppColors.menuAmberBg, borderRadius: BorderRadius.circular(8)),
-                              child: const Icon(Icons.edit, color: AppColors.menuAmberIcon, size: 20)
-                            ),
-                            onPressed: () => _showEditDialog(i, item),
-                          ),
-                          
-                          // TOMBOL HAPUS
-                          IconButton(
-                            icon: Container(
-                              padding: const EdgeInsets.all(6),
-                              decoration: BoxDecoration(color: AppColors.statusRed.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-                              child: const Icon(Icons.delete, color: AppColors.statusRed, size: 20)
-                            ),
-                            onPressed: () => setState(() => _items.removeAt(i)),
-                          ),
-                        ],
-                      ),
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 12),
-                        child: Divider(height: 1, thickness: 1),
-                      ),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text("Total Diterima", style: TextStyle(fontSize: 11, color: AppColors.textGrey)),
-                              Text("${item.finalStockAdd} Pcs/Btg", style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.statusGreen, fontSize: 14)),
-                            ],
-                          ),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              const Text("Harga Beli (Modal)", style: TextStyle(fontSize: 11, color: AppColors.textGrey)),
-                              Text(_formatRp(item.totalExpense), style: const TextStyle(fontWeight: FontWeight.w900, color: AppColors.statusRed, fontSize: 15)),
-                            ],
-                          )
-                        ],
-                      )
-                    ],
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                const Text("Harga Beli (Modal)", style: TextStyle(fontSize: 11, color: AppColors.textGrey)),
+                                Text(_formatRp(item.totalExpense), style: const TextStyle(fontWeight: FontWeight.w900, color: AppColors.statusRed, fontSize: 15)),
+                              ],
+                            )
+                          ],
+                        )
+                      ],
+                    ),
+                  ),
+                );
+              }
+            ),
+            
+        bottomNavigationBar: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: const BoxDecoration(color: AppColors.pureWhite, boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 15, offset: Offset(0, -5))]),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                
+                const Text("Tanggal Masuk Stok:", style: TextStyle(color: AppColors.primaryNavy, fontWeight: FontWeight.bold, fontSize: 12)),
+                const SizedBox(height: 5),
+                InkWell(
+                  onTap: () async {
+                    DateTime? picked = await showDatePicker(
+                      context: context,
+                      initialDate: _transactionDate,
+                      firstDate: DateTime(2020),
+                      lastDate: DateTime.now(),
+                      builder: (context, child) => Theme(data: ThemeData.light().copyWith(colorScheme: const ColorScheme.light(primary: AppColors.primaryNavy)), child: child!),
+                    );
+                    if (picked != null) {
+                      TimeOfDay? time = await showTimePicker(context: context, initialTime: TimeOfDay.fromDateTime(_transactionDate), builder: (context, child) => Theme(data: ThemeData.light().copyWith(colorScheme: const ColorScheme.light(primary: AppColors.primaryNavy)), child: child!));
+                      if (time != null) {
+                        setState(() {
+                          _transactionDate = DateTime(picked.year, picked.month, picked.day, time.hour, time.minute);
+                        });
+                      }
+                    }
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: AppColors.backgroundWhite,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.grey.shade300)
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.calendar_month, color: AppColors.primaryNavy, size: 20),
+                        const SizedBox(width: 10),
+                        Expanded(child: Text(DateFormat('dd MMM yyyy, HH:mm').format(_transactionDate), style: const TextStyle(fontWeight: FontWeight.bold))),
+                        const Text("UBAH", style: TextStyle(color: AppColors.menuBlueIcon, fontWeight: FontWeight.bold, fontSize: 12)),
+                      ]
+                    )
+                  )
+                ),
+                const SizedBox(height: 15),
+
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text("Total Item:", style: TextStyle(color: AppColors.textGrey, fontWeight: FontWeight.bold)),
+                    Text("${_items.length} Barang", style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryNavy)),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text("Total Uang Keluar:", style: TextStyle(color: AppColors.textGrey, fontWeight: FontWeight.bold)),
+                    Text(_formatRp(_totalExpense), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 22, color: AppColors.statusRed)),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  height: 55,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryNavy,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                      elevation: 5,
+                      shadowColor: AppColors.primaryNavy.withOpacity(0.4)
+                    ),
+                    onPressed: _isLoading || _items.isEmpty ? null : _processSaveStock,
+                    icon: _isLoading 
+                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: AppColors.accentGold, strokeWidth: 2))
+                        : const Icon(Icons.print, color: AppColors.accentGold),
+                    label: Text(
+                      _isLoading ? "MEMPROSES..." : "SIMPAN & BUAT BUKTI MASUK", 
+                      style: const TextStyle(color: AppColors.accentGold, fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 1)
+                    ),
                   ),
                 ),
-              );
-            }
-          ),
-          
-      bottomNavigationBar: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: const BoxDecoration(color: AppColors.pureWhite, boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 15, offset: Offset(0, -5))]),
-        child: SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text("Total Item:", style: TextStyle(color: AppColors.textGrey, fontWeight: FontWeight.bold)),
-                  Text("${_items.length} Barang", style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryNavy)),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text("Total Uang Keluar:", style: TextStyle(color: AppColors.textGrey, fontWeight: FontWeight.bold)),
-                  Text(_formatRp(_totalExpense), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 22, color: AppColors.statusRed)),
-                ],
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                height: 55,
-                child: ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primaryNavy,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                    elevation: 5,
-                    shadowColor: AppColors.primaryNavy.withOpacity(0.4)
-                  ),
-                  onPressed: _isLoading || _items.isEmpty ? null : _processSaveStock,
-                  icon: _isLoading 
-                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: AppColors.accentGold, strokeWidth: 2))
-                      : const Icon(Icons.print, color: AppColors.accentGold),
-                  label: Text(
-                    _isLoading ? "MEMPROSES..." : "SIMPAN & BUAT BUKTI MASUK", 
-                    style: const TextStyle(color: AppColors.accentGold, fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 1)
-                  ),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
+    );
+  }
+}
+
+class CurrencyInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue o, TextEditingValue n) {
+    if (n.selection.baseOffset == 0) return n;
+    String c = n.text.replaceAll(RegExp(r'[^0-9]'), '');
+    int v = int.tryParse(c) ?? 0;
+    String t = NumberFormat('#,###', 'id_ID').format(v);
+    return n.copyWith(
+      text: t,
+      selection: TextSelection.collapsed(offset: t.length),
     );
   }
 }

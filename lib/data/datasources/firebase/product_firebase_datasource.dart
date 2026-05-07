@@ -1,0 +1,236 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
+import '../../../models/product.dart';
+import '../../../helpers/session_manager.dart';
+
+class ProductFirebaseDataSource {
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  CollectionReference _col(String path) => _db
+      .collection('stores')
+      .doc(SessionManager().uid ?? 'UNKNOWN_STORE')
+      .collection(path);
+
+  Future<QuerySnapshot> _cacheFirstQuery(Query q) async {
+    q
+        .get(const GetOptions(source: Source.server))
+        .then((_) => null, onError: (_) => null);
+    try {
+      final snap = await q.get(const GetOptions(source: Source.cache));
+      if (snap.docs.isNotEmpty) return snap;
+      return await q
+          .get(const GetOptions(source: Source.server))
+          .timeout(const Duration(seconds: 4));
+    } catch (e) {
+      return await q.get(const GetOptions(source: Source.cache));
+    }
+  }
+
+  Future<int> createProduct(Product p) async {
+    int newId = DateTime.now().millisecondsSinceEpoch;
+    Map<String, dynamic> data = p.toMap();
+    data['id'] = newId;
+    data['is_active'] = true;
+    _col('products').doc(newId.toString()).set(data);
+    return newId;
+  }
+
+  Future<List<Product>> getAllProducts() async {
+    final snapshot = await _cacheFirstQuery(_col('products'));
+    List<Product> list = [];
+    for (var doc in snapshot.docs) {
+      try {
+        Map<String, dynamic> rawData = doc.data() as Map<String, dynamic>;
+        Map<String, dynamic> data = Map<String, dynamic>.from(rawData);
+
+        if (data['is_active'] == false) continue;
+
+        [
+          'stock',
+          'buy_price_unit',
+          'sell_price_unit',
+          'buy_price_cubic',
+          'sell_price_cubic',
+          'pack_content',
+          'order_index',
+        ].forEach((key) {
+          if (data[key] != null) data[key] = (data[key] as num).toInt();
+        });
+
+        data['woodClass'] = data['woodClass'] ?? data['wood_class'] ?? '';
+        data['wood_class'] = data['wood_class'] ?? data['woodClass'] ?? '';
+        data['dimensions'] = data['dimensions'] ?? '-';
+        data['source'] = data['source'] ?? '';
+        data['pack_content'] = data['pack_content'] ?? 1;
+
+        list.add(Product.fromMap(data));
+      } catch (e) {
+        print("SKIP PRODUK ERROR: ${doc.id} - $e");
+      }
+    }
+    list.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    return list;
+  }
+
+  Future<int> updateProduct(Product p) async {
+    try {
+      final oldDoc = await _col(
+        'products',
+      ).doc(p.id.toString()).get(const GetOptions(source: Source.cache));
+      if (oldDoc.exists) {
+        Map<String, dynamic> old = oldDoc.data() as Map<String, dynamic>;
+        List<String> changes = [];
+
+        String fmt(dynamic val) =>
+            NumberFormat('#,###', 'id_ID').format((val as num?)?.toInt() ?? 0);
+
+        if ((old['sell_price_unit'] ?? 0) != p.sellPriceUnit)
+          changes.add(
+            "Jual: ${fmt(old['sell_price_unit'])} -> ${fmt(p.sellPriceUnit)}",
+          );
+        if ((old['buy_price_unit'] ?? 0) != p.buyPriceUnit)
+          changes.add(
+            "Modal: ${fmt(old['buy_price_unit'])} -> ${fmt(p.buyPriceUnit)}",
+          );
+        if ((old['sell_price_cubic'] ?? 0) != p.sellPriceCubic)
+          changes.add(
+            "Jual(Grosir): ${fmt(old['sell_price_cubic'])} -> ${fmt(p.sellPriceCubic)}",
+          );
+        if ((old['buy_price_cubic'] ?? 0) != p.buyPriceCubic)
+          changes.add(
+            "Modal(Grosir): ${fmt(old['buy_price_cubic'])} -> ${fmt(p.buyPriceCubic)}",
+          );
+        if (old['name'] != p.name) changes.add("Nama diubah");
+
+        String oldClass = old['wood_class'] ?? old['woodClass'] ?? '';
+        if (oldClass != (p.woodClass ?? '') && p.woodClass != null)
+          changes.add("Kelas: $oldClass -> ${p.woodClass}");
+
+        if (changes.isNotEmpty) {
+          String auditNote = "EDIT INFO | " + changes.join(', ');
+          int logId = DateTime.now().millisecondsSinceEpoch;
+          String dateNow = DateTime.now().toIso8601String();
+
+          _col('stock_logs').doc(logId.toString()).set({
+            'id': logId,
+            'product_id': p.id,
+            'type': p.type,
+            'quantity': 0,
+            'price': 0,
+            'total_price': 0,
+            'input_qty': 0,
+            'input_unit': '-',
+            'note': auditNote,
+            'date': dateNow,
+            'cashier_name': SessionManager().userName ?? 'Tidak Diketahui',
+          });
+        }
+      }
+    } catch (_) {}
+
+    _col('products').doc(p.id.toString()).update(p.toMap());
+    return p.id!;
+  }
+
+  Future<int> deleteProduct(int id) async {
+    await _col('products').doc(id.toString()).update({'is_active': false});
+    return id;
+  }
+
+  Future<void> updateStockQuick(int id, double newStock, int expense) async {
+    try {
+      final doc = await _col(
+        'products',
+      ).doc(id.toString()).get(const GetOptions(source: Source.cache));
+      if (doc.exists) {
+        Map<String, dynamic> old = doc.data() as Map<String, dynamic>;
+        double oldStk = (old['stock'] as num).toDouble();
+        double add = newStock - oldStk;
+        if (add > 0) {
+          int modal = expense > 0
+              ? (expense / add).round()
+              : (old['buy_price_unit'] as int);
+          addStockLog(
+            id,
+            old['type'] as String,
+            add,
+            modal,
+            "Tambah Cepat",
+            totalExpense: expense > 0 ? expense : null,
+          );
+        }
+        _col('products').doc(id.toString()).update({'stock': newStock.toInt()});
+      }
+    } catch (_) {}
+  }
+
+  // 🔥 UPDATE: MENDUKUNG TANGGAL CUSTOM (exactDate) DARI KALENDER 🔥
+  Future<void> addStockLog(
+    int pid,
+    String type,
+    double qty,
+    int modal,
+    String note, {
+    int? totalExpense,
+    double? inputQty,
+    String? inputUnit,
+    String? exactDate,
+  }) async {
+    int logId = DateTime.now().millisecondsSinceEpoch;
+    String dateNow =
+        exactDate ?? DateTime.now().toIso8601String(); // PAKAI TANGGAL KALENDER
+
+    _col('stock_logs').doc(logId.toString()).set({
+      'id': logId,
+      'product_id': pid,
+      'type': type,
+      'quantity': qty,
+      'price': modal,
+      'total_price': totalExpense ?? (qty * modal).round(),
+      'input_qty': inputQty ?? qty,
+      'input_unit': inputUnit ?? (type == 'BANGUNAN' ? 'Pcs' : 'Btg'),
+      'note': note,
+      'date': dateNow,
+      'cashier_name': SessionManager().userName ?? 'Tidak Diketahui',
+    });
+  }
+
+  Future<void> voidStockReceipt(String exactDate) async {
+    final logsSnap = await _col('stock_logs')
+        .where('date', isEqualTo: exactDate)
+        .get(const GetOptions(source: Source.server));
+    if (logsSnap.docs.isEmpty)
+      throw Exception("Data stok masuk tidak ditemukan di database!");
+
+    WriteBatch batch = _db.batch();
+
+    for (var doc in logsSnap.docs) {
+      Map<String, dynamic> log = doc.data() as Map<String, dynamic>;
+      int productId = log['product_id'];
+      double voidQty = (log['quantity'] as num).toDouble();
+
+      final prodDoc = await _col(
+        'products',
+      ).doc(productId.toString()).get(const GetOptions(source: Source.server));
+      if (!prodDoc.exists)
+        throw Exception(
+          "Produk dengan ID $productId sudah tidak ada di database!",
+        );
+
+      Map<String, dynamic> pData = prodDoc.data() as Map<String, dynamic>;
+      double currentStock = (pData['stock'] as num).toDouble();
+
+      if (currentStock < voidQty) {
+        String pName = pData['name'] ?? 'Barang ini';
+        throw Exception(
+          "GAGAL VOID: Stok $pName di gudang saat ini ($currentStock) lebih sedikit dari jumlah yang mau ditarik ($voidQty). Barang kemungkinan sudah terjual sebagian. Void dibatalkan total!",
+        );
+      }
+
+      batch.update(prodDoc.reference, {
+        'stock': FieldValue.increment(-voidQty),
+      });
+      batch.delete(doc.reference);
+    }
+    await batch.commit();
+  }
+}

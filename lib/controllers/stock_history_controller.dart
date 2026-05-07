@@ -1,15 +1,20 @@
 import 'package:intl/intl.dart';
-import '../data/datasources/local/stock_history_local_datasource.dart';
+import '../data/datasources/firebase/stock_history_firebase_datasource.dart';
 
 class StockHistoryController {
-  final StockHistoryLocalDataSource _stockHistoryDS = StockHistoryLocalDataSource();
+  final StockHistoryFirebaseDataSource _stockHistoryDS = StockHistoryFirebaseDataSource();
   
   Future<List<Map<String, dynamic>>> getStockHistory(String tabType, String filterDate) async {
     DateTime now = DateTime.now();
     String startDate = '';
     String endDate = DateFormat('yyyy-MM-dd').format(now);
 
-    if (filterDate == 'Hari Ini') {
+    // 🔥 LOGIKA FILTER CUSTOM DATE 🔥
+    if (filterDate.startsWith('CUSTOM|')) {
+      var parts = filterDate.split('|');
+      startDate = parts[1];
+      endDate = parts[2];
+    } else if (filterDate == 'Hari Ini') {
       startDate = endDate;
     } else if (filterDate == 'Kemarin') {
       startDate = DateFormat('yyyy-MM-dd').format(now.subtract(const Duration(days: 1)));
@@ -22,12 +27,7 @@ class StockHistoryController {
       startDate = '2000-01-01'; 
     }
 
-    String typeCondition = "p.type IN ('KAYU', 'RENG', 'BULAT')";
-    if (tabType == 'BANGUNAN') {
-      typeCondition = "p.type = 'BANGUNAN'";
-    }
-
-    return await _stockHistoryDS.getStockHistoryData(typeCondition, startDate, endDate);
+    return await _stockHistoryDS.getStockHistoryData(tabType, startDate, endDate);
   }
 
   Future<List<Map<String, dynamic>>> getStockLogsByExactDate(String exactDate) async {

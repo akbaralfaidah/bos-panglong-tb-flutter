@@ -73,7 +73,7 @@ void _processPayment() async {
 
     try {
       String baseName = _customerController.text.trim();
-      if (baseName.isEmpty) baseName = "Pelanggan Umum";
+    if (baseName.isEmpty) baseName = "Pelanggan Umum";
       
       String finalCustomerInfo = baseName;
       if (_customerPhoneController.text.isNotEmpty) finalCustomerInfo += " - ${_customerPhoneController.text}";

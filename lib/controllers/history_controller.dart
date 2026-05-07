@@ -1,31 +1,46 @@
-import '../data/datasources/local/transaction_local_datasource.dart';
-import '../data/datasources/local/debt_local_datasource.dart';
-import '../data/datasources/local/report_local_datasource.dart';
-import '../screens/history_screen.dart'; // Import untuk akses enum HistoryType
+import '../data/datasources/firebase/history_firebase_datasource.dart';
+import '../screens/history_screen.dart';
 
 class HistoryController {
-  final TransactionLocalDataSource _transDS = TransactionLocalDataSource();
-  final DebtLocalDataSource _debtDS = DebtLocalDataSource();
-  final ReportLocalDataSource _reportDS = ReportLocalDataSource();
+  // 🔥 KONEKSI MURNI KE FIREBASE (Selamat tinggal SQLite!)
+  final HistoryFirebaseDataSource _historyDS = HistoryFirebaseDataSource();
 
-  // 1. Logika Khusus Piutang
-  Future<Map<String, dynamic>> loadPiutangData() async {
-    final rawResult = await _debtDS.getAllDebtHistory();
+  // 1. Logika Khusus Piutang (Sekarang Mendukung Filter Tanggal)
+  Future<Map<String, dynamic>> loadPiutangData(String startDate, String endDate) async {
+    final res = await _historyDS.loadPiutangData();
 
-    List<Map<String, dynamic>> unpaid = [];
-    List<Map<String, dynamic>> paid = [];
-    double totalUnpaid = 0;
+    // Urutkan Piutang dari yang terbaru ke terlama
+    List<Map<String, dynamic>> unpaid = List<Map<String, dynamic>>.from(res['unpaid']);
+    List<Map<String, dynamic>> paid = List<Map<String, dynamic>>.from(res['paid']);
 
-    for (var t in rawResult) {
-      if (t['payment_status'] == 'Belum Lunas') {
-        unpaid.add(t);
-        totalUnpaid += (t['total_price'] as num).toDouble();
-      } else {
-        paid.add(t);
-      }
+    // Filter berdasarkan rentang tanggal
+    if (startDate != '2000-01-01') {
+      unpaid = unpaid.where((item) {
+        String d = (item['transaction_date'] as String).substring(0, 10);
+        return d.compareTo(startDate) >= 0 && d.compareTo(endDate) <= 0;
+      }).toList();
+
+      paid = paid.where((item) {
+        String d = (item['transaction_date'] as String).substring(0, 10);
+        return d.compareTo(startDate) >= 0 && d.compareTo(endDate) <= 0;
+      }).toList();
     }
 
-    return {'unpaid': unpaid, 'paid': paid, 'total': totalUnpaid};
+    unpaid.sort(
+      (a, b) => (b['transaction_date'] as String).compareTo(a['transaction_date'] as String),
+    );
+    paid.sort(
+      (a, b) => (b['transaction_date'] as String).compareTo(a['transaction_date'] as String),
+    );
+
+    // Hitung ulang total piutang yang belum lunas pada rentang tanggal tersebut
+    double totalFilteredUnpaid = unpaid.fold(0.0, (sum, item) {
+      double tPrice = (item['total_price'] as num).toDouble();
+      double tPaid = item['total_paid'] != null ? (item['total_paid'] as num).toDouble() : 0.0;
+      return sum + (tPrice - tPaid);
+    });
+
+    return {'unpaid': unpaid, 'paid': paid, 'total': totalFilteredUnpaid};
   }
 
   // 2. Logika History Umum (Omset, Stok, Barang Terjual, Bensin)
@@ -34,61 +49,30 @@ class HistoryController {
     String startDate,
     String endDate,
   ) async {
-    List<Map<String, dynamic>> rawResult = [];
-    double total = 0;
+    Map<String, dynamic> result;
 
+    // Arahkan ke mesin yang tepat sesuai tipe layarnya
     if (type == HistoryType.stock) {
-      rawResult = await _reportDS.getStockLogsDetail(
-        startDate: startDate,
-        endDate: endDate,
-      );
-      for (var item in rawResult)
-        total += (item['quantity_added'] * item['capital_price']);
+      result = await _historyDS.loadStockHistory(startDate, endDate);
     } else if (type == HistoryType.soldItems) {
-      rawResult = await _reportDS.getSoldItemsDetail(
-        startDate: startDate,
-        endDate: endDate,
-      );
-      for (var item in rawResult) total += (item['quantity'] as num).toDouble();
+      result = await _historyDS.loadSoldItemsHistory(startDate, endDate);
     } else if (type == HistoryType.bensin) {
-      final allTrans = await _transDS.getTransactionHistory(
-        startDate: startDate,
-        endDate: endDate,
-      );
-      rawResult = allTrans
-          .where((t) => (t['operational_cost'] as num) > 0)
-          .toList();
-      for (var t in rawResult)
-        total += (t['operational_cost'] as num).toDouble();
+      result = await _historyDS.loadBensinHistory(startDate, endDate);
     } else {
       // History Transaksi Umum (Omset)
-      rawResult = await _transDS.getTransactionHistory(
-        startDate: startDate,
-        endDate: endDate,
-      );
-      for (var t in rawResult) {
-        if (t['payment_status'] != 'Belum Lunas') {
-          double grand = (t['total_price'] as num).toDouble();
-          double bensin = (t['operational_cost'] as num).toDouble();
-          total += (grand - bensin);
-        }
-      }
+      result = await _historyDS.loadTransactionsHistory(startDate, endDate);
     }
 
-    // Urutkan dari yang terbaru
-    List<Map<String, dynamic>> sortedResult = List<Map<String, dynamic>>.from(
-      rawResult,
+    // Urutkan semua data dari yang paling baru ke paling lama
+    List<Map<String, dynamic>> sortedData = List<Map<String, dynamic>>.from(
+      result['data'],
     );
-    sortedResult.sort((a, b) {
-      DateTime dateA = DateTime.parse(
-        type == HistoryType.stock ? a['date'] : a['transaction_date'],
-      );
-      DateTime dateB = DateTime.parse(
-        type == HistoryType.stock ? b['date'] : b['transaction_date'],
-      );
-      return dateB.compareTo(dateA);
+    sortedData.sort((a, b) {
+      // Stok masuk pakai key 'date', sisanya pakai 'transaction_date'
+      String dateKey = (type == HistoryType.stock) ? 'date' : 'transaction_date';
+      return (b[dateKey] as String).compareTo(a[dateKey] as String);
     });
 
-    return {'data': sortedResult, 'total': total};
+    return {'data': sortedData, 'total': result['total']};
   }
 }

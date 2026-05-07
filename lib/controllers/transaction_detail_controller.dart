@@ -1,42 +1,61 @@
-import '../data/datasources/local/transaction_local_datasource.dart';
-import '../data/datasources/local/debt_local_datasource.dart';
-import '../data/datasources/local/core_local_datasource.dart';
-import '../helpers/database_helper.dart'; // Panggil DB Helper buat raw query
+import '../data/datasources/firebase/transaction_firebase_datasource.dart';
+import '../data/datasources/firebase/core_firebase_datasource.dart';
 
 class TransactionDetailController {
-  final TransactionLocalDataSource _transDS = TransactionLocalDataSource();
-  final DebtLocalDataSource _debtDS = DebtLocalDataSource();
-  final CoreLocalDataSource _coreDS = CoreLocalDataSource();
+  final TransactionFirebaseDataSource _transDS =
+      TransactionFirebaseDataSource();
+  final CoreFirebaseDataSource _coreDS = CoreFirebaseDataSource();
 
-  Future<Map<String, dynamic>> loadDetailData(int transId, String dateStr) async {
-    final items = await _transDS.getTransactionItems(transId);
-    final payments = await _debtDS.getDebtPayments(transId);
-    final storeName = await _coreDS.getSetting('store_name') ?? "Bos Panglong & TB";
-    final storeAddress = await _coreDS.getSetting('store_address') ?? "Alamat belum diatur";
-    final storePhone = await _coreDS.getSetting('store_phone') ?? ""; 
+  Future<Map<String, dynamic>> loadDetailData(
+    int transId,
+    String dateStr,
+  ) async {
+    final transData = await _transDS.getTransactionById(transId);
+
+    // Konversi Tipe Data Paksa biar UI lu gak meledak
+    List<Map<String, dynamic>> itemsList = [];
+    int queueNum = 1;
+
+    if (transData != null && transData['items'] != null) {
+      itemsList = List<Map<String, dynamic>>.from(
+        transData['items'].map((item) => Map<String, dynamic>.from(item)),
+      );
+      queueNum = transData['queue_number'] ?? 1;
+    }
+
+    final paymentsRaw = await _transDS.getDebtPayments(transId);
+    List<Map<String, dynamic>> paymentsList = List<Map<String, dynamic>>.from(
+      paymentsRaw,
+    );
+
+    final storeName =
+        await _coreDS.getSetting('store_name') ?? "Bos Depot & TB";
+    final storeAddress =
+        await _coreDS.getSetting('store_address') ?? "Alamat belum diatur";
+    final storePhone = await _coreDS.getSetting('store_phone') ?? "";
     final logoPath = await _coreDS.getSetting('store_logo');
 
-    // LOGIKA NOMOR URUT TRANSAKSI HARI INI
-    final db = await DatabaseHelper.instance.database;
-    final dateOnly = dateStr.split(' ')[0]; // Ambil YYYY-MM-DD
-    final countQuery = await db.rawQuery('''
-      SELECT COUNT(*) as queue_num FROM transactions 
-      WHERE date(transaction_date) = ? AND id <= ?
-    ''', [dateOnly, transId]);
-    int queueNum = (countQuery.first['queue_num'] as int?) ?? 1;
-
     return {
-      'items': items,
-      'payments': payments,
+      'items': itemsList,
+      'payments': paymentsList,
       'storeName': storeName,
       'storeAddress': storeAddress,
       'storePhone': storePhone,
       'logoPath': logoPath,
-      'queueNum': queueNum, // Masukin nomor urut
+      'queueNum': queueNum,
     };
   }
 
+  // FUNGSI BARU: Dijahit biar UI bisa manggil fitur bayar cicilan
   Future<void> payDebt(int transId, int amount, String note) async {
-    await _debtDS.addDebtPayment(transId, amount, note);
+    await _transDS.payDebt(transId, amount, note);
+  }
+
+  // 🔥 JEMBATAN VOID TRANSAKSI 🔥
+  Future<void> voidTransaction(
+    int transId,
+    List<Map<String, dynamic>> items,
+  ) async {
+    await _transDS.voidTransaction(transId, items);
   }
 }

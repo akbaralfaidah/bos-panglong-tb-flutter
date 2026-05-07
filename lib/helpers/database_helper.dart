@@ -51,6 +51,7 @@ class DatabaseHelper {
         sell_price_unit INTEGER,
         sell_price_cubic INTEGER,
         pack_content INTEGER,
+        modal_cair REAL DEFAULT 0,
         order_index INTEGER DEFAULT 0 -- KOLOM BARU UNTUK URUTAN DRAG & DROP
       )
     ''');
