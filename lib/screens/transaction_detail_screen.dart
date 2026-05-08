@@ -7,7 +7,7 @@ import 'package:flutter/rendering.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:gal/gal.dart'; 
+import 'package:gal/gal.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:http/http.dart' as http;
@@ -15,7 +15,8 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import '../helpers/printer_helper.dart';
 import '../controllers/transaction_detail_controller.dart';
 import '../theme/app_colors.dart';
-import '../helpers/session_manager.dart'; 
+import '../helpers/session_manager.dart';
+
 
 class TransactionDetailScreen extends StatefulWidget {
   final Map<String, dynamic> transaction;
@@ -58,7 +59,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
   late String _status;
   late String _dateStr;
   late String _paymentMethod;
-  late String _cashierName; 
+  late String _cashierName;
 
   String? _paymentProofPath;
 
@@ -73,7 +74,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
     _queueNum = widget.transaction['queue_number'] ?? 1;
     _opCost = widget.transaction['operational_cost'] ?? 0;
     _paymentMethod = widget.transaction['payment_method'] ?? "Tunai";
-    _cashierName = widget.transaction['cashier_name'] ?? "Tidak Diketahui"; 
+    _cashierName = widget.transaction['cashier_name'] ?? "Tidak Diketahui";
     _paymentProofPath = widget.transaction['payment_proof'];
 
     _animController = AnimationController(
@@ -102,7 +103,9 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
     if (mounted) {
       setState(() {
         List<dynamic> rawItems = [];
-        if (widget.transaction.containsKey('items') && widget.transaction['items'] != null && (widget.transaction['items'] as List).isNotEmpty) {
+        if (widget.transaction.containsKey('items') &&
+            widget.transaction['items'] != null &&
+            (widget.transaction['items'] as List).isNotEmpty) {
           rawItems = widget.transaction['items'];
         } else {
           rawItems = data['items'] ?? [];
@@ -111,13 +114,18 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
         _items = rawItems.map<Map<String, dynamic>>((e) {
           var item = Map<String, dynamic>.from(e);
           if (item.containsKey('product_obj')) {
-            item['product_name'] = item['product_name'] ?? item['product_obj'].name;
+            item['product_name'] =
+                item['product_name'] ?? item['product_obj'].name;
           }
-          if (!item.containsKey('quantity') && item.containsKey('request_qty')) {
-             item['quantity'] = item['request_qty'];
+          if (!item.containsKey('quantity') &&
+              item.containsKey('request_qty')) {
+            item['quantity'] = item['request_qty'];
           }
           if (item['unit_type'] != null) {
-            item['unit_type'] = item['unit_type'].toString().replaceAll('Kubik', 'm³');
+            item['unit_type'] = item['unit_type'].toString().replaceAll(
+              'Kubik',
+              'm³',
+            );
           }
           return item;
         }).toList();
@@ -241,7 +249,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
 
         if (isOffline) {
           setState(() {
-            _paymentProofPath = photo.path; 
+            _paymentProofPath = photo.path;
             _isLoading = false;
           });
           if (mounted) {
@@ -259,7 +267,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
               ),
             );
           }
-          return; 
+          return;
         }
 
         String firebaseUrl = "";
@@ -870,25 +878,41 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
 
   Future<void> _captureAndPrint() async {
     try {
-      Uint8List? pngBytes = await _generateImageBytes(pixelRatio: 1.5);
-      if (pngBytes == null) throw Exception("Gagal memproses gambar");
-
       PrinterHelper printer = PrinterHelper();
-      await printer.printReceiptImage(context, pngBytes);
 
-      if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              "Perintah Cetak Dikirim",
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
+      if (Platform.isIOS) {
+        // 🔥 iOS MENGGUNAKAN TEKS MURNI (RAW ESC/POS) ANTI ALIEN 🔥
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Memproses Cetak Teks..."),
+              backgroundColor: AppColors.primaryNavy,
             ),
-            backgroundColor: AppColors.primaryNavy,
-          ),
+          );
+        }
+
+        await printer.printReceiptTextIOS(
+          context,
+          storeName: _storeName,
+          storeAddress: _storeAddress,
+          storePhone: _storePhone,
+          receiptId: _transId.toString(),
+          date: DateFormat('dd/MM/yyyy HH:mm').format(DateTime.parse(_dateStr)),
+          cashierName: _cashierName,
+          customerName: widget.transaction['customer_name'] ?? "Pelanggan Umum",
+          items: _items,
+          subtotal: _totalPrice - _opCost + _discount,
+          discount: _discount,
+          opCost: _opCost,
+          grandTotal: _totalPrice,
+          paymentMethod: _paymentMethod,
         );
+      } else {
+        // 🔥 ANDROID TETAP MENGGUNAKAN GAMBAR SCREENSHOT YANG SUDAH SEMPURNA 🔥
+        Uint8List? pngBytes = await _generateImageBytes(pixelRatio: 1.5);
+        if (pngBytes == null) throw Exception("Gagal memproses gambar");
+        await printer.printReceiptImage(context, pngBytes);
+      }
     } catch (e) {
       if (mounted)
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1476,9 +1500,12 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                                     String prodName =
                                         item['product_name'] ?? "";
                                     String uType = item['unit_type'] ?? "";
-                                    String prodType = item['product_type'] ?? item['prod_type'] ?? "";
+                                    String prodType =
+                                        item['product_type'] ??
+                                        item['prod_type'] ??
+                                        "";
                                     String dimStr = item['dimensions'] ?? "";
-                                    
+
                                     prodName = prodName
                                         .replaceAll(RegExp(r'Kelas \d+\s?'), '')
                                         .replaceAll('()', '')
@@ -1486,36 +1513,60 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
 
                                     // 🔥 MENGHAPUS SUFFIX (Pcs) DARI NAMA PRODUK DI NOTA 🔥
                                     if (prodType == 'BANGUNAN') {
-                                        if (dimStr.isNotEmpty) {
-                                            String dimSuffix = "($dimStr)";
-                                            if (prodName.endsWith(dimSuffix)) {
-                                                prodName = prodName.substring(0, prodName.length - dimSuffix.length).trim();
-                                            }
-                                        } else {
-                                            // Fallback kalau dimStr kosong tapi di DB masih ada nyelip tulisan (Pcs)
-                                            prodName = prodName.replaceAll(RegExp(r'\(\s*[a-zA-Z]+\s*\)$'), '').trim();
+                                      if (dimStr.isNotEmpty) {
+                                        String dimSuffix = "($dimStr)";
+                                        if (prodName.endsWith(dimSuffix)) {
+                                          prodName = prodName
+                                              .substring(
+                                                0,
+                                                prodName.length -
+                                                    dimSuffix.length,
+                                              )
+                                              .trim();
                                         }
+                                      } else {
+                                        // Fallback kalau dimStr kosong tapi di DB masih ada nyelip tulisan (Pcs)
+                                        prodName = prodName
+                                            .replaceAll(
+                                              RegExp(r'\(\s*[a-zA-Z]+\s*\)$'),
+                                              '',
+                                            )
+                                            .trim();
+                                      }
                                     }
 
                                     String displayUnit = uType;
                                     bool isKubikInput = false;
 
-                                    if (prodType == 'KAYU' || prodType == 'RENG' || prodType == 'BULAT') {
-                                        if (uType.toLowerCase().contains('kubik') ||
-                                            uType.toLowerCase() == 'm3' || uType.toLowerCase() == 'm³') {
-                                          displayUnit = "m³";
-                                          isKubikInput = true; 
-                                        } else if (uType.toLowerCase().contains('ikat')) {
-                                          displayUnit = "Ikat";
-                                        } else if (uType.toLowerCase().contains('btg') ||
-                                            uType.toLowerCase().contains('batang')) {
-                                          displayUnit = "Batang";
-                                        }
+                                    if (prodType == 'KAYU' ||
+                                        prodType == 'RENG' ||
+                                        prodType == 'BULAT') {
+                                      if (uType.toLowerCase().contains(
+                                            'kubik',
+                                          ) ||
+                                          uType.toLowerCase() == 'm3' ||
+                                          uType.toLowerCase() == 'm³') {
+                                        displayUnit = "m³";
+                                        isKubikInput = true;
+                                      } else if (uType.toLowerCase().contains(
+                                        'ikat',
+                                      )) {
+                                        displayUnit = "Ikat";
+                                      } else if (uType.toLowerCase().contains(
+                                            'btg',
+                                          ) ||
+                                          uType.toLowerCase().contains(
+                                            'batang',
+                                          )) {
+                                        displayUnit = "Batang";
+                                      }
                                     } else {
-                                        displayUnit = uType; 
+                                      displayUnit = uType;
                                     }
 
-                                    double displayQty = reqQty > 0 ? reqQty : rawQty;
+                                    double displayQty = reqQty > 0
+                                        ? reqQty
+                                        : rawQty;
                                     int subtotalItem = 0;
 
                                     if (item.containsKey('agreed_total') &&
@@ -1525,7 +1576,9 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                                     } else {
                                       if (reqQty > 0 &&
                                           sellP > 50000 &&
-                                          !uType.toLowerCase().contains('batang')) {
+                                          !uType.toLowerCase().contains(
+                                            'batang',
+                                          )) {
                                         subtotalItem = (reqQty * sellP).round();
                                       } else {
                                         subtotalItem = (rawQty * sellP).round();
@@ -1533,35 +1586,54 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                                     }
 
                                     if (isKubikInput) {
-                                        double vol = 0;
-                                        if (dimStr.isEmpty && prodName.contains('[')) {
-                                            int start = prodName.indexOf('[') + 1;
-                                            int end = prodName.indexOf(']');
-                                            if (end > start) dimStr = prodName.substring(start, end);
+                                      double vol = 0;
+                                      if (dimStr.isEmpty &&
+                                          prodName.contains('[')) {
+                                        int start = prodName.indexOf('[') + 1;
+                                        int end = prodName.indexOf(']');
+                                        if (end > start)
+                                          dimStr = prodName.substring(
+                                            start,
+                                            end,
+                                          );
+                                      }
+                                      if (dimStr.contains('x')) {
+                                        var d = dimStr.split('x');
+                                        if (d.length >= 3) {
+                                          double t =
+                                              double.tryParse(
+                                                d[0].replaceAll(',', '.'),
+                                              ) ??
+                                              0;
+                                          double l =
+                                              double.tryParse(
+                                                d[1].replaceAll(',', '.'),
+                                              ) ??
+                                              0;
+                                          double p =
+                                              double.tryParse(
+                                                d[2].replaceAll(',', '.'),
+                                              ) ??
+                                              0;
+                                          vol = t * l * p;
                                         }
-                                        if (dimStr.contains('x')) {
-                                            var d = dimStr.split('x');
-                                            if (d.length >= 3) {
-                                                double t = double.tryParse(d[0].replaceAll(',', '.')) ?? 0;
-                                                double l = double.tryParse(d[1].replaceAll(',', '.')) ?? 0;
-                                                double p = double.tryParse(d[2].replaceAll(',', '.')) ?? 0;
-                                                vol = t * l * p;
-                                            }
-                                        }
-                                        
-                                        if (vol > 0 && reqQty > 0) {
-                                            int batangPerKubik = (10000 / vol).ceil();
-                                            displayQty = (reqQty * batangPerKubik).roundToDouble(); 
-                                        } else {
-                                            displayQty = rawQty; 
-                                        }
-                                        displayUnit = "Batang";
+                                      }
+
+                                      if (vol > 0 && reqQty > 0) {
+                                        int batangPerKubik = (10000 / vol)
+                                            .ceil();
+                                        displayQty = (reqQty * batangPerKubik)
+                                            .roundToDouble();
+                                      } else {
+                                        displayQty = rawQty;
+                                      }
+                                      displayUnit = "Batang";
                                     }
 
                                     int displayPrice = displayQty > 0
                                         ? (subtotalItem ~/ displayQty)
                                         : sellP;
-                                        
+
                                     String qtyStr =
                                         displayQty == displayQty.toInt()
                                         ? displayQty.toInt().toString()
@@ -1589,8 +1661,8 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                                                 MainAxisAlignment.spaceBetween,
                                             children: [
                                               Text(
-                                                isKubikInput 
-                                                    ? "$qtyStr $displayUnit" 
+                                                isKubikInput
+                                                    ? "$qtyStr $displayUnit"
                                                     : "$qtyStr $displayUnit x ${_formatRpStr(displayPrice)}",
                                                 style: const TextStyle(
                                                   color: Colors.black87,

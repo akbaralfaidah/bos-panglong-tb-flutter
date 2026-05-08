@@ -2,11 +2,10 @@ import 'dart:typed_data';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:intl/intl.dart'; 
 
-// 🔥 MESIN ANDROID 🔥
 import 'package:blue_thermal_printer/blue_thermal_printer.dart' as btp;
 
-// 🔥 MESIN iOS 🔥
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart' as pbt;
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:image/image.dart' as img;
@@ -27,7 +26,7 @@ class PrinterHelper {
     return await _androidPrinter.isConnected ?? false;
   }
 
-  // --- FUNGSI UTAMA: CETAK GAMBAR ---
+  // --- 1. FUNGSI UTAMA: CETAK GAMBAR (ANDROID SAJA & FALLBACK) ---
   Future<void> printReceiptImage(BuildContext context, Uint8List imageBytes) async {
     if (!await _checkPermissions()) {
       _showSnack(context, "Izin Bluetooth/Lokasi wajib diaktifkan!", Colors.red);
@@ -51,33 +50,21 @@ class PrinterHelper {
         _showSnack(context, "Mencetak Struk...", Colors.blue);
 
         if (Platform.isAndroid) {
-          // ========================================================
-          // 🔥 ANDROID: NGE-PRINT BEBAS HAMBATAN 🔥
-          // ========================================================
           await _androidPrinter.printImageBytes(imageBytes);
           await _androidPrinter.printNewLine();
           await _androidPrinter.printNewLine();
 
         } else if (Platform.isIOS) {
-          // ========================================================
-          // 🔥 iOS: GOLDEN RATIO SETTING 🔥
-          // ========================================================
           final profile = await CapabilityProfile.load();
           final generator = Generator(PaperSize.mm80, profile); 
           List<int> bytes = [];
 
           final decodedImage = img.decodeImage(imageBytes);
           if (decodedImage != null) {
-            // WAJIB 384: Kalau lu paksa 512 atau 576, data terlalu berat buat BLE. 
-            // 384 bikin nota agak ketengah tapi font normal dan anti-alien.
             final resizedImage = img.copyResize(decodedImage, width: 384);
-            
-            // Pake image() biasa, bukan Raster, biar font nggak meledak
             bytes += generator.image(resizedImage);
             bytes += generator.feed(2); 
 
-            // Golden Ratio Chunking: 150 byte per 15ms. 
-            // Cukup cepat biar nggak telalu ngendet, cukup kecil biar nggak alien.
             int chunkSize = 150; 
             for (int i = 0; i < bytes.length; i += chunkSize) {
               int end = (i + chunkSize < bytes.length) ? i + chunkSize : bytes.length;
@@ -91,6 +78,127 @@ class PrinterHelper {
       }
     } catch (e) {
       _showSnack(context, "Gagal Cetak: $e", Colors.red);
+    }
+  }
+
+  // --- 2. FUNGSI BARU: CETAK TEKS KHUSUS iOS  ---
+  Future<void> printReceiptTextIOS(
+    BuildContext context, {
+    required String storeName,
+    required String storeAddress,
+    required String storePhone,
+    required String receiptId,
+    required String date,
+    required String cashierName,
+    required String customerName,
+    required List<Map<String, dynamic>> items,
+    required int subtotal,
+    required int discount,
+    required int opCost,
+    required int grandTotal,
+    required String paymentMethod,
+  }) async {
+    if (!await _checkPermissions()) {
+      _showSnack(context, "Izin Bluetooth/Lokasi wajib diaktifkan!", Colors.red);
+      return;
+    }
+
+    bool connected = await pbt.PrintBluetoothThermal.connectionStatus;
+    if (!connected) {
+      await _scanDevices(context);
+      if (_devices.isNotEmpty) {
+        bool? selected = await _showDeviceSelectionDialog(context);
+        if (selected != true) return;
+      } else {
+        _showSnack(context, "Tidak ada printer Bluetooth ditemukan.", Colors.orange);
+        return;
+      }
+    }
+
+    try {
+      if (await pbt.PrintBluetoothThermal.connectionStatus) {
+        _showSnack(context, "Mencetak Struk Teks...", Colors.blue);
+
+        final profile = await CapabilityProfile.load();
+        final generator = Generator(PaperSize.mm80, profile);
+        List<int> bytes = [];
+        final currency = NumberFormat('#,##0', 'id_ID');
+
+        // HEADER
+        bytes += generator.text(storeName.toUpperCase(), styles: const PosStyles(align: PosAlign.center, bold: true, width: PosTextSize.size2, height: PosTextSize.size2));
+        bytes += generator.text(storeAddress, styles: const PosStyles(align: PosAlign.center));
+        if (storePhone.isNotEmpty) {
+          bytes += generator.text("Telp/WA: $storePhone", styles: const PosStyles(align: PosAlign.center));
+        }
+        bytes += generator.feed(1);
+        bytes += generator.text("================================================", styles: const PosStyles(align: PosAlign.center));
+
+        // INFO TRANSAKSI
+        bytes += generator.text("Tanggal    : $date");
+        bytes += generator.text("Invoice    : INV-$receiptId");
+        bytes += generator.text("Pembayaran : $paymentMethod");
+        bytes += generator.text("Kasir      : $cashierName");
+        bytes += generator.text("Kepada     : $customerName");
+        bytes += generator.text("================================================", styles: const PosStyles(align: PosAlign.center));
+
+        // ITEMS BELANJAAN
+        for (var item in items) {
+          String name = item['product_name'] ?? "";
+          name = name.replaceAll(RegExp(r'Kelas \d+\s?'), '').replaceAll('()', '').trim();
+          
+          double rawQty = (item['request_qty'] as num?)?.toDouble() ?? 1.0;
+          String qtyStr = rawQty == rawQty.toInt() ? rawQty.toInt().toString() : rawQty.toString();
+          String unit = item['unit_type'] ?? "";
+          if (unit.contains('(')) unit = unit.split('(')[0].trim();
+          
+          int price = item['sell_price'] ?? 0;
+          int subItem = item['agreed_total'] ?? (rawQty * price).round();
+
+          bytes += generator.text(name, styles: const PosStyles(bold: true));
+          bytes += generator.row([
+            PosColumn(text: "$qtyStr $unit x Rp ${currency.format(price)}", width: 8),
+            PosColumn(text: "Rp ${currency.format(subItem)}", width: 4, styles: const PosStyles(align: PosAlign.right)),
+          ]);
+        }
+        bytes += generator.text("------------------------------------------------", styles: const PosStyles(align: PosAlign.center));
+
+        // TOTAL HARGA
+        bytes += generator.row([
+          PosColumn(text: "Subtotal", width: 8),
+          PosColumn(text: "Rp ${currency.format(subtotal)}", width: 4, styles: const PosStyles(align: PosAlign.right)),
+        ]);
+        if (discount > 0) {
+          bytes += generator.row([
+            PosColumn(text: "Diskon", width: 8),
+            PosColumn(text: "-Rp ${currency.format(discount)}", width: 4, styles: const PosStyles(align: PosAlign.right)),
+          ]);
+        }
+        if (opCost > 0) {
+          bytes += generator.row([
+            PosColumn(text: "Ongkir/Bensin", width: 8),
+            PosColumn(text: "Rp ${currency.format(opCost)}", width: 4, styles: const PosStyles(align: PosAlign.right)),
+          ]);
+        }
+        bytes += generator.feed(1);
+        bytes += generator.row([
+          PosColumn(text: "TOTAL BAYAR", width: 7, styles: const PosStyles(bold: true, width: PosTextSize.size2)),
+          PosColumn(text: "Rp ${currency.format(grandTotal)}", width: 5, styles: const PosStyles(align: PosAlign.right, bold: true, width: PosTextSize.size2)),
+        ]);
+
+        bytes += generator.feed(2);
+        bytes += generator.text("Barang yang sudah dibeli", styles: const PosStyles(align: PosAlign.center));
+        bytes += generator.text("tidak dapat ditukar/dikembalikan.", styles: const PosStyles(align: PosAlign.center));
+        bytes += generator.feed(1);
+        bytes += generator.text("~ Terima Kasih ~", styles: const PosStyles(align: PosAlign.center, bold: true));
+        bytes += generator.feed(3);
+
+        // 🔥 KIRIM DATA SEKALIGUS (TEKS MURNI, ANTI ALIEN) 🔥
+        await pbt.PrintBluetoothThermal.writeBytes(bytes);
+        
+        _showSnack(context, "Cetak Berhasil!", Colors.green);
+      }
+    } catch (e) {
+      _showSnack(context, "Gagal Cetak Teks: $e", Colors.red);
     }
   }
 
