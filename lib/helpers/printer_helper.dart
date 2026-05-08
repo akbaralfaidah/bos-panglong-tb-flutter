@@ -39,21 +39,29 @@ class PrinterHelper {
         
         // Konversi gambar PNG dari aplikasi jadi bahasa ESC/POS Printer
         final profile = await CapabilityProfile.load();
-        
-        // 🔥 UKURAN KERTAS UDAH GUA SETTING KE 80mm 🔥
         final generator = Generator(PaperSize.mm80, profile); 
         List<int> bytes = [];
 
         final decodedImage = img.decodeImage(imageBytes);
         if (decodedImage != null) {
-          // 🔥 RESOLUSI GAMBAR UDAH GUA SETTING KE 576 (STANDAR 80mm) 🔥
+          // Setting Resolusi 80mm
           final resizedImage = img.copyResize(decodedImage, width: 576);
           
-          bytes += generator.image(resizedImage);
-          bytes += generator.feed(2); // Gulung kertas 2 baris biar gampang disobek
+          // 🔥 PERBAIKAN 1: Pake imageRaster (lebih stabil, padat & ringan) 🔥
+          bytes += generator.imageRaster(resizedImage);
+          bytes += generator.feed(2); 
           
-          // Tembak datanya ke printer!
-          await PrintBluetoothThermal.writeBytes(bytes);
+          // 🔥 PERBAIKAN 2: SISTEM SUAPAN KECIL (CHUNKING) ANTI KESELEK 🔥
+          // Kita potong data raksasa jadi per 250 byte biar BLE iOS kuat ngirimnya
+          int chunkSize = 250; 
+          for (int i = 0; i < bytes.length; i += chunkSize) {
+            int end = (i + chunkSize < bytes.length) ? i + chunkSize : bytes.length;
+            await PrintBluetoothThermal.writeBytes(bytes.sublist(i, end));
+            
+            // Kasih napas 10 milidetik ke printer biar nggak tumpah buffernya
+            await Future.delayed(const Duration(milliseconds: 10));
+          }
+          
           _showSnack(context, "Cetak Berhasil!", Colors.green);
         } else {
           _showSnack(context, "Gagal memproses resolusi gambar.", Colors.red);
@@ -67,7 +75,6 @@ class PrinterHelper {
   // --- 2. SCAN PERANGKAT BLUETOOTH ---
   Future<void> _scanDevices(BuildContext context) async {
     try {
-      // Di Android bakal narik list paired device, di iOS bakal scan perangkat BLE sekitar
       _devices = await PrintBluetoothThermal.pairedBluetooths;
     } catch (e) {
       debugPrint("Error Scan: $e");
@@ -89,7 +96,6 @@ class PrinterHelper {
               return ListTile(
                 leading: const Icon(Icons.print, color: Colors.blue),
                 title: Text(_devices[i].name.isNotEmpty ? _devices[i].name : "Unknown Device"),
-                // 🔥 VARIABEL MAC ADDRESS UDAH GUA PERBAIKI SESUAI PACKAGE BARU 🔥
                 subtitle: Text(_devices[i].macAdress), 
                 onTap: () async {
                   Navigator.pop(ctx, true);
@@ -114,7 +120,6 @@ class PrinterHelper {
     try {
       _showSnack(context, "Menyambungkan ke printer...", Colors.blue);
       
-      // 🔥 VARIABEL MAC ADDRESS UDAH GUA PERBAIKI SESUAI PACKAGE BARU 🔥
       bool status = await PrintBluetoothThermal.connect(macPrinterAddress: device.macAdress);
       
       if (status) {
