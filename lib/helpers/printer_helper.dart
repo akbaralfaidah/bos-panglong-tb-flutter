@@ -1,55 +1,61 @@
 import 'dart:typed_data';
-import 'dart:io'; // 🔥 WAJIB DITAMBAHIN BIAR BISA CEK PLATFORM 🔥
-import 'package:blue_thermal_printer/blue_thermal_printer.dart';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
+import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
+import 'package:image/image.dart' as img;
 
 class PrinterHelper {
-  BlueThermalPrinter bluetooth = BlueThermalPrinter.instance;
-  List<BluetoothDevice> _devices = [];
-  BluetoothDevice? _selectedDevice;
-  bool _isConnected = false;
+  List<BluetoothInfo> _devices = [];
+  
+  Future<bool> get isConnected async => await PrintBluetoothThermal.connectionStatus;
 
-  // Cek Status Koneksi
-  Future<bool> get isConnected async => await bluetooth.isConnected ?? false;
-
-  // --- 1. FUNGSI UTAMA: CETAK GAMBAR (Screenshot Struk) ---
+  // --- 1. FUNGSI UTAMA: CETAK GAMBAR (SUPPORT IOS & ANDROID) ---
   Future<void> printReceiptImage(BuildContext context, Uint8List imageBytes) async {
-    // Cek Izin Bluetooth Dulu
     if (!await _checkPermissions()) {
       _showSnack(context, "Izin Bluetooth/Lokasi wajib diaktifkan!", Colors.red);
       return;
     }
 
-    bool connected = await bluetooth.isConnected ?? false;
-
-    // Jika belum connect, buka dialog pilih printer
+    bool connected = await PrintBluetoothThermal.connectionStatus;
+    
+    // Jika belum konek, panggil fungsi scan dan pilih printer
     if (!connected) {
       await _scanDevices(context);
-      
-      // Jika setelah scan ada device, suruh user pilih
       if (_devices.isNotEmpty) {
         bool? selected = await _showDeviceSelectionDialog(context);
-        if (selected != true) return; // User batal milih
+        if (selected != true) return; 
       } else {
-        _showSnack(context, "Tidak ada printer Bluetooth ditemukan/terhubung.", Colors.orange);
+        _showSnack(context, "Tidak ada printer Bluetooth ditemukan.", Colors.orange);
         return;
       }
     }
 
-    // Eksekusi Cetak
+    // Eksekusi Cetak Gambar
     try {
-      if (await bluetooth.isConnected == true) {
-        _showSnack(context, "Mencetak Struk...", Colors.blue);
+      if (await PrintBluetoothThermal.connectionStatus) {
+        _showSnack(context, "Memproses Gambar Struk...", Colors.blue);
         
-        // Perintah Cetak Gambar
-        await bluetooth.printImageBytes(imageBytes); 
-        
-        // Feed (Gulung kertas dikit biar gampang sobek)
-        await bluetooth.printNewLine(); 
-        await bluetooth.printNewLine();
-        
-        _showSnack(context, "Cetak Berhasil!", Colors.green);
+        // Konversi gambar PNG dari aplikasi jadi bahasa ESC/POS Printer
+        final profile = await CapabilityProfile.load();
+        final generator = Generator(PaperSize.mm58, profile); // Ukuran kertas 58mm standar kasir
+        List<int> bytes = [];
+
+        final decodedImage = img.decodeImage(imageBytes);
+        if (decodedImage != null) {
+          // Sesuaikan resolusi gambar dengan lebar kertas (384 dots buat 58mm)
+          final resizedImage = img.copyResize(decodedImage, width: 384);
+          
+          bytes += generator.image(resizedImage);
+          bytes += generator.feed(2); // Gulung kertas 2 baris biar gampang disobek
+          
+          // Tembak datanya ke printer!
+          await PrintBluetoothThermal.writeBytes(bytes);
+          _showSnack(context, "Cetak Berhasil!", Colors.green);
+        } else {
+          _showSnack(context, "Gagal memproses resolusi gambar.", Colors.red);
+        }
       }
     } catch (e) {
       _showSnack(context, "Gagal Cetak: $e", Colors.red);
@@ -59,8 +65,8 @@ class PrinterHelper {
   // --- 2. SCAN PERANGKAT BLUETOOTH ---
   Future<void> _scanDevices(BuildContext context) async {
     try {
-      List<BluetoothDevice> devices = await bluetooth.getBondedDevices();
-      _devices = devices;
+      // Di Android bakal narik list paired device, di iOS bakal scan perangkat BLE sekitar
+      _devices = await PrintBluetoothThermal.pairedBluetooths;
     } catch (e) {
       debugPrint("Error Scan: $e");
     }
@@ -80,10 +86,10 @@ class PrinterHelper {
             itemBuilder: (c, i) {
               return ListTile(
                 leading: const Icon(Icons.print, color: Colors.blue),
-                title: Text(_devices[i].name ?? "Unknown Device"),
-                subtitle: Text(_devices[i].address ?? ""),
+                title: Text(_devices[i].name.isNotEmpty ? _devices[i].name : "Unknown Device"),
+                subtitle: Text(_devices[i].mac ?? ""),
                 onTap: () async {
-                  Navigator.pop(ctx, true); // Tutup dialog, return true
+                  Navigator.pop(ctx, true);
                   await _connectToDevice(context, _devices[i]);
                 },
               );
@@ -101,26 +107,27 @@ class PrinterHelper {
   }
 
   // --- 4. KONEK KE PRINTER ---
-  Future<void> _connectToDevice(BuildContext context, BluetoothDevice device) async {
+  Future<void> _connectToDevice(BuildContext context, BluetoothInfo device) async {
     try {
-      await bluetooth.connect(device);
-      _selectedDevice = device;
-      _isConnected = true;
-      _showSnack(context, "Terhubung ke ${device.name}", Colors.green);
+      _showSnack(context, "Menyambungkan ke printer...", Colors.blue);
+      bool status = await PrintBluetoothThermal.connect(macPrinterAddress: device.mac);
+      
+      if (status) {
+        _showSnack(context, "Terhubung ke ${device.name}", Colors.green);
+      } else {
+        _showSnack(context, "Gagal konek ke printer. Pastikan menyala!", Colors.red);
+      }
     } catch (e) {
-      _showSnack(context, "Gagal Konek: $e", Colors.red);
+      _showSnack(context, "Error Konek: $e", Colors.red);
     }
   }
 
-  // --- 5. CEK PERMISSION (UPDATE BYPASS iOS) ---
+  // --- 5. CEK PERMISSION ---
   Future<bool> _checkPermissions() async {
     if (Platform.isIOS) {
-      // 🔥 LOGIKA KHUSUS iOS (APPLE) 🔥
-      // iOS murni cuma ngecek 1 izin utama ini, nggak peduli soal lokasi!
       var status = await Permission.bluetooth.request();
       return status.isGranted;
     } else {
-      // 🔥 LOGIKA KHUSUS ANDROID 🔥
       Map<Permission, PermissionStatus> statuses = await [
         Permission.bluetooth,
         Permission.bluetoothScan,
@@ -128,7 +135,6 @@ class PrinterHelper {
         Permission.location,
       ].request();
 
-      // Cek apakah diizinkan (pakai bluetoothConnect buat Android 12+, atau bluetooth buat versi lama)
       if (statuses[Permission.bluetoothConnect] == PermissionStatus.granted || 
           statuses[Permission.bluetooth] == PermissionStatus.granted) {
         return true;
@@ -138,6 +144,6 @@ class PrinterHelper {
   }
 
   void _showSnack(BuildContext context, String msg, Color color) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: color, duration: const Duration(seconds: 2)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: color, duration: const Duration(seconds: 3)));
   }
 }

@@ -20,7 +20,6 @@ dependencies:
   file_picker: ^8.0.0
   image_picker: ^1.2.1 
   csv: ^6.0.0 
-  blue_thermal_printer: ^1.2.3
 
   # Izin & Utilitas Sistem
   permission_handler: ^11.3.1 
@@ -48,6 +47,9 @@ dependencies:
   get: ^4.7.3
   flutter_secure_storage: ^10.0.0
   connectivity_plus: ^7.1.0
+  print_bluetooth_thermal: ^1.1.9
+  esc_pos_utils_plus: ^2.0.4
+  image: ^4.8.0
 
 dev_dependencies:
   flutter_test:
