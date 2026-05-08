@@ -2,6 +2,13 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+<key>GIDClientID</key>
+	<string>569348071896-ncbn8nkmpakjm7ucqse12uoqurafl4r4.apps.googleusercontent.com</string>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>google</string>
+		<string>com.googleusercontent.apps</string>
+	</array>
 <key>NSMicrophoneUsageDescription</key>
 <string>Aplikasi butuh akses mikrofon untuk keperluan rekam video (jika diperlukan oleh sistem kamera).</string>
 <key>NSBluetoothAlwaysUsageDescription</key>
