@@ -15,6 +15,10 @@
 	<string>Aplikasi membutuhkan akses Bluetooth untuk terhubung dan mencetak struk menggunakan printer thermal.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
 	<string>Aplikasi membutuhkan akses Bluetooth untuk mencari dan menyambungkan perangkat printer kasir.</string>
+  <key>NSLocationWhenInUseUsageDescription</key>
+	<string>Aplikasi membutuhkan akses lokasi untuk mencari dan memindai printer Bluetooth di sekitar Anda.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Aplikasi membutuhkan akses lokasi untuk mencari dan memindai printer Bluetooth di sekitar Anda.</string>
 <key>UIFileSharingEnabled</key>
 	<true/>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
