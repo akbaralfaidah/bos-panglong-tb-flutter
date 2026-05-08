@@ -2,10 +2,12 @@ import 'dart:typed_data';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:intl/intl.dart'; 
+import 'package:intl/intl.dart';
 
+// 🔥 MESIN ANDROID 🔥
 import 'package:blue_thermal_printer/blue_thermal_printer.dart' as btp;
 
+// 🔥 MESIN iOS 🔥
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart' as pbt;
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:image/image.dart' as img;
@@ -26,7 +28,7 @@ class PrinterHelper {
     return await _androidPrinter.isConnected ?? false;
   }
 
-  // --- 1. FUNGSI UTAMA: CETAK GAMBAR (ANDROID SAJA & FALLBACK) ---
+  // --- 1. FUNGSI CETAK GAMBAR (KHUSUS ANDROID) ---
   Future<void> printReceiptImage(BuildContext context, Uint8List imageBytes) async {
     if (!await _checkPermissions()) {
       _showSnack(context, "Izin Bluetooth/Lokasi wajib diaktifkan!", Colors.red);
@@ -53,8 +55,8 @@ class PrinterHelper {
           await _androidPrinter.printImageBytes(imageBytes);
           await _androidPrinter.printNewLine();
           await _androidPrinter.printNewLine();
-
         } else if (Platform.isIOS) {
+          // Fallback aman
           final profile = await CapabilityProfile.load();
           final generator = Generator(PaperSize.mm80, profile); 
           List<int> bytes = [];
@@ -81,7 +83,7 @@ class PrinterHelper {
     }
   }
 
-  // --- 2. FUNGSI BARU: CETAK TEKS KHUSUS iOS  ---
+  // --- 2. FUNGSI CETAK TEKS TRANSAKSI KASIR (KHUSUS iOS) ---
   Future<void> printReceiptTextIOS(
     BuildContext context, {
     required String storeName,
@@ -97,6 +99,7 @@ class PrinterHelper {
     required int opCost,
     required int grandTotal,
     required String paymentMethod,
+    required String paymentStatus, 
   }) async {
     if (!await _checkPermissions()) {
       _showSnack(context, "Izin Bluetooth/Lokasi wajib diaktifkan!", Colors.red);
@@ -124,24 +127,40 @@ class PrinterHelper {
         List<int> bytes = [];
         final currency = NumberFormat('#,##0', 'id_ID');
 
-        // HEADER
+        // HEADER TOKO
         bytes += generator.text(storeName.toUpperCase(), styles: const PosStyles(align: PosAlign.center, bold: true, width: PosTextSize.size2, height: PosTextSize.size2));
-        bytes += generator.text(storeAddress, styles: const PosStyles(align: PosAlign.center));
+        bytes += generator.text(storeAddress, styles: const PosStyles(align: PosAlign.center, bold: true));
         if (storePhone.isNotEmpty) {
-          bytes += generator.text("Telp/WA: $storePhone", styles: const PosStyles(align: PosAlign.center));
+          bytes += generator.text("Telp/WA: $storePhone", styles: const PosStyles(align: PosAlign.center, bold: true));
         }
         bytes += generator.feed(1);
-        bytes += generator.text("================================================", styles: const PosStyles(align: PosAlign.center));
+        bytes += generator.hr(); 
 
-        // INFO TRANSAKSI
-        bytes += generator.text("Tanggal    : $date");
-        bytes += generator.text("Invoice    : INV-$receiptId");
-        bytes += generator.text("Pembayaran : $paymentMethod");
-        bytes += generator.text("Kasir      : $cashierName");
-        bytes += generator.text("Kepada     : $customerName");
-        bytes += generator.text("================================================", styles: const PosStyles(align: PosAlign.center));
+        // INFO TRANSAKSI 
+        bytes += generator.row([
+          PosColumn(text: "Tanggal:", width: 4, styles: const PosStyles(bold: true)),
+          PosColumn(text: date, width: 8, styles: const PosStyles(align: PosAlign.right, bold: true)),
+        ]);
+        bytes += generator.row([
+          PosColumn(text: "Invoice:", width: 4, styles: const PosStyles(bold: true)),
+          PosColumn(text: "INV-$receiptId", width: 8, styles: const PosStyles(align: PosAlign.right, bold: true)),
+        ]);
+        bytes += generator.row([
+          PosColumn(text: "Pembayaran:", width: 4, styles: const PosStyles(bold: true)),
+          PosColumn(text: paymentMethod, width: 8, styles: const PosStyles(align: PosAlign.right, bold: true)),
+        ]);
+        bytes += generator.row([
+          PosColumn(text: "Kasir:", width: 4, styles: const PosStyles(bold: true)),
+          PosColumn(text: cashierName, width: 8, styles: const PosStyles(align: PosAlign.right, bold: true)),
+        ]);
+        bytes += generator.row([
+          PosColumn(text: "Kepada:", width: 4, styles: const PosStyles(bold: true)),
+          PosColumn(text: customerName, width: 8, styles: const PosStyles(align: PosAlign.right, bold: true)),
+        ]);
+        
+        bytes += generator.text("================================================", styles: const PosStyles(align: PosAlign.center, bold: true));
 
-        // ITEMS BELANJAAN
+        // DAFTAR ITEM 
         for (var item in items) {
           String name = item['product_name'] ?? "";
           name = name.replaceAll(RegExp(r'Kelas \d+\s?'), '').replaceAll('()', '').trim();
@@ -156,45 +175,148 @@ class PrinterHelper {
 
           bytes += generator.text(name, styles: const PosStyles(bold: true));
           bytes += generator.row([
-            PosColumn(text: "$qtyStr $unit x Rp ${currency.format(price)}", width: 8),
-            PosColumn(text: "Rp ${currency.format(subItem)}", width: 4, styles: const PosStyles(align: PosAlign.right)),
+            PosColumn(text: "$qtyStr $unit x Rp ${currency.format(price)}", width: 7, styles: const PosStyles(bold: true)),
+            PosColumn(text: "Rp ${currency.format(subItem)}", width: 5, styles: const PosStyles(align: PosAlign.right, bold: true)),
           ]);
         }
-        bytes += generator.text("------------------------------------------------", styles: const PosStyles(align: PosAlign.center));
+        bytes += generator.feed(1);
+        bytes += generator.hr();
 
-        // TOTAL HARGA
+        // SUBTOTAL & TOTAL
         bytes += generator.row([
-          PosColumn(text: "Subtotal", width: 8),
-          PosColumn(text: "Rp ${currency.format(subtotal)}", width: 4, styles: const PosStyles(align: PosAlign.right)),
+          PosColumn(text: "Subtotal", width: 6, styles: const PosStyles(bold: true)),
+          PosColumn(text: "Rp ${currency.format(subtotal)}", width: 6, styles: const PosStyles(align: PosAlign.right, bold: true)),
         ]);
         if (discount > 0) {
           bytes += generator.row([
-            PosColumn(text: "Diskon", width: 8),
-            PosColumn(text: "-Rp ${currency.format(discount)}", width: 4, styles: const PosStyles(align: PosAlign.right)),
+            PosColumn(text: "Diskon", width: 6, styles: const PosStyles(bold: true)),
+            PosColumn(text: "-Rp ${currency.format(discount)}", width: 6, styles: const PosStyles(align: PosAlign.right, bold: true)),
           ]);
         }
         if (opCost > 0) {
           bytes += generator.row([
-            PosColumn(text: "Ongkir/Bensin", width: 8),
-            PosColumn(text: "Rp ${currency.format(opCost)}", width: 4, styles: const PosStyles(align: PosAlign.right)),
+            PosColumn(text: "Ongkir/Bensin", width: 6, styles: const PosStyles(bold: true)),
+            PosColumn(text: "Rp ${currency.format(opCost)}", width: 6, styles: const PosStyles(align: PosAlign.right, bold: true)),
           ]);
         }
         bytes += generator.feed(1);
+        
         bytes += generator.row([
-          PosColumn(text: "TOTAL BAYAR", width: 7, styles: const PosStyles(bold: true, width: PosTextSize.size2)),
-          PosColumn(text: "Rp ${currency.format(grandTotal)}", width: 5, styles: const PosStyles(align: PosAlign.right, bold: true, width: PosTextSize.size2)),
+          PosColumn(text: "TOTAL BAYAR", width: 6, styles: const PosStyles(bold: true, height: PosTextSize.size2)),
+          PosColumn(text: "Rp ${currency.format(grandTotal)}", width: 6, styles: const PosStyles(align: PosAlign.right, bold: true, height: PosTextSize.size2)),
         ]);
 
-        bytes += generator.feed(2);
-        bytes += generator.text("Barang yang sudah dibeli", styles: const PosStyles(align: PosAlign.center));
-        bytes += generator.text("tidak dapat ditukar/dikembalikan.", styles: const PosStyles(align: PosAlign.center));
+        // BANNER STATUS
+        bytes += generator.feed(1);
+        bytes += generator.text("------------------------------------------------", styles: const PosStyles(align: PosAlign.center, bold: true));
+        String statusText = paymentStatus.toUpperCase() == "LUNAS" ? "L U N A S" : "BELUM LUNAS";
+        bytes += generator.text(statusText, styles: const PosStyles(align: PosAlign.center, bold: true, width: PosTextSize.size2, height: PosTextSize.size2));
+        bytes += generator.text("------------------------------------------------", styles: const PosStyles(align: PosAlign.center, bold: true));
+
+        // FOOTER
+        bytes += generator.feed(1);
+        bytes += generator.text("Barang yang sudah dibeli", styles: const PosStyles(align: PosAlign.center, bold: true));
+        bytes += generator.text("tidak dapat ditukar/dikembalikan.", styles: const PosStyles(align: PosAlign.center, bold: true));
         bytes += generator.feed(1);
         bytes += generator.text("~ Terima Kasih ~", styles: const PosStyles(align: PosAlign.center, bold: true));
         bytes += generator.feed(3);
 
-        // 🔥 KIRIM DATA SEKALIGUS (TEKS MURNI, ANTI ALIEN) 🔥
         await pbt.PrintBluetoothThermal.writeBytes(bytes);
+        _showSnack(context, "Cetak Berhasil!", Colors.green);
+      }
+    } catch (e) {
+      _showSnack(context, "Gagal Cetak Teks: $e", Colors.red);
+    }
+  }
+
+  // --- 3. FUNGSI CETAK TEKS STOK MASUK (KHUSUS iOS) ---
+  Future<void> printStockReceiptTextIOS(
+    BuildContext context, {
+    required String storeName,
+    required String storeAddress,
+    required String storePhone,
+    required String receiptId,
+    required String date,
+    required String sourceName,
+    required String adminName,
+    required List<Map<String, dynamic>> items,
+    required int totalExpense,
+  }) async {
+    if (!await _checkPermissions()) {
+      _showSnack(context, "Izin Bluetooth/Lokasi wajib diaktifkan!", Colors.red);
+      return;
+    }
+
+    bool connected = await pbt.PrintBluetoothThermal.connectionStatus;
+    if (!connected) {
+      await _scanDevices(context);
+      if (_devices.isNotEmpty) {
+        bool? selected = await _showDeviceSelectionDialog(context);
+        if (selected != true) return;
+      } else return;
+    }
+
+    try {
+      if (await pbt.PrintBluetoothThermal.connectionStatus) {
+        _showSnack(context, "Mencetak Bukti Stok...", Colors.blue);
+
+        final profile = await CapabilityProfile.load();
+        final generator = Generator(PaperSize.mm80, profile);
+        List<int> bytes = [];
+        final currency = NumberFormat('#,##0', 'id_ID');
+
+        bytes += generator.text(storeName.toUpperCase(), styles: const PosStyles(align: PosAlign.center, bold: true, width: PosTextSize.size2, height: PosTextSize.size2));
+        bytes += generator.text(storeAddress, styles: const PosStyles(align: PosAlign.center, bold: true));
+        if (storePhone.isNotEmpty) bytes += generator.text("Telp/WA: $storePhone", styles: const PosStyles(align: PosAlign.center, bold: true));
+        bytes += generator.feed(1);
+        bytes += generator.hr();
+
+        bytes += generator.text("BUKTI BARANG MASUK", styles: const PosStyles(align: PosAlign.center, bold: true, width: PosTextSize.size2));
+        bytes += generator.feed(1);
+
+        bytes += generator.row([
+          PosColumn(text: "No. Bukti:", width: 4, styles: const PosStyles(bold: true)),
+          PosColumn(text: receiptId, width: 8, styles: const PosStyles(align: PosAlign.right, bold: true)),
+        ]);
+        bytes += generator.row([
+          PosColumn(text: "Tanggal:", width: 4, styles: const PosStyles(bold: true)),
+          PosColumn(text: date, width: 8, styles: const PosStyles(align: PosAlign.right, bold: true)),
+        ]);
+        bytes += generator.row([
+          PosColumn(text: "Sumber:", width: 4, styles: const PosStyles(bold: true)),
+          PosColumn(text: sourceName, width: 8, styles: const PosStyles(align: PosAlign.right, bold: true)),
+        ]);
+        bytes += generator.row([
+          PosColumn(text: "Admin:", width: 4, styles: const PosStyles(bold: true)),
+          PosColumn(text: adminName, width: 8, styles: const PosStyles(align: PosAlign.right, bold: true)),
+        ]);
         
+        bytes += generator.text("================================================", styles: const PosStyles(align: PosAlign.center, bold: true));
+
+        for (var item in items) {
+          String name = item['name'];
+          double rawQty = item['qty'];
+          String qtyStr = rawQty == rawQty.toInt() ? rawQty.toInt().toString() : rawQty.toString();
+          String unit = item['unit'];
+          int price = item['price'];
+          int total = item['total'];
+
+          bytes += generator.text(name, styles: const PosStyles(bold: true));
+          bytes += generator.row([
+            PosColumn(text: "$qtyStr $unit x Rp ${currency.format(price)}", width: 7, styles: const PosStyles(bold: true)),
+            PosColumn(text: "Rp ${currency.format(total)}", width: 5, styles: const PosStyles(align: PosAlign.right, bold: true)),
+          ]);
+        }
+        bytes += generator.feed(1);
+        bytes += generator.hr();
+
+        bytes += generator.row([
+          PosColumn(text: "TOTAL UANG", width: 6, styles: const PosStyles(bold: true, height: PosTextSize.size2)),
+          PosColumn(text: "Rp ${currency.format(totalExpense)}", width: 6, styles: const PosStyles(align: PosAlign.right, bold: true, height: PosTextSize.size2)),
+        ]);
+        bytes += generator.feed(2);
+
+        await pbt.PrintBluetoothThermal.writeBytes(bytes);
         _showSnack(context, "Cetak Berhasil!", Colors.green);
       }
     } catch (e) {

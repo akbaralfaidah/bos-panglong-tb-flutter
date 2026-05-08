@@ -876,12 +876,12 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
     }
   }
 
+  // 🔥 FUNGSI CETAK UPDATE DENGAN DUAL ENGINE (IOS TEKS, ANDROID GAMBAR) 🔥
   Future<void> _captureAndPrint() async {
     try {
       PrinterHelper printer = PrinterHelper();
 
       if (Platform.isIOS) {
-        // 🔥 iOS MENGGUNAKAN TEKS MURNI (RAW ESC/POS) ANTI ALIEN 🔥
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -906,9 +906,9 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
           opCost: _opCost,
           grandTotal: _totalPrice,
           paymentMethod: _paymentMethod,
+          paymentStatus: _status, 
         );
       } else {
-        // 🔥 ANDROID TETAP MENGGUNAKAN GAMBAR SCREENSHOT YANG SUDAH SEMPURNA 🔥
         Uint8List? pngBytes = await _generateImageBytes(pixelRatio: 1.5);
         if (pngBytes == null) throw Exception("Gagal memproses gambar");
         await printer.printReceiptImage(context, pngBytes);
@@ -1511,7 +1511,6 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                                         .replaceAll('()', '')
                                         .trim();
 
-                                    // 🔥 MENGHAPUS SUFFIX (Pcs) DARI NAMA PRODUK DI NOTA 🔥
                                     if (prodType == 'BANGUNAN') {
                                       if (dimStr.isNotEmpty) {
                                         String dimSuffix = "($dimStr)";
@@ -1525,7 +1524,6 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                                               .trim();
                                         }
                                       } else {
-                                        // Fallback kalau dimStr kosong tapi di DB masih ada nyelip tulisan (Pcs)
                                         prodName = prodName
                                             .replaceAll(
                                               RegExp(r'\(\s*[a-zA-Z]+\s*\)$'),
