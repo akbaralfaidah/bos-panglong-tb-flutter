@@ -5,6 +5,7 @@ import 'package:get/get.dart'; // 🔥 Wajib untuk fitur notifikasi Get.snackbar
 import 'screens/splash_screen.dart'; 
 import 'theme/app_colors.dart';
 
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
