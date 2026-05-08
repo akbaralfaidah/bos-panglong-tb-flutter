@@ -9,7 +9,9 @@ import 'firebase_options.dart'; // 🔥 Wajib untuk konfigurasi Firebase
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  await Firebase.initializeApp();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform, 
+  );
   
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
