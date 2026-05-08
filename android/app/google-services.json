@@ -45,6 +45,13 @@
             {
               "client_id": "569348071896-8gl6h24bk4echlj6oga3ht7c7mvvcugp.apps.googleusercontent.com",
               "client_type": 3
+            },
+            {
+              "client_id": "569348071896-ncbn8nkmpakjm7ucqse12uoqurafl4r4.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.bosPanglongApp"
+              }
             }
           ]
         }
