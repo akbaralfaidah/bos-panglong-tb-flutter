@@ -4,7 +4,7 @@ import 'package:firebase_core/firebase_core.dart'; // 🔥 Wajib di-import
 import 'package:get/get.dart'; // 🔥 Wajib untuk fitur notifikasi Get.snackbar()
 import 'screens/splash_screen.dart'; 
 import 'theme/app_colors.dart';
-
+import 'firebase_options.dart'; // 🔥 Wajib untuk konfigurasi Firebase
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
