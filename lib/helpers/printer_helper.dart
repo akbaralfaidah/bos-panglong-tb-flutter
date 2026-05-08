@@ -44,23 +44,15 @@ class PrinterHelper {
 
         final decodedImage = img.decodeImage(imageBytes);
         if (decodedImage != null) {
-          // Setting Resolusi 80mm
-          final resizedImage = img.copyResize(decodedImage, width: 576);
+          // 🔥 PERBAIKAN 1: Lebar 512 Dots (Standar aman buat printer 80mm) 🔥
+          final resizedImage = img.copyResize(decodedImage, width: 512);
           
-          // 🔥 PERBAIKAN 1: Pake imageRaster (lebih stabil, padat & ringan) 🔥
-          bytes += generator.imageRaster(resizedImage);
+          // 🔥 PERBAIKAN 2: Pakai image() biasa, bukan imageRaster() biar font proporsional 🔥
+          bytes += generator.image(resizedImage);
           bytes += generator.feed(2); 
           
-          // 🔥 PERBAIKAN 2: SISTEM SUAPAN KECIL (CHUNKING) ANTI KESELEK 🔥
-          // Kita potong data raksasa jadi per 250 byte biar BLE iOS kuat ngirimnya
-          int chunkSize = 250; 
-          for (int i = 0; i < bytes.length; i += chunkSize) {
-            int end = (i + chunkSize < bytes.length) ? i + chunkSize : bytes.length;
-            await PrintBluetoothThermal.writeBytes(bytes.sublist(i, end));
-            
-            // Kasih napas 10 milidetik ke printer biar nggak tumpah buffernya
-            await Future.delayed(const Duration(milliseconds: 10));
-          }
+          // 🔥 PERBAIKAN 3: Langsung tembak data, hapus chunking biar narik kertasnya mulus 🔥
+          await PrintBluetoothThermal.writeBytes(bytes);
           
           _showSnack(context, "Cetak Berhasil!", Colors.green);
         } else {
@@ -75,6 +67,7 @@ class PrinterHelper {
   // --- 2. SCAN PERANGKAT BLUETOOTH ---
   Future<void> _scanDevices(BuildContext context) async {
     try {
+      // Di Android bakal narik list paired device, di iOS bakal scan perangkat BLE sekitar
       _devices = await PrintBluetoothThermal.pairedBluetooths;
     } catch (e) {
       debugPrint("Error Scan: $e");
