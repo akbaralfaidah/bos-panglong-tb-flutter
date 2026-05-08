@@ -8,38 +8,26 @@ import 'package:image/image.dart' as img;
 
 class PrinterHelper {
   List<BluetoothInfo> _devices = [];
-
-  Future<bool> get isConnected async =>
-      await PrintBluetoothThermal.connectionStatus;
+  
+  Future<bool> get isConnected async => await PrintBluetoothThermal.connectionStatus;
 
   // --- 1. FUNGSI UTAMA: CETAK GAMBAR (SUPPORT IOS & ANDROID) ---
-  Future<void> printReceiptImage(
-    BuildContext context,
-    Uint8List imageBytes,
-  ) async {
+  Future<void> printReceiptImage(BuildContext context, Uint8List imageBytes) async {
     if (!await _checkPermissions()) {
-      _showSnack(
-        context,
-        "Izin Bluetooth/Lokasi wajib diaktifkan!",
-        Colors.red,
-      );
+      _showSnack(context, "Izin Bluetooth/Lokasi wajib diaktifkan!", Colors.red);
       return;
     }
 
     bool connected = await PrintBluetoothThermal.connectionStatus;
-
+    
     // Jika belum konek, panggil fungsi scan dan pilih printer
     if (!connected) {
       await _scanDevices(context);
       if (_devices.isNotEmpty) {
         bool? selected = await _showDeviceSelectionDialog(context);
-        if (selected != true) return;
+        if (selected != true) return; 
       } else {
-        _showSnack(
-          context,
-          "Tidak ada printer Bluetooth ditemukan.",
-          Colors.orange,
-        );
+        _showSnack(context, "Tidak ada printer Bluetooth ditemukan.", Colors.orange);
         return;
       }
     }
@@ -48,25 +36,22 @@ class PrinterHelper {
     try {
       if (await PrintBluetoothThermal.connectionStatus) {
         _showSnack(context, "Memproses Gambar Struk...", Colors.blue);
-
+        
         // Konversi gambar PNG dari aplikasi jadi bahasa ESC/POS Printer
         final profile = await CapabilityProfile.load();
-        final generator = Generator(
-          PaperSize.mm58,
-          profile,
-        ); // Ukuran kertas 58mm standar kasir
+        
+        // 🔥 UKURAN KERTAS UDAH GUA SETTING KE 80mm 🔥
+        final generator = Generator(PaperSize.mm80, profile); 
         List<int> bytes = [];
 
         final decodedImage = img.decodeImage(imageBytes);
         if (decodedImage != null) {
-          // Sesuaikan resolusi gambar dengan lebar kertas (384 dots buat 58mm)
-          final resizedImage = img.copyResize(decodedImage, width: 384);
-
+          // 🔥 RESOLUSI GAMBAR UDAH GUA SETTING KE 576 (STANDAR 80mm) 🔥
+          final resizedImage = img.copyResize(decodedImage, width: 576);
+          
           bytes += generator.image(resizedImage);
-          bytes += generator.feed(
-            2,
-          ); // Gulung kertas 2 baris biar gampang disobek
-
+          bytes += generator.feed(2); // Gulung kertas 2 baris biar gampang disobek
+          
           // Tembak datanya ke printer!
           await PrintBluetoothThermal.writeBytes(bytes);
           _showSnack(context, "Cetak Berhasil!", Colors.green);
@@ -103,12 +88,9 @@ class PrinterHelper {
             itemBuilder: (c, i) {
               return ListTile(
                 leading: const Icon(Icons.print, color: Colors.blue),
-                title: Text(
-                  _devices[i].name.isNotEmpty
-                      ? _devices[i].name
-                      : "Unknown Device",
-                ),
-                subtitle: Text(_devices[i].macAdress),
+                title: Text(_devices[i].name.isNotEmpty ? _devices[i].name : "Unknown Device"),
+                // 🔥 VARIABEL MAC ADDRESS UDAH GUA PERBAIKI SESUAI PACKAGE BARU 🔥
+                subtitle: Text(_devices[i].macAdress), 
                 onTap: () async {
                   Navigator.pop(ctx, true);
                   await _connectToDevice(context, _devices[i]);
@@ -121,31 +103,24 @@ class PrinterHelper {
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
             child: const Text("Batal"),
-          ),
+          )
         ],
       ),
     );
   }
 
   // --- 4. KONEK KE PRINTER ---
-  Future<void> _connectToDevice(
-    BuildContext context,
-    BluetoothInfo device,
-  ) async {
+  Future<void> _connectToDevice(BuildContext context, BluetoothInfo device) async {
     try {
       _showSnack(context, "Menyambungkan ke printer...", Colors.blue);
-      bool status = await PrintBluetoothThermal.connect(
-        macPrinterAddress: device.macAdress,
-      );
-
+      
+      // 🔥 VARIABEL MAC ADDRESS UDAH GUA PERBAIKI SESUAI PACKAGE BARU 🔥
+      bool status = await PrintBluetoothThermal.connect(macPrinterAddress: device.macAdress);
+      
       if (status) {
         _showSnack(context, "Terhubung ke ${device.name}", Colors.green);
       } else {
-        _showSnack(
-          context,
-          "Gagal konek ke printer. Pastikan menyala!",
-          Colors.red,
-        );
+        _showSnack(context, "Gagal konek ke printer. Pastikan menyala!", Colors.red);
       }
     } catch (e) {
       _showSnack(context, "Error Konek: $e", Colors.red);
@@ -165,7 +140,7 @@ class PrinterHelper {
         Permission.location,
       ].request();
 
-      if (statuses[Permission.bluetoothConnect] == PermissionStatus.granted ||
+      if (statuses[Permission.bluetoothConnect] == PermissionStatus.granted || 
           statuses[Permission.bluetooth] == PermissionStatus.granted) {
         return true;
       }
@@ -174,12 +149,6 @@ class PrinterHelper {
   }
 
   void _showSnack(BuildContext context, String msg, Color color) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg),
-        backgroundColor: color,
-        duration: const Duration(seconds: 3),
-      ),
-    );
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: color, duration: const Duration(seconds: 3)));
   }
 }
