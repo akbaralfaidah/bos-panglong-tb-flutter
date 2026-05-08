@@ -2,25 +2,39 @@ import 'dart:typed_data';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
+
+// 🔥 MESIN ANDROID 🔥
+import 'package:blue_thermal_printer/blue_thermal_printer.dart' as btp;
+
+// 🔥 MESIN iOS 🔥
+import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart' as pbt;
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:image/image.dart' as img;
 
-class PrinterHelper {
-  List<BluetoothInfo> _devices = [];
-  
-  Future<bool> get isConnected async => await PrintBluetoothThermal.connectionStatus;
+class PrinterDevice {
+  final String name;
+  final String mac;
+  final dynamic rawDevice; 
+  PrinterDevice({required this.name, required this.mac, required this.rawDevice});
+}
 
-  // --- 1. FUNGSI UTAMA: CETAK GAMBAR (SUPPORT IOS & ANDROID) ---
+class PrinterHelper {
+  final btp.BlueThermalPrinter _androidPrinter = btp.BlueThermalPrinter.instance;
+  List<PrinterDevice> _devices = [];
+
+  Future<bool> get isConnected async {
+    if (Platform.isIOS) return await pbt.PrintBluetoothThermal.connectionStatus;
+    return await _androidPrinter.isConnected ?? false;
+  }
+
+  // --- FUNGSI UTAMA: CETAK GAMBAR ---
   Future<void> printReceiptImage(BuildContext context, Uint8List imageBytes) async {
     if (!await _checkPermissions()) {
       _showSnack(context, "Izin Bluetooth/Lokasi wajib diaktifkan!", Colors.red);
       return;
     }
 
-    bool connected = await PrintBluetoothThermal.connectionStatus;
-    
-    // Jika belum konek, panggil fungsi scan dan pilih printer
+    bool connected = await isConnected;
     if (!connected) {
       await _scanDevices(context);
       if (_devices.isNotEmpty) {
@@ -32,58 +46,75 @@ class PrinterHelper {
       }
     }
 
-    // Eksekusi Cetak Gambar
     try {
-      if (await PrintBluetoothThermal.connectionStatus) {
-        _showSnack(context, "Memproses Gambar Struk...", Colors.blue);
-        
-        final profile = await CapabilityProfile.load();
-        final generator = Generator(PaperSize.mm80, profile); 
-        List<int> bytes = [];
+      if (await isConnected) {
+        _showSnack(context, "Mencetak Struk...", Colors.blue);
 
-        final decodedImage = img.decodeImage(imageBytes);
-        if (decodedImage != null) {
-          // 🔥 PERBAIKAN 1: Turunin width ke 384 biar font normal & data ringan 🔥
-          final resizedImage = img.copyResize(decodedImage, width: 384);
-          
-          // 🔥 PERBAIKAN 2: Balik pakai imageRaster karena kompresinya bagus buat BLE 🔥
-          bytes += generator.imageRaster(resizedImage);
-          bytes += generator.feed(2); 
-          
-          // 🔥 PERBAIKAN 3: Buffer Pump iOS yang dioptimasi (Nggak terlalu ngendet, nggak alien) 🔥
-          if (Platform.isIOS) {
-            int chunkSize = 256; 
+        if (Platform.isAndroid) {
+          // ========================================================
+          // 🔥 ANDROID: NGE-PRINT BEBAS HAMBATAN 🔥
+          // ========================================================
+          await _androidPrinter.printImageBytes(imageBytes);
+          await _androidPrinter.printNewLine();
+          await _androidPrinter.printNewLine();
+
+        } else if (Platform.isIOS) {
+          // ========================================================
+          // 🔥 iOS: GOLDEN RATIO SETTING 🔥
+          // ========================================================
+          final profile = await CapabilityProfile.load();
+          final generator = Generator(PaperSize.mm80, profile); 
+          List<int> bytes = [];
+
+          final decodedImage = img.decodeImage(imageBytes);
+          if (decodedImage != null) {
+            // WAJIB 384: Kalau lu paksa 512 atau 576, data terlalu berat buat BLE. 
+            // 384 bikin nota agak ketengah tapi font normal dan anti-alien.
+            final resizedImage = img.copyResize(decodedImage, width: 384);
+            
+            // Pake image() biasa, bukan Raster, biar font nggak meledak
+            bytes += generator.image(resizedImage);
+            bytes += generator.feed(2); 
+
+            // Golden Ratio Chunking: 150 byte per 15ms. 
+            // Cukup cepat biar nggak telalu ngendet, cukup kecil biar nggak alien.
+            int chunkSize = 150; 
             for (int i = 0; i < bytes.length; i += chunkSize) {
               int end = (i + chunkSize < bytes.length) ? i + chunkSize : bytes.length;
-              await PrintBluetoothThermal.writeBytes(bytes.sublist(i, end));
-              // Jeda super singkat (15ms)
+              await pbt.PrintBluetoothThermal.writeBytes(bytes.sublist(i, end));
               await Future.delayed(const Duration(milliseconds: 15)); 
             }
-          } else {
-            // Android Bluetooth Classic langsung tembak aman
-            await PrintBluetoothThermal.writeBytes(bytes);
           }
-          
-          _showSnack(context, "Cetak Berhasil!", Colors.green);
-        } else {
-          _showSnack(context, "Gagal memproses resolusi gambar.", Colors.red);
         }
+        
+        _showSnack(context, "Cetak Berhasil!", Colors.green);
       }
     } catch (e) {
       _showSnack(context, "Gagal Cetak: $e", Colors.red);
     }
   }
 
-  // --- 2. SCAN PERANGKAT BLUETOOTH ---
+  // --- SCAN PERANGKAT BLUETOOTH ---
   Future<void> _scanDevices(BuildContext context) async {
+    _devices.clear();
     try {
-      _devices = await PrintBluetoothThermal.pairedBluetooths;
+      if (Platform.isIOS) {
+        var iosDevices = await pbt.PrintBluetoothThermal.pairedBluetooths;
+        for (var d in iosDevices) {
+          _devices.add(PrinterDevice(name: d.name.isNotEmpty ? d.name : "Unknown", mac: d.macAdress, rawDevice: d));
+        }
+      } else {
+        var androidDevices = await _androidPrinter.getBondedDevices();
+        for (var d in androidDevices) {
+          _devices.add(PrinterDevice(name: d.name ?? "Unknown", mac: d.address ?? "", rawDevice: d));
+        }
+      }
     } catch (e) {
       debugPrint("Error Scan: $e");
     }
   }
 
-  // --- 3. DIALOG PILIH PRINTER ---
+  // --- DIALOG PILIH PRINTER ---
   Future<bool?> _showDeviceSelectionDialog(BuildContext context) {
     return showDialog<bool>(
       context: context,
@@ -97,8 +128,8 @@ class PrinterHelper {
             itemBuilder: (c, i) {
               return ListTile(
                 leading: const Icon(Icons.print, color: Colors.blue),
-                title: Text(_devices[i].name.isNotEmpty ? _devices[i].name : "Unknown Device"),
-                subtitle: Text(_devices[i].macAdress), 
+                title: Text(_devices[i].name),
+                subtitle: Text(_devices[i].mac), 
                 onTap: () async {
                   Navigator.pop(ctx, true);
                   await _connectToDevice(context, _devices[i]);
@@ -108,22 +139,25 @@ class PrinterHelper {
           ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text("Batal"),
-          )
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Batal"))
         ],
       ),
     );
   }
 
-  // --- 4. KONEK KE PRINTER ---
-  Future<void> _connectToDevice(BuildContext context, BluetoothInfo device) async {
+  // --- KONEK KE PRINTER ---
+  Future<void> _connectToDevice(BuildContext context, PrinterDevice device) async {
     try {
       _showSnack(context, "Menyambungkan ke printer...", Colors.blue);
-      
-      bool status = await PrintBluetoothThermal.connect(macPrinterAddress: device.macAdress);
-      
+      bool status = false;
+
+      if (Platform.isIOS) {
+        status = await pbt.PrintBluetoothThermal.connect(macPrinterAddress: device.mac);
+      } else {
+        await _androidPrinter.connect(device.rawDevice as btp.BluetoothDevice);
+        status = await _androidPrinter.isConnected ?? false;
+      }
+
       if (status) {
         _showSnack(context, "Terhubung ke ${device.name}", Colors.green);
       } else {
@@ -134,7 +168,7 @@ class PrinterHelper {
     }
   }
 
-  // --- 5. CEK PERMISSION ---
+  // --- CEK PERMISSION ---
   Future<bool> _checkPermissions() async {
     if (Platform.isIOS) {
       var status = await Permission.bluetooth.request();
