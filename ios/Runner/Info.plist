@@ -2,6 +2,29 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+<key>NSMicrophoneUsageDescription</key>
+<string>Aplikasi butuh akses mikrofon untuk keperluan rekam video (jika diperlukan oleh sistem kamera).</string>
+<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Aplikasi membutuhkan akses Bluetooth untuk terhubung dan mencetak struk menggunakan printer thermal.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>Aplikasi membutuhkan akses Bluetooth untuk mencari dan menyambungkan perangkat printer kasir.</string>
+<key>UIFileSharingEnabled</key>
+	<true/>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Aplikasi membutuhkan akses jaringan lokal untuk mencari dan mengirim struk ke printer kasir via Wi-Fi/LAN.</string>
+<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.569348071896-ncbn8nkmpakjm7ucqse12uoqurafl4r4</string>
+			</array>
+		</dict>
+	</array>
   <key>NSCameraUsageDescription</key>
   <string>Aplikasi butuh akses kamera untuk mengambil foto nota bukti barang masuk.</string>
   <key>NSPhotoLibraryUsageDescription</key>
