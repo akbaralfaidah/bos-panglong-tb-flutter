@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'dart:io'; // 🔥 WAJIB DITAMBAHIN BIAR BISA CEK PLATFORM 🔥
 import 'package:blue_thermal_printer/blue_thermal_printer.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -111,19 +112,29 @@ class PrinterHelper {
     }
   }
 
-  // --- 5. CEK PERMISSION (Android 12+ butuh scan & connect) ---
+  // --- 5. CEK PERMISSION (UPDATE BYPASS iOS) ---
   Future<bool> _checkPermissions() async {
-    Map<Permission, PermissionStatus> statuses = await [
-      Permission.bluetooth,
-      Permission.bluetoothScan,
-      Permission.bluetoothConnect,
-      Permission.location,
-    ].request();
+    if (Platform.isIOS) {
+      // 🔥 LOGIKA KHUSUS iOS (APPLE) 🔥
+      // iOS murni cuma ngecek 1 izin utama ini, nggak peduli soal lokasi!
+      var status = await Permission.bluetooth.request();
+      return status.isGranted;
+    } else {
+      // 🔥 LOGIKA KHUSUS ANDROID 🔥
+      Map<Permission, PermissionStatus> statuses = await [
+        Permission.bluetooth,
+        Permission.bluetoothScan,
+        Permission.bluetoothConnect,
+        Permission.location,
+      ].request();
 
-    if (statuses[Permission.bluetoothConnect] == PermissionStatus.granted) {
-      return true;
+      // Cek apakah diizinkan (pakai bluetoothConnect buat Android 12+, atau bluetooth buat versi lama)
+      if (statuses[Permission.bluetoothConnect] == PermissionStatus.granted || 
+          statuses[Permission.bluetooth] == PermissionStatus.granted) {
+        return true;
+      }
+      return false;
     }
-    return false;
   }
 
   void _showSnack(BuildContext context, String msg, Color color) {
