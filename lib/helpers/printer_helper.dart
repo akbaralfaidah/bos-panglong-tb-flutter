@@ -37,22 +37,32 @@ class PrinterHelper {
       if (await PrintBluetoothThermal.connectionStatus) {
         _showSnack(context, "Memproses Gambar Struk...", Colors.blue);
         
-        // Konversi gambar PNG dari aplikasi jadi bahasa ESC/POS Printer
         final profile = await CapabilityProfile.load();
         final generator = Generator(PaperSize.mm80, profile); 
         List<int> bytes = [];
 
         final decodedImage = img.decodeImage(imageBytes);
         if (decodedImage != null) {
-          // 🔥 PERBAIKAN 1: Lebar 512 Dots (Standar aman buat printer 80mm) 🔥
-          final resizedImage = img.copyResize(decodedImage, width: 512);
+          // 🔥 PERBAIKAN 1: Turunin width ke 384 biar font normal & data ringan 🔥
+          final resizedImage = img.copyResize(decodedImage, width: 384);
           
-          // 🔥 PERBAIKAN 2: Pakai image() biasa, bukan imageRaster() biar font proporsional 🔥
-          bytes += generator.image(resizedImage);
+          // 🔥 PERBAIKAN 2: Balik pakai imageRaster karena kompresinya bagus buat BLE 🔥
+          bytes += generator.imageRaster(resizedImage);
           bytes += generator.feed(2); 
           
-          // 🔥 PERBAIKAN 3: Langsung tembak data, hapus chunking biar narik kertasnya mulus 🔥
-          await PrintBluetoothThermal.writeBytes(bytes);
+          // 🔥 PERBAIKAN 3: Buffer Pump iOS yang dioptimasi (Nggak terlalu ngendet, nggak alien) 🔥
+          if (Platform.isIOS) {
+            int chunkSize = 256; 
+            for (int i = 0; i < bytes.length; i += chunkSize) {
+              int end = (i + chunkSize < bytes.length) ? i + chunkSize : bytes.length;
+              await PrintBluetoothThermal.writeBytes(bytes.sublist(i, end));
+              // Jeda super singkat (15ms)
+              await Future.delayed(const Duration(milliseconds: 15)); 
+            }
+          } else {
+            // Android Bluetooth Classic langsung tembak aman
+            await PrintBluetoothThermal.writeBytes(bytes);
+          }
           
           _showSnack(context, "Cetak Berhasil!", Colors.green);
         } else {
@@ -67,7 +77,6 @@ class PrinterHelper {
   // --- 2. SCAN PERANGKAT BLUETOOTH ---
   Future<void> _scanDevices(BuildContext context) async {
     try {
-      // Di Android bakal narik list paired device, di iOS bakal scan perangkat BLE sekitar
       _devices = await PrintBluetoothThermal.pairedBluetooths;
     } catch (e) {
       debugPrint("Error Scan: $e");
