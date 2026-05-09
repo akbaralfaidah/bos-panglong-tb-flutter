@@ -28,7 +28,7 @@ class PrinterHelper {
     return await _androidPrinter.isConnected ?? false;
   }
 
-  // --- 1. FUNGSI CETAK GAMBAR (KHUSUS ANDROID) ---
+  // --- 1. CETAK GAMBAR (KHUSUS ANDROID) ---
   Future<void> printReceiptImage(BuildContext context, Uint8List imageBytes) async {
     if (!await _checkPermissions()) {
       _showSnack(context, "Izin Bluetooth/Lokasi wajib diaktifkan!", Colors.red);
@@ -56,17 +56,14 @@ class PrinterHelper {
           await _androidPrinter.printNewLine();
           await _androidPrinter.printNewLine();
         } else if (Platform.isIOS) {
-          // Fallback aman
           final profile = await CapabilityProfile.load();
           final generator = Generator(PaperSize.mm80, profile); 
           List<int> bytes = [];
-
           final decodedImage = img.decodeImage(imageBytes);
           if (decodedImage != null) {
             final resizedImage = img.copyResize(decodedImage, width: 384);
             bytes += generator.image(resizedImage);
             bytes += generator.feed(2); 
-
             int chunkSize = 150; 
             for (int i = 0; i < bytes.length; i += chunkSize) {
               int end = (i + chunkSize < bytes.length) ? i + chunkSize : bytes.length;
@@ -75,7 +72,6 @@ class PrinterHelper {
             }
           }
         }
-        
         _showSnack(context, "Cetak Berhasil!", Colors.green);
       }
     } catch (e) {
@@ -83,7 +79,7 @@ class PrinterHelper {
     }
   }
 
-  // --- 2. FUNGSI CETAK TEKS TRANSAKSI KASIR (KHUSUS iOS) ---
+  // --- 2. CETAK TEKS TRANSAKSI (KHUSUS iOS) ---
   Future<void> printReceiptTextIOS(
     BuildContext context, {
     required String storeName,
@@ -127,8 +123,8 @@ class PrinterHelper {
         List<int> bytes = [];
         final currency = NumberFormat('#,##0', 'id_ID');
 
-        // HEADER TOKO
-        bytes += generator.text(storeName.toUpperCase(), styles: const PosStyles(align: PosAlign.center, bold: true, width: PosTextSize.size2, height: PosTextSize.size2));
+        // 🔥 PERBAIKAN: Hapus atribut width supaya nama toko tidak tumpah ke bawah 🔥
+        bytes += generator.text(storeName.toUpperCase(), styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2));
         bytes += generator.text(storeAddress, styles: const PosStyles(align: PosAlign.center, bold: true));
         if (storePhone.isNotEmpty) {
           bytes += generator.text("Telp/WA: $storePhone", styles: const PosStyles(align: PosAlign.center, bold: true));
@@ -136,7 +132,6 @@ class PrinterHelper {
         bytes += generator.feed(1);
         bytes += generator.hr(); 
 
-        // INFO TRANSAKSI 
         bytes += generator.row([
           PosColumn(text: "Tanggal:", width: 4, styles: const PosStyles(bold: true)),
           PosColumn(text: date, width: 8, styles: const PosStyles(align: PosAlign.right, bold: true)),
@@ -160,7 +155,6 @@ class PrinterHelper {
         
         bytes += generator.text("================================================", styles: const PosStyles(align: PosAlign.center, bold: true));
 
-        // DAFTAR ITEM 
         for (var item in items) {
           String name = item['product_name'] ?? "";
           name = name.replaceAll(RegExp(r'Kelas \d+\s?'), '').replaceAll('()', '').trim();
@@ -182,7 +176,6 @@ class PrinterHelper {
         bytes += generator.feed(1);
         bytes += generator.hr();
 
-        // SUBTOTAL & TOTAL
         bytes += generator.row([
           PosColumn(text: "Subtotal", width: 6, styles: const PosStyles(bold: true)),
           PosColumn(text: "Rp ${currency.format(subtotal)}", width: 6, styles: const PosStyles(align: PosAlign.right, bold: true)),
@@ -206,14 +199,12 @@ class PrinterHelper {
           PosColumn(text: "Rp ${currency.format(grandTotal)}", width: 6, styles: const PosStyles(align: PosAlign.right, bold: true, height: PosTextSize.size2)),
         ]);
 
-        // BANNER STATUS
         bytes += generator.feed(1);
         bytes += generator.text("------------------------------------------------", styles: const PosStyles(align: PosAlign.center, bold: true));
         String statusText = paymentStatus.toUpperCase() == "LUNAS" ? "L U N A S" : "BELUM LUNAS";
-        bytes += generator.text(statusText, styles: const PosStyles(align: PosAlign.center, bold: true, width: PosTextSize.size2, height: PosTextSize.size2));
+        bytes += generator.text(statusText, styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2));
         bytes += generator.text("------------------------------------------------", styles: const PosStyles(align: PosAlign.center, bold: true));
 
-        // FOOTER
         bytes += generator.feed(1);
         bytes += generator.text("Barang yang sudah dibeli", styles: const PosStyles(align: PosAlign.center, bold: true));
         bytes += generator.text("tidak dapat ditukar/dikembalikan.", styles: const PosStyles(align: PosAlign.center, bold: true));
@@ -229,7 +220,7 @@ class PrinterHelper {
     }
   }
 
-  // --- 3. FUNGSI CETAK TEKS STOK MASUK (KHUSUS iOS) ---
+  // --- 3. CETAK TEKS STOK MASUK (KHUSUS iOS) ---
   Future<void> printStockReceiptTextIOS(
     BuildContext context, {
     required String storeName,
@@ -265,13 +256,14 @@ class PrinterHelper {
         List<int> bytes = [];
         final currency = NumberFormat('#,##0', 'id_ID');
 
-        bytes += generator.text(storeName.toUpperCase(), styles: const PosStyles(align: PosAlign.center, bold: true, width: PosTextSize.size2, height: PosTextSize.size2));
+        // 🔥 PERBAIKAN: Hapus atribut width supaya nama toko tidak tumpah ke bawah 🔥
+        bytes += generator.text(storeName.toUpperCase(), styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2));
         bytes += generator.text(storeAddress, styles: const PosStyles(align: PosAlign.center, bold: true));
         if (storePhone.isNotEmpty) bytes += generator.text("Telp/WA: $storePhone", styles: const PosStyles(align: PosAlign.center, bold: true));
         bytes += generator.feed(1);
         bytes += generator.hr();
 
-        bytes += generator.text("BUKTI BARANG MASUK", styles: const PosStyles(align: PosAlign.center, bold: true, width: PosTextSize.size2));
+        bytes += generator.text("BUKTI BARANG MASUK", styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2));
         bytes += generator.feed(1);
 
         bytes += generator.row([
@@ -321,6 +313,70 @@ class PrinterHelper {
       }
     } catch (e) {
       _showSnack(context, "Gagal Cetak Teks: $e", Colors.red);
+    }
+  }
+
+  // --- 4. CETAK STIKER BARCODE (KHUSUS iOS) ---
+  Future<void> printBarcodeIOS(
+    BuildContext context, {
+    required String productName,
+    required String barcodeData,
+    required int priceEcer,
+    required int priceGrosir,
+    required String unitEcer,
+    required String unitGrosir,
+  }) async {
+    if (!await _checkPermissions()) {
+      _showSnack(context, "Izin Bluetooth/Lokasi wajib diaktifkan!", Colors.red);
+      return;
+    }
+
+    bool connected = await pbt.PrintBluetoothThermal.connectionStatus;
+    if (!connected) {
+      await _scanDevices(context);
+      if (_devices.isNotEmpty) {
+        bool? selected = await _showDeviceSelectionDialog(context);
+        if (selected != true) return;
+      } else {
+        _showSnack(context, "Tidak ada printer Bluetooth ditemukan.", Colors.orange);
+        return;
+      }
+    }
+
+    try {
+      if (await pbt.PrintBluetoothThermal.connectionStatus) {
+        _showSnack(context, "Mencetak Barcode...", Colors.blue);
+
+        final profile = await CapabilityProfile.load();
+        final generator = Generator(PaperSize.mm80, profile);
+        List<int> bytes = [];
+        final currency = NumberFormat('#,##0', 'id_ID');
+
+        bytes += generator.text(productName, styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2));
+        bytes += generator.feed(1);
+
+        if (priceEcer > 0 && priceGrosir > 0) {
+          bytes += generator.text("Rp ${currency.format(priceEcer)} / $unitEcer", styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2));
+          bytes += generator.text("Rp ${currency.format(priceGrosir)} / $unitGrosir", styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2));
+        } else if (priceEcer > 0) {
+          bytes += generator.text("Rp ${currency.format(priceEcer)} / $unitEcer", styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2));
+        } else if (priceGrosir > 0) {
+          bytes += generator.text("Rp ${currency.format(priceGrosir)} / $unitGrosir", styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2));
+        }
+        
+        bytes += generator.feed(1);
+        
+        final List<int> barData = barcodeData.codeUnits;
+        bytes += generator.barcode(Barcode.code128(barData), height: 80);
+        bytes += generator.text(barcodeData, styles: const PosStyles(align: PosAlign.center, bold: true));
+        
+        bytes += generator.feed(3);
+
+        await pbt.PrintBluetoothThermal.writeBytes(bytes);
+        _showSnack(context, "Cetak Barcode Berhasil!", Colors.green);
+      }
+    } catch (e) {
+      _showSnack(context, "Gagal Cetak Barcode: $e", Colors.red);
     }
   }
 
