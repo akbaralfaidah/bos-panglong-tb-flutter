@@ -255,7 +255,6 @@ class _StockReceiptScreenState extends State<StockReceiptScreen>
     }
   }
 
-  // 🚀 FUNGSI BARU DOWNLOAD GAMBAR FULLSCREEN (ANTI ERROR) 🚀
   void _showFullScreenImage(String url) {
     showDialog(
       context: context,
@@ -543,25 +542,56 @@ class _StockReceiptScreenState extends State<StockReceiptScreen>
     }
   }
 
+  // 🔥 FUNGSI CETAK UPDATE DENGAN DUAL ENGINE (IOS TEKS, ANDROID GAMBAR) 🔥
   Future<void> _captureAndPrint() async {
     try {
-      Uint8List? pngBytes = await _generateImageBytes(pixelRatio: 1.5);
-      if (pngBytes == null) throw Exception("Gagal memproses gambar");
       PrinterHelper printer = PrinterHelper();
-      await printer.printReceiptImage(context, pngBytes);
-      if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              "Perintah Cetak Dikirim",
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
+      
+      if (Platform.isIOS) {
+         if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text("Memproses Cetak Teks..."),
+                backgroundColor: AppColors.primaryNavy,
               ),
-            ),
-            backgroundColor: AppColors.primaryNavy,
-          ),
-        );
+            );
+         }
+         
+         List<Map<String, dynamic>> mappedItems = widget.items.map((item) {
+            String prodName = item.product.name.replaceAll(RegExp(r'Kelas \d+\s?'), '').replaceAll('()', '').trim();
+            if (item.product.type == 'KAYU' && item.product.dimensions != null && item.product.dimensions!.isNotEmpty) {
+               if (!prodName.contains(item.product.dimensions!)) {
+                   prodName = "$prodName ${item.product.dimensions!}";
+               }
+            }
+            int rawHarga = item.addedQty > 0 ? (item.totalExpense / item.addedQty).round() : 0;
+            return {
+              'name': prodName,
+              'qty': item.addedQty,
+              'unit': item.unitName,
+              'price': rawHarga,
+              'total': item.totalExpense
+            };
+         }).toList();
+
+         await printer.printStockReceiptTextIOS(
+           context,
+           storeName: _storeName,
+           storeAddress: _storeAddress,
+           storePhone: _storePhone,
+           receiptId: _receiptId,
+           date: DateFormat('dd/MM/yyyy HH:mm').format(DateTime.parse(widget.transactionDate)),
+           sourceName: _sourceNames,
+           adminName: SessionManager().isOwner ? "Pemilik" : "Karyawan",
+           items: mappedItems,
+           totalExpense: widget.totalExpense,
+         );
+      } else {
+         Uint8List? pngBytes = await _generateImageBytes(pixelRatio: 1.5);
+         if (pngBytes == null) throw Exception("Gagal memproses gambar");
+         await printer.printReceiptImage(context, pngBytes);
+      }
+
     } catch (e) {
       if (mounted)
         ScaffoldMessenger.of(context).showSnackBar(
