@@ -11,7 +11,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:gal/gal.dart'; 
+import 'package:gal/gal.dart';
 
 import '../helpers/printer_helper.dart';
 import '../theme/app_colors.dart';
@@ -313,26 +313,30 @@ class _StockReceiptScreenState extends State<StockReceiptScreen>
                       ),
                       onPressed: () async {
                         try {
-                          final request = await HttpClient().getUrl(Uri.parse(url));
+                          final request = await HttpClient().getUrl(
+                            Uri.parse(url),
+                          );
                           final response = await request.close();
                           final List<int> bytesList = <int>[];
                           await for (var chunk in response) {
                             bytesList.addAll(chunk);
                           }
                           final Uint8List bytes = Uint8List.fromList(bytesList);
-                          
+
                           final tempDir = await getTemporaryDirectory();
                           final file = await File(
                             '${tempDir.path}/Nota_Distributor_${DateTime.now().millisecondsSinceEpoch}.jpg',
                           ).create();
                           await file.writeAsBytes(bytes);
-                          
+
                           await Gal.putImage(file.path);
-                          
+
                           if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
-                                content: Text("Gambar berhasil disimpan ke Galeri!"),
+                                content: Text(
+                                  "Gambar berhasil disimpan ke Galeri!",
+                                ),
                                 backgroundColor: AppColors.statusGreen,
                               ),
                             );
@@ -373,7 +377,9 @@ class _StockReceiptScreenState extends State<StockReceiptScreen>
                       ),
                       onPressed: () async {
                         try {
-                          final request = await HttpClient().getUrl(Uri.parse(url));
+                          final request = await HttpClient().getUrl(
+                            Uri.parse(url),
+                          );
                           final response = await request.close();
                           final List<int> bytesList = <int>[];
                           await for (var chunk in response) {
@@ -386,9 +392,10 @@ class _StockReceiptScreenState extends State<StockReceiptScreen>
                             '${tempDir.path}/Nota_Distributor_${DateTime.now().millisecondsSinceEpoch}.jpg',
                           ).create();
                           await file.writeAsBytes(bytes);
-                          
-                          Share.shareXFiles([XFile(file.path)], text: 'Nota Fisik Distributor');
-                          
+
+                          Share.shareXFiles([
+                            XFile(file.path),
+                          ], text: 'Nota Fisik Distributor');
                         } catch (e) {
                           if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
@@ -545,52 +552,61 @@ class _StockReceiptScreenState extends State<StockReceiptScreen>
   Future<void> _captureAndPrint() async {
     try {
       PrinterHelper printer = PrinterHelper();
-      
+
       if (Platform.isIOS) {
-         if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text("Memproses Cetak Teks..."),
-                backgroundColor: AppColors.primaryNavy,
-              ),
-            );
-         }
-         
-         List<Map<String, dynamic>> mappedItems = widget.items.map((item) {
-            String prodName = item.product.name.replaceAll(RegExp(r'Kelas \d+\s?'), '').replaceAll('()', '').trim();
-            if (item.product.type == 'KAYU' && item.product.dimensions != null && item.product.dimensions!.isNotEmpty) {
-               if (!prodName.contains(item.product.dimensions!)) {
-                   prodName = "$prodName ${item.product.dimensions!}";
-               }
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Memproses Cetak Teks & Logo..."),
+              backgroundColor: AppColors.primaryNavy,
+            ),
+          );
+        }
+
+        List<Map<String, dynamic>> mappedItems = widget.items.map((item) {
+          String prodName = item.product.name
+              .replaceAll(RegExp(r'Kelas \d+\s?'), '')
+              .replaceAll('()', '')
+              .trim();
+          if (item.product.type == 'KAYU' &&
+              item.product.dimensions != null &&
+              item.product.dimensions!.isNotEmpty) {
+            if (!prodName.contains(item.product.dimensions!)) {
+              prodName = "$prodName ${item.product.dimensions!}";
             }
-            int rawHarga = item.addedQty > 0 ? (item.totalExpense / item.addedQty).round() : 0;
-            return {
-              'name': prodName,
-              'qty': item.addedQty,
-              'unit': item.unitName,
-              'price': rawHarga,
-              'total': item.totalExpense
-            };
-         }).toList();
+          }
+          int rawHarga = item.addedQty > 0
+              ? (item.totalExpense / item.addedQty).round()
+              : 0;
+          return {
+            'name': prodName,
+            'qty': item.addedQty,
+            'unit': item.unitName,
+            'price': rawHarga,
+            'total': item.totalExpense,
+          };
+        }).toList();
 
-         await printer.printStockReceiptTextIOS(
-           context,
-           storeName: _storeName,
-           storeAddress: _storeAddress,
-           storePhone: _storePhone,
-           receiptId: _receiptId,
-           date: DateFormat('dd/MM/yyyy HH:mm').format(DateTime.parse(widget.transactionDate)),
-           sourceName: _sourceNames,
-           adminName: SessionManager().isOwner ? "Pemilik" : "Karyawan",
-           items: mappedItems,
-           totalExpense: widget.totalExpense,
-         );
+        await printer.printStockReceiptTextIOS(
+          context,
+          storeName: _storeName,
+          storeAddress: _storeAddress,
+          storePhone: _storePhone,
+          receiptId: _receiptId,
+          date: DateFormat(
+            'dd/MM/yyyy HH:mm',
+          ).format(DateTime.parse(widget.transactionDate)),
+          sourceName: _sourceNames,
+          adminName: SessionManager().isOwner ? "Pemilik" : "Karyawan",
+          items: mappedItems,
+          totalExpense: widget.totalExpense,
+          logoPath: _logoPath, // 🔥 INI DIA KUNCI LOGONYA 🔥
+        );
       } else {
-         Uint8List? pngBytes = await _generateImageBytes(pixelRatio: 1.5);
-         if (pngBytes == null) throw Exception("Gagal memproses gambar");
-         await printer.printReceiptImage(context, pngBytes);
+        Uint8List? pngBytes = await _generateImageBytes(pixelRatio: 1.5);
+        if (pngBytes == null) throw Exception("Gagal memproses gambar");
+        await printer.printReceiptImage(context, pngBytes);
       }
-
     } catch (e) {
       if (mounted)
         ScaffoldMessenger.of(context).showSnackBar(
@@ -917,14 +933,25 @@ class _StockReceiptScreenState extends State<StockReceiptScreen>
                                   // 🔥 FILTER CUKUR SATUAN 🔥
                                   String prodName = item.product.name
                                       .replaceAll(RegExp(r'Kelas \d+\s?'), '')
-                                      .replaceAll(RegExp(r'\s*\((Pcs|pcs|Kg|kg|Dus|dus|Zak|zak|Roll|roll|m³|m3|Ikat|ikat|Btg|btg|Batang|batang|Lembar|Lbr|Keping)\)', caseSensitive: false), '')
+                                      .replaceAll(
+                                        RegExp(
+                                          r'\s*\((Pcs|pcs|Kg|kg|Dus|dus|Zak|zak|Roll|roll|m³|m3|Ikat|ikat|Btg|btg|Batang|batang|Lembar|Lbr|Keping)\)',
+                                          caseSensitive: false,
+                                        ),
+                                        '',
+                                      )
                                       .replaceAll('()', '')
                                       .trim();
-                                  
-                                  if (item.product.type == 'KAYU' && item.product.dimensions != null && item.product.dimensions!.isNotEmpty) {
-                                     if (!prodName.contains(item.product.dimensions!)) {
-                                         prodName = "$prodName ${item.product.dimensions!}";
-                                     }
+
+                                  if (item.product.type == 'KAYU' &&
+                                      item.product.dimensions != null &&
+                                      item.product.dimensions!.isNotEmpty) {
+                                    if (!prodName.contains(
+                                      item.product.dimensions!,
+                                    )) {
+                                      prodName =
+                                          "$prodName ${item.product.dimensions!}";
+                                    }
                                   }
 
                                   return Padding(

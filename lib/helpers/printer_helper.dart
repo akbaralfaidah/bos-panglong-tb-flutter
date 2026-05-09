@@ -94,6 +94,7 @@ class PrinterHelper {
     required int grandTotal,
     required String paymentMethod,
     required String paymentStatus, 
+    String? logoPath, // 🔥 PARAMETER LOGO DITAMBAHKAN 🔥
   }) async {
     if (!await _checkPermissions()) {
       _showSnack(context, "Izin Bluetooth/Lokasi wajib diaktifkan!", Colors.red);
@@ -120,6 +121,22 @@ class PrinterHelper {
         final generator = Generator(PaperSize.mm80, profile);
         List<int> bytes = [];
         final currency = NumberFormat('#,##0', 'id_ID');
+
+        // 🔥 LOGIKA CETAK LOGO MINI UNTUK iOS 🔥
+        if (logoPath != null && logoPath.isNotEmpty && File(logoPath).existsSync()) {
+          try {
+            final logoBytes = await File(logoPath).readAsBytes();
+            final decodedLogo = img.decodeImage(logoBytes);
+            if (decodedLogo != null) {
+              // Dikecilin ke 200px biar BLE Apple gak keselek alien
+              final resizedLogo = img.copyResize(decodedLogo, width: 200);
+              bytes += generator.image(resizedLogo);
+              bytes += generator.feed(1);
+            }
+          } catch (e) {
+            debugPrint("Error baca logo: $e");
+          }
+        }
 
         bytes += generator.text(storeName.toUpperCase(), styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2));
         bytes += generator.text(storeAddress, styles: const PosStyles(align: PosAlign.center, bold: true));
@@ -154,7 +171,6 @@ class PrinterHelper {
 
         for (var item in items) {
           String name = item['product_name'] ?? "";
-          // 🔥 FILTER CUKUR SATUAN (Pcs/Kg/Dll) 🔥
           name = name.replaceAll(RegExp(r'Kelas \d+\s?'), '')
                      .replaceAll(RegExp(r'\s*\((Pcs|pcs|Kg|kg|Dus|dus|Zak|zak|Roll|roll|m³|m3|Ikat|ikat|Btg|btg|Batang|batang|Lembar|Lbr|Keping)\)', caseSensitive: false), '')
                      .replaceAll('()', '')
@@ -232,6 +248,7 @@ class PrinterHelper {
     required String adminName,
     required List<Map<String, dynamic>> items,
     required int totalExpense,
+    String? logoPath, // 🔥 PARAMETER LOGO DITAMBAHKAN 🔥
   }) async {
     if (!await _checkPermissions()) {
       _showSnack(context, "Izin Bluetooth/Lokasi wajib diaktifkan!", Colors.red);
@@ -255,6 +272,21 @@ class PrinterHelper {
         final generator = Generator(PaperSize.mm80, profile);
         List<int> bytes = [];
         final currency = NumberFormat('#,##0', 'id_ID');
+
+        // 🔥 LOGIKA CETAK LOGO MINI UNTUK iOS 🔥
+        if (logoPath != null && logoPath.isNotEmpty && File(logoPath).existsSync()) {
+          try {
+            final logoBytes = await File(logoPath).readAsBytes();
+            final decodedLogo = img.decodeImage(logoBytes);
+            if (decodedLogo != null) {
+              final resizedLogo = img.copyResize(decodedLogo, width: 200);
+              bytes += generator.image(resizedLogo);
+              bytes += generator.feed(1);
+            }
+          } catch (e) {
+            debugPrint("Error baca logo: $e");
+          }
+        }
 
         bytes += generator.text(storeName.toUpperCase(), styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2));
         bytes += generator.text(storeAddress, styles: const PosStyles(align: PosAlign.center, bold: true));
@@ -285,7 +317,6 @@ class PrinterHelper {
         bytes += generator.text("================================================", styles: const PosStyles(align: PosAlign.center, bold: true));
 
         for (var item in items) {
-          // 🔥 FILTER CUKUR SATUAN (Pcs/Kg/Dll) 🔥
           String name = item['name'].toString()
                      .replaceAll(RegExp(r'Kelas \d+\s?'), '')
                      .replaceAll(RegExp(r'\s*\((Pcs|pcs|Kg|kg|Dus|dus|Zak|zak|Roll|roll|m³|m3|Ikat|ikat|Btg|btg|Batang|batang|Lembar|Lbr|Keping)\)', caseSensitive: false), '')

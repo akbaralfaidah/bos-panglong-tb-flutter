@@ -883,7 +883,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text("Memproses Cetak Teks..."),
+              content: Text("Memproses Cetak Teks & Logo..."),
               backgroundColor: AppColors.primaryNavy,
             ),
           );
@@ -904,7 +904,8 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
           opCost: _opCost,
           grandTotal: _totalPrice,
           paymentMethod: _paymentMethod,
-          paymentStatus: _status, 
+          paymentStatus: _status,
+          logoPath: _logoPath, // 🔥 INI DIA KUNCI LOGONYA 🔥
         );
       } else {
         Uint8List? pngBytes = await _generateImageBytes(pixelRatio: 1.5);
@@ -1322,14 +1323,20 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                                             int sellP = item['sell_price'] ?? 0;
                                             String prodName =
                                                 item['product_name'] ?? "";
-                                            
+
                                             // 🔥 FILTER CUKUR SATUAN 🔥
                                             prodName = prodName
                                                 .replaceAll(
                                                   RegExp(r'Kelas \d+\s?'),
                                                   '',
                                                 )
-                                                .replaceAll(RegExp(r'\s*\((Pcs|pcs|Kg|kg|Dus|dus|Zak|zak|Roll|roll|m³|m3|Ikat|ikat|Btg|btg|Batang|batang|Lembar|Lbr|Keping)\)', caseSensitive: false), '')
+                                                .replaceAll(
+                                                  RegExp(
+                                                    r'\s*\((Pcs|pcs|Kg|kg|Dus|dus|Zak|zak|Roll|roll|m³|m3|Ikat|ikat|Btg|btg|Batang|batang|Lembar|Lbr|Keping)\)',
+                                                    caseSensitive: false,
+                                                  ),
+                                                  '',
+                                                )
                                                 .replaceAll('()', '')
                                                 .trim();
 
@@ -1510,7 +1517,13 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                                     // 🔥 FILTER CUKUR SATUAN 🔥
                                     prodName = prodName
                                         .replaceAll(RegExp(r'Kelas \d+\s?'), '')
-                                        .replaceAll(RegExp(r'\s*\((Pcs|pcs|Kg|kg|Dus|dus|Zak|zak|Roll|roll|m³|m3|Ikat|ikat|Btg|btg|Batang|batang|Lembar|Lbr|Keping)\)', caseSensitive: false), '')
+                                        .replaceAll(
+                                          RegExp(
+                                            r'\s*\((Pcs|pcs|Kg|kg|Dus|dus|Zak|zak|Roll|roll|m³|m3|Ikat|ikat|Btg|btg|Batang|batang|Lembar|Lbr|Keping)\)',
+                                            caseSensitive: false,
+                                          ),
+                                          '',
+                                        )
                                         .replaceAll('()', '')
                                         .trim();
 
