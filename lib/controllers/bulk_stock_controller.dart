@@ -8,34 +8,35 @@ class BulkStockController {
   final ProductFirebaseDataSource _productDS = ProductFirebaseDataSource();
 
   Future<void> saveBulkStock(List<StockCartItem> items, String exactDate) async {
+    WriteBatch batch = FirebaseFirestore.instance.batch();
+    String storeId = SessionManager().uid ?? 'UNKNOWN_STORE';
+
     for (var item in items) {
       int pid = item.product.id!;
       double actualQtyAdded = item.finalStockAdd.toDouble(); 
       int oldStock = item.product.stock.toInt();
       int addedStock = item.finalStockAdd;
-      int newStock = oldStock + addedStock;
 
       int finalBuyPriceUnit = item.product.buyPriceUnit;
       int finalBuyPriceCubic = item.product.buyPriceCubic;
 
-      // 🔥 PERBAIKAN MUTLAK: Rata-rata tertimbang HANYA JALAN jika stok lama masih ada (> 0).
-      // Jika stok lama 0, sistem BYPASS hitungan ini dan langsung save modal 23.300 / 655.000 sesuai ketikan Bos!
+      // 🔥 PERBAIKAN RATA-RATA HARGA 🔥
       if (oldStock > 0 && addedStock > 0) { 
         int oldBuyPriceUnit = finalBuyPriceUnit;
-        
         try {
-          // Ambil modal lama asli dari Database untuk akurasi tingkat tinggi
           final oldDoc = await FirebaseFirestore.instance
               .collection('stores')
-              .doc(SessionManager().uid ?? 'UNKNOWN_STORE')
+              .doc(storeId)
               .collection('products')
               .doc(pid.toString())
               .get();
-          if (oldDoc.exists) {
+          if (oldDoc.exists && oldDoc.data() != null) {
             oldBuyPriceUnit = (oldDoc.data()!['buy_price_unit'] as num?)?.toInt() ?? finalBuyPriceUnit;
+            oldStock = (oldDoc.data()!['stock'] as num?)?.toInt() ?? oldStock;
           }
         } catch (_) {}
 
+        int newStock = oldStock + addedStock;
         int oldTotalValueUnit = oldStock * oldBuyPriceUnit;
         int newTotalValueUnit = item.totalExpense; 
 
@@ -48,20 +49,25 @@ class BulkStockController {
         }
       }
 
-      Map<String, dynamic> productMap = item.product.toMap();
-      productMap['stock'] = newStock;
-      productMap['buy_price_unit'] = finalBuyPriceUnit; 
-      productMap['buy_price_cubic'] = finalBuyPriceCubic; 
+      // 🔥 SOLUSI RACE CONDITION (ANTI GAIB): Pakai FieldValue.increment 🔥
+      DocumentReference prodRef = FirebaseFirestore.instance
+          .collection('stores')
+          .doc(storeId)
+          .collection('products')
+          .doc(pid.toString());
 
-      Product updatedProduct = Product.fromMap(productMap);
-
-      await _productDS.updateProduct(updatedProduct);
+      batch.set(prodRef, {
+        'stock': FieldValue.increment(addedStock),
+        'buy_price_unit': finalBuyPriceUnit,
+        'buy_price_cubic': finalBuyPriceCubic,
+      }, SetOptions(merge: true));
 
       int modalSatuanTeknis = 0;
       if (actualQtyAdded > 0) {
         modalSatuanTeknis = (item.totalExpense / actualQtyAdded).round();
       }
 
+      // Simpan riwayat historis
       await _productDS.addStockLog(
         pid,
         item.product.type,
@@ -74,5 +80,8 @@ class BulkStockController {
         exactDate: exactDate 
       );
     }
+    
+    // Eksekusi semua penambahan stok secara bersamaan tanpa takut ketimpa!
+    await batch.commit();
   }
 }

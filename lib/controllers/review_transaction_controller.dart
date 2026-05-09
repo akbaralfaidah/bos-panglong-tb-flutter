@@ -1,12 +1,21 @@
 import 'package:intl/intl.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/product.dart'; 
 import '../data/datasources/firebase/review_transaction_firebase_datasource.dart'; 
+import '../helpers/session_manager.dart';
 
 class ReviewTransactionController {
   final ReviewTransactionFirebaseDataSource _reviewDS = ReviewTransactionFirebaseDataSource();
   
+  // 🔥 PERBAIKAN BUKU PELANGGAN: Tembak langsung ke DB 🔥
   Future<List<Map<String, dynamic>>> getCustomers() async {
-    return await _reviewDS.getCustomersData();
+    try {
+      String storeId = SessionManager().uid ?? 'UNKNOWN_STORE';
+      var snap = await FirebaseFirestore.instance.collection('stores').doc(storeId).collection('customers').get();
+      return snap.docs.map((e) => e.data()).toList();
+    } catch (e) {
+      return await _reviewDS.getCustomersData();
+    }
   }
 
   List<Map<String, dynamic>> createNewPackagesFromSelection(List<Map<String, dynamic>> cartItems, List<int> selectedIndices) {
@@ -177,7 +186,7 @@ class ReviewTransactionController {
     required int discount,
     required String paymentMethod,
     required String paymentStatus,
-    required DateTime transactionDate, // 🔥 OPERAN TANGGAL 🔥
+    required DateTime transactionDate, 
   }) async {
     return await _reviewDS.saveTransactionToDb(
       cartItems: cartItems, customerName: customerName, customerPhone: customerPhone, 

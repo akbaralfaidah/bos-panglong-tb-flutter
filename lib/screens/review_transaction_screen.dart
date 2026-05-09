@@ -236,7 +236,6 @@ class _ReviewTransactionScreenState extends State<ReviewTransactionScreen> {
                       ...itemsInGroup.map((idx) {
                         Product p = _editableCart[idx]['product_obj'];
                         
-                        // 🔥 LOGIKA MENGHAPUS KELAS DAN NAMBAH DIMENSI 🔥
                         String prodName = p.name.replaceAll(RegExp(r'Kelas \d+\s?'), '').replaceAll('()', '').trim();
                         
                         if (p.type == 'KAYU') {
@@ -507,7 +506,6 @@ class _ReviewTransactionScreenState extends State<ReviewTransactionScreen> {
 
           if (profitInfo.isEmpty) calculateMarginOnly();
 
-          // 🔥 LOGIKA MENGHAPUS KELAS DAN NAMBAH DIMENSI 🔥
           String modalProdName = item['product_name'].toString();
           
           if (product.type == 'KAYU') {
@@ -756,8 +754,12 @@ class _ReviewTransactionScreenState extends State<ReviewTransactionScreen> {
         }
       }
 
+      // 🔥 PERBAIKAN: Selipin nama pelanggan biar Detail Transaksi nggak "Pelanggan Umum" 🔥
       Map<String, dynamic> transDataWithItems = Map.from(savedTransaction);
       transDataWithItems['items'] = _editableCart;
+      transDataWithItems['customer_name'] = _nameController.text.trim().isNotEmpty ? _nameController.text.trim() : 'Pelanggan Umum';
+      transDataWithItems['customer_phone'] = _phoneController.text.trim();
+      transDataWithItems['customer_address'] = _addressController.text.trim();
 
       if (mounted) {
         final prefs = await SharedPreferences.getInstance();
@@ -949,7 +951,6 @@ class _ReviewTransactionScreenState extends State<ReviewTransactionScreen> {
                                             double reqQtyItem = (item['request_qty'] as num?)?.toDouble() ?? 1.0;
                                             int sellP = item['sell_price'] ?? 0;
                                             
-                                            // 🔥 LOGIKA MENGHAPUS KELAS DAN NAMBAH DIMENSI 🔥
                                             String prodName = item['product_name'].toString().replaceAll(RegExp(r'Kelas \d+\s?'), '').replaceAll('()', '').trim();
                                             Product? pObj = item['product_obj'] as Product?;
                                             if (pObj != null) {
@@ -1130,7 +1131,6 @@ class _ReviewTransactionScreenState extends State<ReviewTransactionScreen> {
                                         ? item['agreed_total'] 
                                         : (reqQtyItem * (item['sell_price'] as num).toInt()).round();
                                         
-                                    // 🔥 LOGIKA MENGHAPUS KELAS DAN NAMBAH DIMENSI 🔥
                                     String prodName = item['product_name'].toString().replaceAll(RegExp(r'Kelas \d+\s?'), '').replaceAll('()', '').trim();
                                     Product? pObj = item['product_obj'] as Product?;
                                     if (pObj != null) {
