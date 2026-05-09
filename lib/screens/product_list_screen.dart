@@ -564,7 +564,6 @@ class _ProductListScreenState extends State<ProductListScreen>
                       ),
                     ),
                     onPressed: () async {
-                      // 🔥 GUA UDAH HAPUS POTONGAN PROFIT PREMATUR DI SINI 🔥
                       final result = await Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -1842,76 +1841,101 @@ class _ProductListScreenState extends State<ProductListScreen>
                   ),
                 ),
                 onPressed: () {
-                  double addedInput = 0;
-                  int safeCalculatedPcs = 0;
+                  int newModalSatuan = parseMoney(modalSatuanCtrl.text);
+                  int newModalKubik = parseMoney(modalKubikCtrl.text);
+                  int manualTotal = int.tryParse(moneyController.text.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
 
-                  if (isKayu || isReng || isBulat) {
-                    addedInput =
-                        double.tryParse(
-                          stockController.text.replaceAll(',', '.'),
-                        ) ??
-                        0;
-                    safeCalculatedPcs = calculatedPcs;
-                  } else {
-                    double gQty =
-                        double.tryParse(
-                          bgnGrosirCtrl.text.replaceAll(',', '.'),
-                        ) ??
-                        0;
-                    double sQty =
-                        double.tryParse(
-                          bgnEceranCtrl.text.replaceAll(',', '.'),
-                        ) ??
-                        0;
-                    safeCalculatedPcs = ((gQty * p.packContent) + sQty).round();
-                    addedInput = safeCalculatedPcs.toDouble();
-                  }
+                  Product cartProduct = Product(
+                    id: p.id,
+                    name: p.name,
+                    type: p.type,
+                    woodClass: p.woodClass,
+                    stock: p.stock,
+                    source: p.source,
+                    dimensions: p.dimensions,
+                    buyPriceUnit: newModalSatuan,
+                    sellPriceUnit: p.sellPriceUnit,
+                    buyPriceCubic: newModalKubik,
+                    sellPriceCubic: p.sellPriceCubic,
+                    packContent: p.packContent,
+                    barcode: p.barcode,
+                    category: p.category,
+                    grosirUnit: p.grosirUnit,
+                  );
 
-                  int totalExpense =
-                      int.tryParse(
-                        moneyController.text.replaceAll(RegExp(r'[^0-9]'), ''),
-                      ) ??
-                      0;
+                  setState(() {
+                    if (isKayu || isReng || isBulat) {
+                      double addedInput = double.tryParse(stockController.text.replaceAll(',', '.')) ?? 0;
+                      if (addedInput > 0) {
+                        _stockCart.add(
+                          StockCartItem(
+                            product: cartProduct,
+                            addedQty: addedInput,
+                            isGrosir: inputMode != 0,
+                            totalExpense: manualTotal,
+                            unitName: unitStringForNota,
+                            finalStockAdd: calculatedPcs,
+                            useProfitForCapital: useProfit, 
+                          ),
+                        );
+                      }
+                    } else {
+                      // 🔥 LOGIKA PEMISAHAN ITEM OTOMATIS (WYSIWYG) 🔥
+                      double gQty = double.tryParse(bgnGrosirCtrl.text.replaceAll(',', '.')) ?? 0;
+                      double sQty = double.tryParse(bgnEceranCtrl.text.replaceAll(',', '.')) ?? 0;
+                      
+                      int calcG = (gQty * newModalKubik).round();
+                      int calcS = (sQty * newModalSatuan).round();
+                      int calcTotal = calcG + calcS;
+                      
+                      int gExpense = calcG;
+                      int sExpense = calcS;
 
-                  if (addedInput > 0) {
-                    int newModalSatuan = parseMoney(modalSatuanCtrl.text);
-                    int newModalKubik = parseMoney(modalKubikCtrl.text);
+                      if (manualTotal != calcTotal && calcTotal > 0) {
+                         gExpense = (calcG / calcTotal * manualTotal).round();
+                         sExpense = manualTotal - gExpense; 
+                      } else if (manualTotal > 0 && calcTotal == 0) {
+                         if (gQty > 0 && sQty == 0) gExpense = manualTotal;
+                         else if (sQty > 0 && gQty == 0) sExpense = manualTotal;
+                         else {
+                            gExpense = (manualTotal / 2).round();
+                            sExpense = manualTotal - gExpense;
+                         }
+                      }
 
-                    Product cartProduct = Product(
-                      id: p.id,
-                      name: p.name,
-                      type: p.type,
-                      woodClass: p.woodClass,
-                      stock: p.stock,
-                      source: p.source,
-                      dimensions: p.dimensions,
-                      buyPriceUnit: newModalSatuan,
-                      sellPriceUnit: p.sellPriceUnit,
-                      buyPriceCubic: newModalKubik,
-                      sellPriceCubic: p.sellPriceCubic,
-                      packContent: p.packContent,
-                      barcode: p.barcode,
-                      category: p.category,
-                      grosirUnit: p.grosirUnit,
-                    );
+                      if (gQty > 0) {
+                        _stockCart.add(
+                          StockCartItem(
+                            product: cartProduct,
+                            addedQty: gQty,
+                            isGrosir: true,
+                            totalExpense: gExpense,
+                            unitName: p.grosirUnit ?? "Dus",
+                            finalStockAdd: (gQty * p.packContent).round(),
+                            useProfitForCapital: useProfit, 
+                          ),
+                        );
+                      }
+                      
+                      if (sQty > 0) {
+                        _stockCart.add(
+                          StockCartItem(
+                            product: cartProduct,
+                            addedQty: sQty,
+                            isGrosir: false,
+                            totalExpense: sExpense,
+                            unitName: p.dimensions ?? "Pcs",
+                            finalStockAdd: sQty.round(),
+                            useProfitForCapital: useProfit, 
+                          ),
+                        );
+                      }
+                    }
+                    
+                    _saveStockCart(); 
+                  });
 
-                    setState(() {
-                      _stockCart.add(
-                        StockCartItem(
-                          product: cartProduct,
-                          addedQty: addedInput,
-                          isGrosir: inputMode != 0,
-                          totalExpense: totalExpense,
-                          unitName: unitStringForNota,
-                          finalStockAdd: safeCalculatedPcs,
-                          useProfitForCapital: useProfit, 
-                        ),
-                      );
-                      _saveStockCart(); 
-                    });
-
-                    Navigator.pop(ctx);
-                  }
+                  Navigator.pop(ctx);
                 },
                 child: const Text(
                   "TAMBAH STOK",
