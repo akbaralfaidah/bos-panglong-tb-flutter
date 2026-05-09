@@ -4,10 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:intl/intl.dart';
 
-// 🔥 MESIN ANDROID 🔥
 import 'package:blue_thermal_printer/blue_thermal_printer.dart' as btp;
-
-// 🔥 MESIN iOS 🔥
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart' as pbt;
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:image/image.dart' as img;
@@ -28,7 +25,6 @@ class PrinterHelper {
     return await _androidPrinter.isConnected ?? false;
   }
 
-  // --- 1. CETAK GAMBAR (KHUSUS ANDROID) ---
   Future<void> printReceiptImage(BuildContext context, Uint8List imageBytes) async {
     if (!await _checkPermissions()) {
       _showSnack(context, "Izin Bluetooth/Lokasi wajib diaktifkan!", Colors.red);
@@ -59,11 +55,13 @@ class PrinterHelper {
           final profile = await CapabilityProfile.load();
           final generator = Generator(PaperSize.mm80, profile); 
           List<int> bytes = [];
+
           final decodedImage = img.decodeImage(imageBytes);
           if (decodedImage != null) {
             final resizedImage = img.copyResize(decodedImage, width: 384);
             bytes += generator.image(resizedImage);
             bytes += generator.feed(2); 
+
             int chunkSize = 150; 
             for (int i = 0; i < bytes.length; i += chunkSize) {
               int end = (i + chunkSize < bytes.length) ? i + chunkSize : bytes.length;
@@ -72,6 +70,7 @@ class PrinterHelper {
             }
           }
         }
+        
         _showSnack(context, "Cetak Berhasil!", Colors.green);
       }
     } catch (e) {
@@ -79,7 +78,6 @@ class PrinterHelper {
     }
   }
 
-  // --- 2. CETAK TEKS TRANSAKSI (KHUSUS iOS) ---
   Future<void> printReceiptTextIOS(
     BuildContext context, {
     required String storeName,
@@ -123,7 +121,6 @@ class PrinterHelper {
         List<int> bytes = [];
         final currency = NumberFormat('#,##0', 'id_ID');
 
-        // 🔥 PERBAIKAN: Hapus atribut width supaya nama toko tidak tumpah ke bawah 🔥
         bytes += generator.text(storeName.toUpperCase(), styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2));
         bytes += generator.text(storeAddress, styles: const PosStyles(align: PosAlign.center, bold: true));
         if (storePhone.isNotEmpty) {
@@ -157,7 +154,11 @@ class PrinterHelper {
 
         for (var item in items) {
           String name = item['product_name'] ?? "";
-          name = name.replaceAll(RegExp(r'Kelas \d+\s?'), '').replaceAll('()', '').trim();
+          // 🔥 FILTER CUKUR SATUAN (Pcs/Kg/Dll) 🔥
+          name = name.replaceAll(RegExp(r'Kelas \d+\s?'), '')
+                     .replaceAll(RegExp(r'\s*\((Pcs|pcs|Kg|kg|Dus|dus|Zak|zak|Roll|roll|m³|m3|Ikat|ikat|Btg|btg|Batang|batang|Lembar|Lbr|Keping)\)', caseSensitive: false), '')
+                     .replaceAll('()', '')
+                     .trim();
           
           double rawQty = (item['request_qty'] as num?)?.toDouble() ?? 1.0;
           String qtyStr = rawQty == rawQty.toInt() ? rawQty.toInt().toString() : rawQty.toString();
@@ -220,7 +221,6 @@ class PrinterHelper {
     }
   }
 
-  // --- 3. CETAK TEKS STOK MASUK (KHUSUS iOS) ---
   Future<void> printStockReceiptTextIOS(
     BuildContext context, {
     required String storeName,
@@ -256,7 +256,6 @@ class PrinterHelper {
         List<int> bytes = [];
         final currency = NumberFormat('#,##0', 'id_ID');
 
-        // 🔥 PERBAIKAN: Hapus atribut width supaya nama toko tidak tumpah ke bawah 🔥
         bytes += generator.text(storeName.toUpperCase(), styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2));
         bytes += generator.text(storeAddress, styles: const PosStyles(align: PosAlign.center, bold: true));
         if (storePhone.isNotEmpty) bytes += generator.text("Telp/WA: $storePhone", styles: const PosStyles(align: PosAlign.center, bold: true));
@@ -286,7 +285,12 @@ class PrinterHelper {
         bytes += generator.text("================================================", styles: const PosStyles(align: PosAlign.center, bold: true));
 
         for (var item in items) {
-          String name = item['name'];
+          // 🔥 FILTER CUKUR SATUAN (Pcs/Kg/Dll) 🔥
+          String name = item['name'].toString()
+                     .replaceAll(RegExp(r'Kelas \d+\s?'), '')
+                     .replaceAll(RegExp(r'\s*\((Pcs|pcs|Kg|kg|Dus|dus|Zak|zak|Roll|roll|m³|m3|Ikat|ikat|Btg|btg|Batang|batang|Lembar|Lbr|Keping)\)', caseSensitive: false), '')
+                     .replaceAll('()', '')
+                     .trim();
           double rawQty = item['qty'];
           String qtyStr = rawQty == rawQty.toInt() ? rawQty.toInt().toString() : rawQty.toString();
           String unit = item['unit'];
@@ -316,7 +320,6 @@ class PrinterHelper {
     }
   }
 
-  // --- 4. CETAK STIKER BARCODE (KHUSUS iOS) ---
   Future<void> printBarcodeIOS(
     BuildContext context, {
     required String productName,
@@ -380,7 +383,6 @@ class PrinterHelper {
     }
   }
 
-  // --- SCAN PERANGKAT BLUETOOTH ---
   Future<void> _scanDevices(BuildContext context) async {
     _devices.clear();
     try {
@@ -400,7 +402,6 @@ class PrinterHelper {
     }
   }
 
-  // --- DIALOG PILIH PRINTER ---
   Future<bool?> _showDeviceSelectionDialog(BuildContext context) {
     return showDialog<bool>(
       context: context,
@@ -431,7 +432,6 @@ class PrinterHelper {
     );
   }
 
-  // --- KONEK KE PRINTER ---
   Future<void> _connectToDevice(BuildContext context, PrinterDevice device) async {
     try {
       _showSnack(context, "Menyambungkan ke printer...", Colors.blue);
@@ -454,7 +454,6 @@ class PrinterHelper {
     }
   }
 
-  // --- CEK PERMISSION ---
   Future<bool> _checkPermissions() async {
     if (Platform.isIOS) {
       var status = await Permission.bluetooth.request();

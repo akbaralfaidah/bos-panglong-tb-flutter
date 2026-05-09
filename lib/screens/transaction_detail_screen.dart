@@ -17,7 +17,6 @@ import '../controllers/transaction_detail_controller.dart';
 import '../theme/app_colors.dart';
 import '../helpers/session_manager.dart';
 
-
 class TransactionDetailScreen extends StatefulWidget {
   final Map<String, dynamic> transaction;
   final bool isNewTransaction;
@@ -876,7 +875,6 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
     }
   }
 
-  // 🔥 FUNGSI CETAK UPDATE DENGAN DUAL ENGINE (IOS TEKS, ANDROID GAMBAR) 🔥
   Future<void> _captureAndPrint() async {
     try {
       PrinterHelper printer = PrinterHelper();
@@ -1324,11 +1322,14 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                                             int sellP = item['sell_price'] ?? 0;
                                             String prodName =
                                                 item['product_name'] ?? "";
+                                            
+                                            // 🔥 FILTER CUKUR SATUAN 🔥
                                             prodName = prodName
                                                 .replaceAll(
                                                   RegExp(r'Kelas \d+\s?'),
                                                   '',
                                                 )
+                                                .replaceAll(RegExp(r'\s*\((Pcs|pcs|Kg|kg|Dus|dus|Zak|zak|Roll|roll|m³|m3|Ikat|ikat|Btg|btg|Batang|batang|Lembar|Lbr|Keping)\)', caseSensitive: false), '')
                                                 .replaceAll('()', '')
                                                 .trim();
 
@@ -1506,8 +1507,10 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                                         "";
                                     String dimStr = item['dimensions'] ?? "";
 
+                                    // 🔥 FILTER CUKUR SATUAN 🔥
                                     prodName = prodName
                                         .replaceAll(RegExp(r'Kelas \d+\s?'), '')
+                                        .replaceAll(RegExp(r'\s*\((Pcs|pcs|Kg|kg|Dus|dus|Zak|zak|Roll|roll|m³|m3|Ikat|ikat|Btg|btg|Batang|batang|Lembar|Lbr|Keping)\)', caseSensitive: false), '')
                                         .replaceAll('()', '')
                                         .trim();
 
@@ -1523,13 +1526,6 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                                               )
                                               .trim();
                                         }
-                                      } else {
-                                        prodName = prodName
-                                            .replaceAll(
-                                              RegExp(r'\(\s*[a-zA-Z]+\s*\)$'),
-                                              '',
-                                            )
-                                            .trim();
                                       }
                                     }
 

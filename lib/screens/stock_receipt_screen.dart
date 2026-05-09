@@ -542,7 +542,6 @@ class _StockReceiptScreenState extends State<StockReceiptScreen>
     }
   }
 
-  // 🔥 FUNGSI CETAK UPDATE DENGAN DUAL ENGINE (IOS TEKS, ANDROID GAMBAR) 🔥
   Future<void> _captureAndPrint() async {
     try {
       PrinterHelper printer = PrinterHelper();
@@ -915,8 +914,10 @@ class _StockReceiptScreenState extends State<StockReceiptScreen>
                                       ? item.addedQty.toInt().toString()
                                       : item.addedQty.toString();
 
+                                  // 🔥 FILTER CUKUR SATUAN 🔥
                                   String prodName = item.product.name
                                       .replaceAll(RegExp(r'Kelas \d+\s?'), '')
+                                      .replaceAll(RegExp(r'\s*\((Pcs|pcs|Kg|kg|Dus|dus|Zak|zak|Roll|roll|m³|m3|Ikat|ikat|Btg|btg|Batang|batang|Lembar|Lbr|Keping)\)', caseSensitive: false), '')
                                       .replaceAll('()', '')
                                       .trim();
                                   
