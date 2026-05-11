@@ -5,7 +5,7 @@ import 'package:local_auth/local_auth.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:shared_preferences/shared_preferences.dart'; 
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/datasources/firebase/core_firebase_datasource.dart';
 import '../data/datasources/firebase/employee_firebase_datasource.dart';
@@ -24,8 +24,8 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
   String _storeName = "Bos Depot & TB";
   String? _logoPath;
-  
-  String _ownerPin = "260679"; 
+
+  String _ownerPin = "260679";
 
   final CoreFirebaseDataSource _coreDataSource = CoreFirebaseDataSource();
   final LocalAuthentication _auth = LocalAuthentication();
@@ -41,7 +41,8 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _checkBiometrics() async {
     bool canCheck = false;
     try {
-      canCheck = await _auth.canCheckBiometrics || await _auth.isDeviceSupported();
+      canCheck =
+          await _auth.canCheckBiometrics || await _auth.isDeviceSupported();
     } catch (e) {
       print("Error ngecek biometrik: $e");
     }
@@ -51,19 +52,24 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _loadStoreIdentity() async {
     String? name = await _coreDataSource.getSetting('store_name');
     String? logo = await _coreDataSource.getSetting('store_logo');
-    
+
     SharedPreferences prefs = await SharedPreferences.getInstance();
     String? savedStoreId = prefs.getString('saved_store_id');
-    
+
     String storeId = SessionManager().uid ?? savedStoreId ?? 'UNKNOWN_STORE';
     String? fetchedPin;
 
     try {
       if (storeId != 'UNKNOWN_STORE') {
-        var doc = await FirebaseFirestore.instance.collection('stores').doc(storeId).collection('settings').doc('store_info').get(const GetOptions(source: Source.server));
+        var doc = await FirebaseFirestore.instance
+            .collection('stores')
+            .doc(storeId)
+            .collection('settings')
+            .doc('store_info')
+            .get(const GetOptions(source: Source.server));
         if (doc.exists && doc.data()!.containsKey('owner_pin')) {
           fetchedPin = doc.data()!['owner_pin'];
-          await prefs.setString('saved_owner_pin', fetchedPin!); 
+          await prefs.setString('saved_owner_pin', fetchedPin!);
         }
       }
     } catch (e) {
@@ -74,7 +80,7 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() {
         if (name != null && name.isNotEmpty) _storeName = name;
         _logoPath = logo;
-        if (fetchedPin != null && fetchedPin.isNotEmpty) _ownerPin = fetchedPin; 
+        if (fetchedPin != null && fetchedPin.isNotEmpty) _ownerPin = fetchedPin;
       });
     }
   }
@@ -84,7 +90,7 @@ class _LoginScreenState extends State<LoginScreen> {
     bool isAuthorized = false;
 
     setState(() => _isLoading = true);
-    await _loadStoreIdentity(); 
+    await _loadStoreIdentity();
     setState(() => _isLoading = false);
 
     if (!mounted) return false;
@@ -96,7 +102,10 @@ class _LoginScreenState extends State<LoginScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text(
           "PIN Keamanan Bos",
-          style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryNavy),
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: AppColors.primaryNavy,
+          ),
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -108,10 +117,16 @@ class _LoginScreenState extends State<LoginScreen> {
               keyboardType: TextInputType.number,
               obscureText: true,
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, letterSpacing: 8),
+              style: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 8,
+              ),
               decoration: InputDecoration(
                 hintText: "••••••",
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
               ),
             ),
           ],
@@ -119,12 +134,17 @@ class _LoginScreenState extends State<LoginScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text("BATAL", style: TextStyle(color: AppColors.textGrey)),
+            child: const Text(
+              "BATAL",
+              style: TextStyle(color: AppColors.textGrey),
+            ),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primaryNavy,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
             onPressed: () {
               if (pinController.text == _ownerPin) {
@@ -133,7 +153,10 @@ class _LoginScreenState extends State<LoginScreen> {
               } else {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                    content: Text("PIN SALAH!", style: TextStyle(fontWeight: FontWeight.bold)),
+                    content: Text(
+                      "PIN SALAH!",
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
                     backgroundColor: AppColors.statusRed,
                   ),
                 );
@@ -379,7 +402,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<bool> _challengePinForBiometric() async {
     String enteredPin = "";
     bool isSuccess = false;
-    
+
     await showDialog(
       context: context,
       barrierDismissible: false,
@@ -387,10 +410,15 @@ class _LoginScreenState extends State<LoginScreen> {
         builder: (context, setDialogState) {
           return AlertDialog(
             backgroundColor: AppColors.pureWhite,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(15),
+            ),
             title: const Text(
-              "Aktivasi Biometrik", 
-              style: TextStyle(color: AppColors.primaryNavy, fontWeight: FontWeight.bold)
+              "Aktivasi Biometrik",
+              style: TextStyle(
+                color: AppColors.primaryNavy,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             content: Column(
               mainAxisSize: MainAxisSize.min,
@@ -405,11 +433,17 @@ class _LoginScreenState extends State<LoginScreen> {
                   keyboardType: TextInputType.number,
                   textAlign: TextAlign.center,
                   maxLength: 6,
-                  style: const TextStyle(fontSize: 24, letterSpacing: 8, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    fontSize: 24,
+                    letterSpacing: 8,
+                    fontWeight: FontWeight.bold,
+                  ),
                   decoration: InputDecoration(
                     hintText: "••••••",
                     counterText: "",
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                   ),
                   onChanged: (val) => enteredPin = val,
                 ),
@@ -417,32 +451,43 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(ctx), 
-                child: const Text("BATAL", style: TextStyle(color: AppColors.textGrey))
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text(
+                  "BATAL",
+                  style: TextStyle(color: AppColors.textGrey),
+                ),
               ),
               ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryNavy),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryNavy,
+                ),
                 onPressed: () {
                   if (enteredPin == _ownerPin) {
                     isSuccess = true;
                     Navigator.pop(ctx);
                   } else {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("PIN Salah! Aktivasi Ditolak."), backgroundColor: AppColors.statusRed)
+                      const SnackBar(
+                        content: Text("PIN Salah! Aktivasi Ditolak."),
+                        backgroundColor: AppColors.statusRed,
+                      ),
                     );
                   }
                 },
-                child: const Text("VERIFIKASI", style: TextStyle(color: AppColors.accentGold)),
-              )
+                child: const Text(
+                  "VERIFIKASI",
+                  style: TextStyle(color: AppColors.accentGold),
+                ),
+              ),
             ],
           );
-        }
-      )
+        },
+      ),
     );
     return isSuccess;
   }
 
-  // 🔥 FUNGSI SIDIK JARI YANG SUDAH AMAN 🔥
+// 🔥 FUNGSI SIDIK JARI YANG SUDAH AMAN (VERSI SUPER JADUL / COMPATIBLE) 🔥
   Future<void> _authenticateBiometric() async {
     final prefs = await SharedPreferences.getInstance();
     
@@ -464,13 +509,12 @@ class _LoginScreenState extends State<LoginScreen> {
     bool authenticated = false;
     try {
       setState(() => _isLoading = true);
+      
+      // 🔥 KODINGAN YANG DIUBAH: Hapus semua parameter mewah, sisa yang wajib aja 🔥
       authenticated = await _auth.authenticate(
         localizedReason: 'Scan Sidik Jari / Face ID untuk masuk sebagai Pemilik',
-        options: const AuthenticationOptions(
-          stickyAuth: true,
-          biometricOnly: true,
-        ),
       );
+
     } catch (e) {
       print("Error Biometrik: $e");
     } finally {
@@ -498,11 +542,11 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _processOwnerLogin() async {
     setState(() => _isLoading = true);
     final prefs = await SharedPreferences.getInstance();
-    
+
     // Set Waktu Sesi (Cookies) Saat Ini
     int currentTimestamp = DateTime.now().millisecondsSinceEpoch;
     await prefs.setInt('boss_session_timestamp', currentTimestamp);
-    
+
     // Jalankan integrasi ke Google / Database
     await _loginWithGoogle();
   }
@@ -666,7 +710,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           children: [
                             Expanded(
                               child: ElevatedButton.icon(
-                                onPressed: _isLoading ? null : _onOwnerLoginButtonPressed,
+                                onPressed: _isLoading
+                                    ? null
+                                    : _onOwnerLoginButtonPressed,
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: AppColors.primaryNavy,
                                   foregroundColor: AppColors.pureWhite,
