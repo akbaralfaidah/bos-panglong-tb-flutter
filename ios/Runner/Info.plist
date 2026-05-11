@@ -86,5 +86,7 @@
   <true/>
   <key>UIApplicationSupportsIndirectInputEvents</key>
   <true/>
+  <key>NSFaceIDUsageDescription</key>
+	<string>Aplikasi membutuhkan akses Face ID untuk login Pemilik Toko..</string>
 </dict>
 </plist>
