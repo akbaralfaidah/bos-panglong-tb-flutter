@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'dart:io';
+import 'package:shared_preferences/shared_preferences.dart'; // 🔥 IMPORT WAJIB
 import '../data/datasources/firebase/core_firebase_datasource.dart';
 import '../controllers/dashboard_controller.dart';
 import '../helpers/session_manager.dart';
@@ -50,6 +51,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   @override
   void initState() {
     super.initState();
+    _checkSessionTimeout(); // 🔥 CEK WAKTU LOGIN PAS DASHBOARD DIBUKA
     WidgetsBinding.instance.addObserver(this);
     initializeDateFormatting('id_ID', null).then((_) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -63,6 +65,39 @@ class _DashboardScreenState extends State<DashboardScreen>
     });
   }
 
+  // 🔥 POLISI WAKTU LOGIN (SESSION TIMEOUT 12 JAM) 🔥
+  Future<void> _checkSessionTimeout() async {
+    final prefs = await SharedPreferences.getInstance();
+    
+    if (SessionManager().isOwner) {
+      int? loginTime = prefs.getInt('boss_session_timestamp');
+      
+      if (loginTime != null) {
+        DateTime loginDate = DateTime.fromMillisecondsSinceEpoch(loginTime);
+        DateTime now = DateTime.now();
+        
+        // Cek kalau udah lebih dari 12 jam
+        if (now.difference(loginDate).inHours >= 12) {
+          await SessionManager().logout(); 
+          await prefs.remove('boss_session_timestamp'); 
+          
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text("Sesi login telah berakhir demi keamanan. Silakan login ulang!"), 
+                backgroundColor: AppColors.statusRed
+              )
+            );
+            Navigator.pushReplacement(
+              context, 
+              MaterialPageRoute(builder: (context) => const LoginScreen())
+            );
+          }
+        }
+      }
+    }
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
@@ -72,6 +107,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      _checkSessionTimeout(); // 🔥 CEK JUGA PAS APLIKASI DI-RESUME (DIBUKA LAGI)
       Future.delayed(const Duration(milliseconds: 500), () {
         if (mounted) _refreshStats();
       });

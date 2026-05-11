@@ -5,7 +5,7 @@ import 'package:local_auth/local_auth.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // 🔥 IMPORT WAJIB
+import 'package:shared_preferences/shared_preferences.dart'; 
 
 import '../data/datasources/firebase/core_firebase_datasource.dart';
 import '../data/datasources/firebase/employee_firebase_datasource.dart';
@@ -52,11 +52,9 @@ class _LoginScreenState extends State<LoginScreen> {
     String? name = await _coreDataSource.getSetting('store_name');
     String? logo = await _coreDataSource.getSetting('store_logo');
     
-    // 🔥 FIX AJAIB: VAKSIN ANTI AMNESIA 🔥
     SharedPreferences prefs = await SharedPreferences.getInstance();
     String? savedStoreId = prefs.getString('saved_store_id');
     
-    // Kalau belum login, pakai ID Toko yang diselamatkan di memori lokal
     String storeId = SessionManager().uid ?? savedStoreId ?? 'UNKNOWN_STORE';
     String? fetchedPin;
 
@@ -65,11 +63,10 @@ class _LoginScreenState extends State<LoginScreen> {
         var doc = await FirebaseFirestore.instance.collection('stores').doc(storeId).collection('settings').doc('store_info').get(const GetOptions(source: Source.server));
         if (doc.exists && doc.data()!.containsKey('owner_pin')) {
           fetchedPin = doc.data()!['owner_pin'];
-          await prefs.setString('saved_owner_pin', fetchedPin!); // Simpan buat jaga-jaga offline
+          await prefs.setString('saved_owner_pin', fetchedPin!); 
         }
       }
     } catch (e) {
-      // Fallback kalau internet putus, tarik dari memori lokal
       fetchedPin = prefs.getString('saved_owner_pin');
     }
 
@@ -86,7 +83,6 @@ class _LoginScreenState extends State<LoginScreen> {
     final TextEditingController pinController = TextEditingController();
     bool isAuthorized = false;
 
-    // Pastikan narik data paling fresh sebelum popup muncul
     setState(() => _isLoading = true);
     await _loadStoreIdentity(); 
     setState(() => _isLoading = false);
@@ -154,7 +150,7 @@ class _LoginScreenState extends State<LoginScreen> {
   void _onOwnerLoginButtonPressed() async {
     bool result = await _showBossPinDialog();
     if (result) {
-      _loginWithGoogle();
+      _processOwnerLogin(); // 🔥 Panggil fungsi sentral login Bos
     }
   }
 
@@ -308,12 +304,10 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _loginWithGoogle() async {
-    setState(() => _isLoading = true);
     try {
       User? currentUser = FirebaseAuth.instance.currentUser;
 
       if (currentUser != null) {
-        // 🔥 SIMPAN ID TOKO PERMANEN DI HP 🔥
         SharedPreferences prefs = await SharedPreferences.getInstance();
         await prefs.setString('saved_store_id', currentUser.uid);
 
@@ -350,7 +344,6 @@ class _LoginScreenState extends State<LoginScreen> {
       final User? user = userCredential.user;
 
       if (user != null) {
-        // 🔥 SIMPAN ID TOKO PERMANEN DI HP 🔥
         SharedPreferences prefs = await SharedPreferences.getInstance();
         await prefs.setString('saved_store_id', user.uid);
 
@@ -382,12 +375,101 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  // 🔥 FUNGSI CHALLENGE PIN SEBELUM SIDIK JARI 🔥
+  Future<bool> _challengePinForBiometric() async {
+    String enteredPin = "";
+    bool isSuccess = false;
+    
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            backgroundColor: AppColors.pureWhite,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+            title: const Text(
+              "Aktivasi Biometrik", 
+              style: TextStyle(color: AppColors.primaryNavy, fontWeight: FontWeight.bold)
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  "Untuk mengaktifkan sidik jari/Face ID di HP ini, masukkan PIN Pemilik Toko Anda:",
+                  style: TextStyle(fontSize: 13, color: AppColors.textDark),
+                ),
+                const SizedBox(height: 15),
+                TextField(
+                  obscureText: true,
+                  keyboardType: TextInputType.number,
+                  textAlign: TextAlign.center,
+                  maxLength: 6,
+                  style: const TextStyle(fontSize: 24, letterSpacing: 8, fontWeight: FontWeight.bold),
+                  decoration: InputDecoration(
+                    hintText: "••••••",
+                    counterText: "",
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onChanged: (val) => enteredPin = val,
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx), 
+                child: const Text("BATAL", style: TextStyle(color: AppColors.textGrey))
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryNavy),
+                onPressed: () {
+                  if (enteredPin == _ownerPin) {
+                    isSuccess = true;
+                    Navigator.pop(ctx);
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("PIN Salah! Aktivasi Ditolak."), backgroundColor: AppColors.statusRed)
+                    );
+                  }
+                },
+                child: const Text("VERIFIKASI", style: TextStyle(color: AppColors.accentGold)),
+              )
+            ],
+          );
+        }
+      )
+    );
+    return isSuccess;
+  }
+
+  // 🔥 FUNGSI SIDIK JARI YANG SUDAH AMAN 🔥
   Future<void> _authenticateBiometric() async {
+    final prefs = await SharedPreferences.getInstance();
+    
+    // Cek apakah HP ini udah ditautkan ke sidik jari Bos
+    bool isBiometricLinked = prefs.getBool('is_biometric_linked_to_boss') ?? false;
+
+    if (!isBiometricLinked) {
+      bool passedChallenge = await _challengePinForBiometric();
+      if (!passedChallenge) return; 
+      
+      await prefs.setBool('is_biometric_linked_to_boss', true);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Biometrik berhasil dihubungkan ke akun Pemilik!"), backgroundColor: AppColors.statusGreen)
+        );
+      }
+    }
+
     bool authenticated = false;
     try {
       setState(() => _isLoading = true);
       authenticated = await _auth.authenticate(
-        localizedReason: 'Scan Sidik Jari / Face ID',
+        localizedReason: 'Scan Sidik Jari / Face ID untuk masuk sebagai Pemilik',
+        options: const AuthenticationOptions(
+          stickyAuth: true,
+          biometricOnly: true,
+        ),
       );
     } catch (e) {
       print("Error Biometrik: $e");
@@ -396,7 +478,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     if (authenticated) {
-      _loginWithGoogle();
+      _processOwnerLogin();
     } else {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -410,6 +492,19 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       }
     }
+  }
+
+  // 🔥 FUNGSI SENTRAL LOGIN BOS & SET COOKIES WAKTU 🔥
+  Future<void> _processOwnerLogin() async {
+    setState(() => _isLoading = true);
+    final prefs = await SharedPreferences.getInstance();
+    
+    // Set Waktu Sesi (Cookies) Saat Ini
+    int currentTimestamp = DateTime.now().millisecondsSinceEpoch;
+    await prefs.setInt('boss_session_timestamp', currentTimestamp);
+    
+    // Jalankan integrasi ke Google / Database
+    await _loginWithGoogle();
   }
 
   @override
