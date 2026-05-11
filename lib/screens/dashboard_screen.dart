@@ -77,7 +77,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         DateTime now = DateTime.now();
         
         // Cek kalau udah lebih dari 12 jam
-        if (now.difference(loginDate).inHours >= 12) {
+        if (now.difference(loginDate).inMinutes >= 5) {
           await SessionManager().logout(); 
           await prefs.remove('boss_session_timestamp'); 
           
