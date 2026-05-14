@@ -120,7 +120,7 @@ class DashboardFirebaseDataSource {
 
     // --- FINALISASI RUMUS AKUNTANSI DEWA ---
     double finalOmsetHarian = todayOmsetLunas + totalCicilanMasukHariIni;
-    double finalSisaPiutang = totalPiutangKotorAllTime - totalCicilanAllTime;
+    double finalSisaPiutang = (totalPiutangKotorAllTime - totalCicilanAllTime).clamp(0.0, double.maxFinite);
     
     // 🔥 OPERASIONAL HARIAN = Ongkir Masuk Hari Ini - Pengeluaran (Gaji/Bensin) Hari Ini
     double saldoOperasionalHarian = todayOngkirMasuk - todayPengeluaranOperasional;

@@ -1340,6 +1340,12 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                                                 .replaceAll('()', '')
                                                 .trim();
 
+                                            // 🔥 FIX: Tambahkan dimensi ke nama kayu
+                                            String pDimStr = item['dimensions'] ?? "";
+                                            if (pDimStr.isNotEmpty && !prodName.contains(pDimStr)) {
+                                              prodName = '$prodName $pDimStr';
+                                            }
+
                                             String uType =
                                                 item['unit_type'] ?? "";
                                             String volStr = "";
@@ -1526,6 +1532,13 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                                         )
                                         .replaceAll('()', '')
                                         .trim();
+
+                                    // 🔥 FIX: Tambahkan dimensi ke nama kayu/reng
+                                    if ((prodType == 'KAYU' || prodType == 'RENG' || prodType == 'BULAT') &&
+                                        dimStr.isNotEmpty &&
+                                        !prodName.contains(dimStr)) {
+                                      prodName = '$prodName $dimStr';
+                                    }
 
                                     if (prodType == 'BANGUNAN') {
                                       if (dimStr.isNotEmpty) {

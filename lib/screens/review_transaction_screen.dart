@@ -1133,16 +1133,14 @@ class _ReviewTransactionScreenState extends State<ReviewTransactionScreen> {
                                         
                                     String prodName = item['product_name'].toString().replaceAll(RegExp(r'Kelas \d+\s?'), '').replaceAll('()', '').trim();
                                     Product? pObj = item['product_obj'] as Product?;
-                                    if (pObj != null) {
-                                      if (pObj.type == 'KAYU' && pObj.dimensions != null && pObj.dimensions!.isNotEmpty) {
-                                        if (!prodName.contains(pObj.dimensions!)) {
-                                           prodName = "$prodName ${pObj.dimensions!}";
-                                        }
-                                      } else if (pObj.type == 'BANGUNAN' && pObj.dimensions != null) {
-                                        String dimSuffix = "(${pObj.dimensions})";
-                                        if (prodName.endsWith(dimSuffix)) {
-                                           prodName = prodName.substring(0, prodName.length - dimSuffix.length).trim();
-                                        }
+                                    String pDimStr = pObj?.dimensions ?? item['dimensions']?.toString() ?? '';
+                                    String pType = pObj?.type ?? item['product_type']?.toString() ?? '';
+                                    if ((pType == 'KAYU' || pType == 'RENG' || pType == 'BULAT') && pDimStr.isNotEmpty && !prodName.contains(pDimStr)) {
+                                      prodName = '$prodName $pDimStr';
+                                    } else if (pObj != null && pObj.type == 'BANGUNAN' && pObj.dimensions != null) {
+                                      String dimSuffix = "(${pObj.dimensions})";
+                                      if (prodName.endsWith(dimSuffix)) {
+                                         prodName = prodName.substring(0, prodName.length - dimSuffix.length).trim();
                                       }
                                     }
                                     

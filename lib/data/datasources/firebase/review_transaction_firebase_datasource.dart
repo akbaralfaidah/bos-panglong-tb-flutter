@@ -70,6 +70,7 @@ class ReviewTransactionFirebaseDataSource {
         'product_id': item['product_id'], 
         'product_name': item['product_name'], 
         'product_type': item['product_type'],
+        'dimensions': item['dimensions'], // 🔥 FIX: Sertakan dimensi
         'quantity': item['quantity'], 
         'request_qty': reqQty, 
         'unit_type': item['unit_type'], 

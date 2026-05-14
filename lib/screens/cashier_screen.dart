@@ -1013,6 +1013,7 @@ class _CashierScreenState extends State<CashierScreen>
                           'product_id': item.product.id,
                           'product_name': item.product.name,
                           'product_type': item.product.type,
+                          'dimensions': item.product.dimensions, // 🔥 FIX: Sertakan dimensi
                           'quantity': item.stockDeduction,
                           'request_qty': item.qty,
                           'unit_type': item.unitName,
