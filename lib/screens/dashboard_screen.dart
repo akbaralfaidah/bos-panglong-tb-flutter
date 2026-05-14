@@ -65,7 +65,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     });
   }
 
-  // 🔥 POLISI WAKTU LOGIN (SESSION TIMEOUT 12 JAM) 🔥
+  // SESSION TIMEOUT 10 MENIT
   Future<void> _checkSessionTimeout() async {
     final prefs = await SharedPreferences.getInstance();
     
@@ -76,18 +76,13 @@ class _DashboardScreenState extends State<DashboardScreen>
         DateTime loginDate = DateTime.fromMillisecondsSinceEpoch(loginTime);
         DateTime now = DateTime.now();
         
-        // Cek kalau udah lebih dari 12 jam
-        if (now.difference(loginDate).inMinutes >= 5) {
+        // Cek kalau udah lebih dari 10 menit
+        if (now.difference(loginDate).inMinutes >= 10) {
           await SessionManager().logout(); 
           await prefs.remove('boss_session_timestamp'); 
           
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text("Sesi login telah berakhir demi keamanan. Silakan login ulang!"), 
-                backgroundColor: AppColors.statusRed
-              )
-            );
+            // Langsung redirect tanpa notif error
             Navigator.pushReplacement(
               context, 
               MaterialPageRoute(builder: (context) => const LoginScreen())
