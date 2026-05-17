@@ -11,6 +11,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../helpers/session_manager.dart';
 
 import '../theme/app_colors.dart';
+import '../helpers/search_helper.dart';
 import '../controllers/stock_history_controller.dart';
 import '../models/product.dart';
 import 'product_list_screen.dart';
@@ -204,10 +205,12 @@ class _StockHistoryScreenState extends State<StockHistoryScreen>
     // 🔥 LOGIKA PENCARIAN (Filter otomatis berdasar nama, catatan, atau kasir) 🔥
     List<Map<String, dynamic>> displayedList = _historyData.where((item) {
       if (_searchQuery.isEmpty) return true;
-      String pName = (item['product_name'] ?? '').toString().toLowerCase();
-      String note = (item['note'] ?? '').toString().toLowerCase();
-      String cName = (item['cashier_name'] ?? '').toString().toLowerCase();
-      return pName.contains(_searchQuery) || note.contains(_searchQuery) || cName.contains(_searchQuery);
+      String pName = (item['product_name'] ?? '').toString();
+      String note = (item['note'] ?? '').toString();
+      String cName = (item['cashier_name'] ?? '').toString();
+      return SearchHelper.smartSearch(_searchQuery, pName) || 
+             SearchHelper.smartSearch(_searchQuery, note) || 
+             SearchHelper.smartSearch(_searchQuery, cName);
     }).toList();
 
     int totalUangKeluarTabAktif = 0;
@@ -412,7 +415,7 @@ class _StockHistoryScreenState extends State<StockHistoryScreen>
               controller: _searchController,
               onChanged: (val) {
                 setState(() {
-                  _searchQuery = val.toLowerCase();
+                  _searchQuery = val;
                 });
               },
               decoration: InputDecoration(

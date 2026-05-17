@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../controllers/customer_controller.dart';
+import '../helpers/search_helper.dart';
 import 'transaction_detail_screen.dart';
 
 class CustomerListScreen extends StatefulWidget {
@@ -44,7 +45,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
       if (query.isEmpty) {
         _filteredCustomers = _customers;
       } else {
-        _filteredCustomers = _customers.where((c) => c.toLowerCase().contains(query.toLowerCase())).toList();
+        _filteredCustomers = _customers.where((c) => SearchHelper.smartSearch(query, c)).toList();
       }
     });
   }

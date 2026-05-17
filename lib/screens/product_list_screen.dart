@@ -11,6 +11,7 @@ import 'product_form_screen.dart';
 import 'review_stock_screen.dart';
 import 'product_barcode_screen.dart';
 import '../theme/app_colors.dart';
+import '../helpers/search_helper.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class StockCartItem {
@@ -225,8 +226,8 @@ class _ProductListScreenState extends State<ProductListScreen>
 
   void _applyFilters() {
     List<Product> temp = _allProducts.where((p) {
-      return p.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          p.source.toLowerCase().contains(_searchQuery.toLowerCase());
+      return SearchHelper.smartSearch(_searchQuery, p.name) ||
+          SearchHelper.smartSearch(_searchQuery, p.source);
     }).toList();
 
     _kayuList = temp.where((p) {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../theme/app_colors.dart';
 import '../controllers/transaction_history_controller.dart';
+import '../helpers/search_helper.dart';
 import 'transaction_detail_screen.dart';
 
 class TransactionHistoryScreen extends StatefulWidget {
@@ -118,21 +119,20 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> wit
     // =========================================================================
     List<Map<String, dynamic>> displayedList = _historyData.where((transaction) {
       if (_searchQuery.isEmpty) return true;
-      String q = _searchQuery.toLowerCase();
 
       // 1. Cari Nama Pelanggan
-      String custName = (transaction['customer_name'] ?? '').toString().toLowerCase();
-      if (custName.contains(q)) return true;
+      String custName = (transaction['customer_name'] ?? '').toString();
+      if (SearchHelper.smartSearch(_searchQuery, custName)) return true;
 
       // 2. Cari Nomor Nota/Invoice
-      String invId = (transaction['id'] ?? '').toString().toLowerCase();
-      if (invId.contains(q) || 'inv-$invId'.contains(q)) return true;
+      String invId = (transaction['id'] ?? '').toString();
+      if (SearchHelper.smartSearch(_searchQuery, invId) || SearchHelper.smartSearch(_searchQuery, 'inv-$invId')) return true;
 
       // 3. 🔥 DEEP SEARCH (Cari Barang di Dalam Keranjang Nota)
       if (transaction['items'] != null && transaction['items'] is List) {
         for (var item in transaction['items']) {
-          String prodName = (item['product_name'] ?? '').toString().toLowerCase();
-          if (prodName.contains(q)) return true; // Ketemu? Langsung munculkan notanya!
+          String prodName = (item['product_name'] ?? '').toString();
+          if (SearchHelper.smartSearch(_searchQuery, prodName)) return true; // Ketemu? Langsung munculkan notanya!
         }
       }
 

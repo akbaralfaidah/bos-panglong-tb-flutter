@@ -8,6 +8,7 @@ import 'transaction_detail_screen.dart';
 import '../models/product.dart'; 
 import '../controllers/review_transaction_controller.dart';
 import '../helpers/session_manager.dart'; 
+import '../helpers/search_helper.dart';
 
 class ReviewTransactionScreen extends StatefulWidget {
   final List<Map<String, dynamic>> cartItems;
@@ -119,8 +120,8 @@ class _ReviewTransactionScreenState extends State<ReviewTransactionScreen> {
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDialogState) {
           List<Map<String, dynamic>> filteredList = _customersDb.where((c) => 
-            c['name'].toString().toLowerCase().contains(searchQuery.toLowerCase()) ||
-            (c['phone'] ?? '').toString().toLowerCase().contains(searchQuery.toLowerCase())
+            SearchHelper.smartSearch(searchQuery, c['name'].toString()) ||
+            SearchHelper.smartSearch(searchQuery, (c['phone'] ?? '').toString())
           ).toList();
 
           return AlertDialog(

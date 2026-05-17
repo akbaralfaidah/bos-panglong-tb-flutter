@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../controllers/history_controller.dart';
 import 'transaction_detail_screen.dart';
 import '../theme/app_colors.dart';
+import '../helpers/search_helper.dart';
 
 enum HistoryType { transactions, piutang, bensin, stock, soldItems }
 
@@ -256,7 +257,7 @@ class _HistoryScreenState extends State<HistoryScreen>
         controller: _searchController,
         onChanged: (val) {
           setState(() {
-            _searchQuery = val.toLowerCase();
+            _searchQuery = val;
           });
         },
         decoration: InputDecoration(
@@ -421,16 +422,14 @@ class _HistoryScreenState extends State<HistoryScreen>
     // 🔥 PROSES FILTER BERDASARKAN PENCARIAN 🔥
     List<Map<String, dynamic>> displayedList = dataList.where((item) {
       if (_searchQuery.isEmpty) return true;
-      String pName = (item['product_name'] ?? '').toString().toLowerCase();
-      String cName = (item['customer_name'] ?? '').toString().toLowerCase();
-      String note = (item['note'] ?? '').toString().toLowerCase();
-      String id = (item['id'] ?? item['trans_id'] ?? '')
-          .toString()
-          .toLowerCase();
-      return pName.contains(_searchQuery) ||
-          cName.contains(_searchQuery) ||
-          note.contains(_searchQuery) ||
-          id.contains(_searchQuery);
+      String pName = (item['product_name'] ?? '').toString();
+      String cName = (item['customer_name'] ?? '').toString();
+      String note = (item['note'] ?? '').toString();
+      String id = (item['id'] ?? item['trans_id'] ?? '').toString();
+      return SearchHelper.smartSearch(_searchQuery, pName) ||
+          SearchHelper.smartSearch(_searchQuery, cName) ||
+          SearchHelper.smartSearch(_searchQuery, note) ||
+          SearchHelper.smartSearch(_searchQuery, id);
     }).toList();
 
     return Container(

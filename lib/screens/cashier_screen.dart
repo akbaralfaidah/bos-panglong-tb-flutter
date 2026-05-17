@@ -9,6 +9,7 @@ import '../controllers/cashier_controller.dart';
 import 'review_transaction_screen.dart';
 import '../theme/app_colors.dart';
 import '../helpers/session_manager.dart';
+import '../helpers/search_helper.dart';
 
 class CartItem {
   final Product product;
@@ -281,9 +282,9 @@ class _CashierScreenState extends State<CashierScreen>
 
   void _applyFilters() {
     List<Product> temp = _allProducts.where((p) {
-      return p.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+      return SearchHelper.smartSearch(_searchQuery, p.name) ||
           (p.barcode != null &&
-              p.barcode!.toLowerCase().contains(_searchQuery.toLowerCase()));
+              SearchHelper.smartSearch(_searchQuery, p.barcode!));
     }).toList();
 
     _kayuList = temp.where((p) {

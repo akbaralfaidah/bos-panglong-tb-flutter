@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../helpers/session_manager.dart';
 import '../theme/app_colors.dart';
 import '../controllers/capital_management_controller.dart';
+import '../helpers/search_helper.dart';
 
 class CapitalManagementScreen extends StatefulWidget {
   const CapitalManagementScreen({super.key});
@@ -72,8 +73,8 @@ class _CapitalManagementScreenState extends State<CapitalManagementScreen> {
   void _applyFilters() {
     setState(() {
       _displayedData = _capitalData.where((item) {
-        String name = (item['name'] ?? '').toString().toLowerCase();
-        bool matchesSearch = name.contains(_searchController.text.toLowerCase());
+        String name = (item['name'] ?? '').toString();
+        bool matchesSearch = SearchHelper.smartSearch(_searchController.text, name);
 
         double modalCair = (item['modal_cair'] as num?)?.toDouble() ?? 0;
         bool matchesStatus = true;

@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart'; 
 import '../controllers/report_controller.dart';
 import '../theme/app_colors.dart';
+import '../helpers/search_helper.dart';
 import 'transaction_detail_screen.dart';
 
 class CustomerScreen extends StatefulWidget {
@@ -43,7 +44,7 @@ class _CustomerScreenState extends State<CustomerScreen> {
       if (query.isEmpty) {
         _filteredCustomers = _crmCustomers;
       } else {
-        _filteredCustomers = _crmCustomers.where((c) => c['name'].toString().toLowerCase().contains(query.toLowerCase())).toList();
+        _filteredCustomers = _crmCustomers.where((c) => SearchHelper.smartSearch(query, c['name'].toString())).toList();
       }
     });
   }
