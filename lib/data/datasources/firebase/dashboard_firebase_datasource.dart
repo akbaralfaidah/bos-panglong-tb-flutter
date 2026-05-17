@@ -73,7 +73,7 @@ class DashboardFirebaseDataSource {
           todayProfitBarang += (trxProfit - disc);
         }
       } else {
-        totalPiutangKotorAllTime += (tp - disc);
+        totalPiutangKotorAllTime += tp;
       }
     }
 

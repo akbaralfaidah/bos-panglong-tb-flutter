@@ -32,8 +32,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 
   Future<void> _initializeApp() async {
     try {
-      // 1. Bangunin mesin Firebase & Memori secara diam-diam
-      await Firebase.initializeApp();
+      // 1. Inisialisasi Memori (Firebase sudah diinisialisasi di main.dart)
       FirebaseFirestore.instance.settings = const Settings(persistenceEnabled: true);
       await SessionManager().init();
 

@@ -16,7 +16,7 @@ class DebtController {
       int dicicil = (row['total_dicicil'] as num?)?.toInt() ?? 0;
 
       // Logika lu aman di sini bro!
-      int sisa = (totalPrice - discount) - dicicil;
+      int sisa = totalPrice - dicicil;
       totalSisaPiutang += sisa;
 
       // Kita bikin map baru yang udah include sisa hutang biar UI tinggal pakai

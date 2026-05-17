@@ -6,12 +6,25 @@ import 'screens/splash_screen.dart';
 import 'theme/app_colors.dart';
 import 'firebase_options.dart'; // 🔥 Wajib untuk konfigurasi Firebase
 
+import 'package:flutter/foundation.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform, 
-  );
+  // 🔥 Perbaikan Layar Putih di Android
+  // Di Android, firebase_options.dart melempar UnsupportedError,
+  // sehingga kita harus menggunakan inisialisasi native via google-services.json
+  try {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform, 
+      );
+    } else {
+      await Firebase.initializeApp(); // Menggunakan google-services.json
+    }
+  } catch (e) {
+    debugPrint("Firebase init error: $e");
+  }
   
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,

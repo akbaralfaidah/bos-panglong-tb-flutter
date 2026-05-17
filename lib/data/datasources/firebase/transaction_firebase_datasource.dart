@@ -46,7 +46,7 @@ class TransactionFirebaseDataSource {
          var pd = p.data() as Map<String, dynamic>;
          dicicil += (pd['amount_paid'] as num?)?.toInt() ?? 0;
       }
-      if (dicicil >= (tp - disc)) isLunas = true;
+      if (dicicil >= tp) isLunas = true;
     }
 
     WriteBatch batch = _db.batch();

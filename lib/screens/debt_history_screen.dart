@@ -163,7 +163,7 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen> {
                       int totalPrice = (t['total_price'] as int?) ?? 0;
                       int discount = (t['discount'] as int?) ?? 0;
                       int dicicil = (t['total_dicicil'] as int?) ?? 0;
-                      int sisa = (totalPrice - discount) - dicicil;
+                      int sisa = totalPrice - dicicil;
 
                       String dateStr = DateFormat(
                         'dd MMM yyyy',
@@ -235,9 +235,9 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen> {
                                       ),
                                       const SizedBox(height: 8),
                                       LinearProgressIndicator(
-                                        value: (totalPrice - discount) == 0
+                                        value: totalPrice == 0
                                             ? 0
-                                            : dicicil / (totalPrice - discount),
+                                            : dicicil / totalPrice,
                                         backgroundColor: Colors.grey.shade200,
                                         color: AppColors.statusGreen,
                                         minHeight: 6,
