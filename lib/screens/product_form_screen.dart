@@ -869,8 +869,8 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
     _modalSatuanController.text = _formatMoney(p.buyPriceUnit);
     _jualSatuanController.text = _formatMoney(p.sellPriceUnit);
     
-    _modalIkatController.text = _formatMoney(p.buyPriceUnit * p.packContent);
-    _jualIkatController.text = _formatMoney(p.sellPriceUnit * p.packContent);
+    _modalIkatController.text = _formatMoney((p.buyPriceUnit * p.packContent).round());
+    _jualIkatController.text = _formatMoney((p.sellPriceUnit * p.packContent).round());
 
     _modalGrosirController.text = _formatMoney(p.buyPriceCubic);
     _jualGrosirController.text = _formatMoney(p.sellPriceCubic);

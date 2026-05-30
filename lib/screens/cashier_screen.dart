@@ -335,7 +335,7 @@ class _CashierScreenState extends State<CashierScreen>
     int getSellPrice(int mode) {
       if (p.type == 'RENG') {
         if (mode == 0) return p.sellPriceUnit;
-        if (mode == 1) return p.sellPriceUnit * p.packContent;
+        if (mode == 1) return (p.sellPriceUnit * p.packContent).round();
         return p.sellPriceCubic;
       }
       if (p.type == 'KAYU')
@@ -345,14 +345,14 @@ class _CashierScreenState extends State<CashierScreen>
             ? p.sellPriceUnit
             : (p.sellPriceCubic > 0
                   ? p.sellPriceCubic
-                  : p.sellPriceUnit * p.packContent);
+                  : (p.sellPriceUnit * p.packContent).round());
       return p.sellPriceUnit;
     }
 
     int getCapitalPrice(int mode) {
       if (p.type == 'RENG') {
         if (mode == 0) return p.buyPriceUnit;
-        if (mode == 1) return p.buyPriceUnit * p.packContent;
+        if (mode == 1) return (p.buyPriceUnit * p.packContent).round();
         return p.buyPriceCubic;
       }
       if (p.type == 'KAYU') return mode == 0 ? p.buyPriceUnit : p.buyPriceCubic;
@@ -361,7 +361,7 @@ class _CashierScreenState extends State<CashierScreen>
             ? p.buyPriceUnit
             : (p.buyPriceCubic > 0
                   ? p.buyPriceCubic
-                  : p.buyPriceUnit * p.packContent);
+                  : (p.buyPriceUnit * p.packContent).round());
       return p.buyPriceUnit;
     }
 
@@ -1261,7 +1261,7 @@ class _CashierScreenState extends State<CashierScreen>
         p.grosirUnit!.isNotEmpty &&
         p.packContent > 1) {
       int g = displayStock ~/ p.packContent;
-      int s = displayStock % p.packContent;
+      int s = (displayStock % p.packContent).toInt();
       String dim = p.dimensions ?? "Pcs";
       if (g > 0) {
         String subText = "($g ${p.grosirUnit}";
@@ -1520,7 +1520,7 @@ class _CashierScreenState extends State<CashierScreen>
                       const SizedBox(width: 8),
                       _priceInfo(
                         "Jual Ikat",
-                        _formatRp(p.sellPriceUnit * p.packContent),
+                        _formatRp((p.sellPriceUnit * p.packContent).round()),
                         AppColors.menuBlueIcon,
                         AppColors.menuBlueBg,
                       ),
@@ -1546,7 +1546,7 @@ class _CashierScreenState extends State<CashierScreen>
                         const SizedBox(width: 8),
                         _priceInfo(
                           "Modal Ikat",
-                          _formatRp(p.buyPriceUnit * p.packContent),
+                          _formatRp((p.buyPriceUnit * p.packContent).round()),
                           AppColors.statusRed,
                           AppColors.statusRed.withOpacity(0.1),
                         ),

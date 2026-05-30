@@ -103,7 +103,7 @@ class ReviewTransactionController {
           itemVolCmTotal = reqQty * 10000.0;
           if (volCmPerBatang > 0) batangEquivalent = itemVolCmTotal / volCmPerBatang;
         } else if (uType.contains('ikat')) {
-          int isi = p.packContent > 0 ? p.packContent : 1;
+          int isi = p.packContent > 0 ? p.packContent.toInt() : 1;
           batangEquivalent = reqQty * isi;
           itemVolCmTotal = batangEquivalent * volCmPerBatang;
         } else {
@@ -150,7 +150,7 @@ class ReviewTransactionController {
         item['normal_eceran_total'] = eceranItem; 
         item['sell_price'] = reqQty > 0 ? (agreedTotalItem / reqQty).round() : 0;
         
-        int capitalCubic = p.buyPriceCubic > 0 ? p.buyPriceCubic : (p.buyPriceUnit * p.packContent);
+        int capitalCubic = p.buyPriceCubic > 0 ? p.buyPriceCubic : (p.buyPriceUnit * p.packContent).round();
         int capitalPerPiece = capitalCubic > 0 && reqQty > 0 ? (((itemVolCm / 10000.0) * capitalCubic) / reqQty).round() : p.buyPriceUnit;
         item['capital_price'] = capitalPerPiece;
         item['capital_total'] = ((itemVolCm / 10000.0) * capitalCubic).round();

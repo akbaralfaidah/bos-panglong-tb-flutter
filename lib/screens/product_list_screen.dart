@@ -801,7 +801,7 @@ class _ProductListScreenState extends State<ProductListScreen>
         p.grosirUnit!.isNotEmpty &&
         p.packContent > 1) {
       int g = p.stock ~/ p.packContent;
-      int s = p.stock % p.packContent;
+      int s = (p.stock % p.packContent).toInt();
       String dim = p.dimensions ?? "Pcs";
       if (g > 0) {
         String subText = "($g ${p.grosirUnit}";

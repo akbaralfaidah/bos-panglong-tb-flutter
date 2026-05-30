@@ -405,8 +405,8 @@ class _ReviewTransactionScreenState extends State<ReviewTransactionScreen> {
                  activeModalPerUnit = product.buyPriceUnit;
                  activePricePerUnit = product.sellPriceUnit;
                } else if (unitMode == 1) {
-                 activeModalPerUnit = product.buyPriceUnit * product.packContent;
-                 activePricePerUnit = product.sellPriceUnit * product.packContent;
+                 activeModalPerUnit = (product.buyPriceUnit * product.packContent).round();
+                 activePricePerUnit = (product.sellPriceUnit * product.packContent).round();
                } else {
                  activeModalPerUnit = product.buyPriceCubic;
                  activePricePerUnit = product.sellPriceCubic;
@@ -416,7 +416,7 @@ class _ReviewTransactionScreenState extends State<ReviewTransactionScreen> {
                if (product.dimensions == '2x3') vol = 24.0;
                else if (product.dimensions == '3x4') vol = 48.0;
                
-               int isi = product.packContent > 0 ? product.packContent : 1;
+               int isi = product.packContent > 0 ? product.packContent.toInt() : 1;
                int btg = activeDeduction;
                int ikat = (btg / isi).ceil();
                int cmTotal = (btg * vol).round();
@@ -452,8 +452,8 @@ class _ReviewTransactionScreenState extends State<ReviewTransactionScreen> {
                  activeModalPerUnit = product.buyPriceUnit;
                  activePricePerUnit = product.sellPriceUnit;
                } else {
-                 activeModalPerUnit = product.buyPriceCubic > 0 ? product.buyPriceCubic : (product.buyPriceUnit * product.packContent);
-                 activePricePerUnit = product.sellPriceCubic > 0 ? product.sellPriceCubic : (product.sellPriceUnit * product.packContent);
+                 activeModalPerUnit = product.buyPriceCubic > 0 ? product.buyPriceCubic : (product.buyPriceUnit * product.packContent).round();
+                 activePricePerUnit = product.sellPriceCubic > 0 ? product.sellPriceCubic : (product.sellPriceUnit * product.packContent).round();
                }
 
                if (unitMode == 1) stockInfo = "(Memotong $activeDeduction ${product.dimensions ?? 'Pcs'})";
@@ -1037,10 +1037,10 @@ class _ReviewTransactionScreenState extends State<ReviewTransactionScreen> {
                                                                 
                                                                 if (restoredUnit.toLowerCase() == 'm³' || restoredUnit.toLowerCase() == 'm3') {
                                                                   restoredSellPrice = p.sellPriceCubic;
-                                                                  restoredCapPrice = p.buyPriceCubic > 0 ? p.buyPriceCubic : (p.buyPriceUnit * p.packContent);
+                                                                  restoredCapPrice = p.buyPriceCubic > 0 ? p.buyPriceCubic : (p.buyPriceUnit * p.packContent).round();
                                                                 } else if (restoredUnit.toLowerCase() == 'ikat') {
-                                                                  restoredSellPrice = p.sellPriceUnit * p.packContent;
-                                                                  restoredCapPrice = p.buyPriceUnit * p.packContent;
+                                                                  restoredSellPrice = (p.sellPriceUnit * p.packContent).round();
+                                                                  restoredCapPrice = (p.buyPriceUnit * p.packContent).round();
                                                                 }
 
                                                                 _editableCart[originalIndex]['sell_price'] = restoredSellPrice;
