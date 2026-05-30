@@ -50,7 +50,6 @@ class ProductFirebaseDataSource {
           'sell_price_unit',
           'buy_price_cubic',
           'sell_price_cubic',
-          'pack_content',
           'order_index',
         ].forEach((key) {
           if (data[key] != null) data[key] = (data[key] as num).toInt();
