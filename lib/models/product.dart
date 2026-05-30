@@ -11,7 +11,7 @@ class Product {
   final int buyPriceCubic;  
   final int sellPriceUnit;  
   final int sellPriceCubic; 
-  final int packContent;    
+  final double packContent;    
   
   int orderIndex; 
   final String? barcode; 
@@ -32,7 +32,7 @@ class Product {
     this.buyPriceCubic = 0,
     required this.sellPriceUnit,
     this.sellPriceCubic = 0,
-    this.packContent = 1, 
+    this.packContent = 1.0, 
     this.orderIndex = 0,
     this.barcode, 
     this.category, 
@@ -51,7 +51,7 @@ class Product {
     buyPriceCubic: json['buy_price_cubic'] ?? 0,
     sellPriceUnit: json['sell_price_unit'],
     sellPriceCubic: json['sell_price_cubic'] ?? 0,
-    packContent: json['pack_content'] ?? 1, 
+    packContent: (json['pack_content'] ?? 1).toDouble(), 
     orderIndex: json['order_index'] ?? 0,
     barcode: json['barcode'], 
     category: json['category'], 

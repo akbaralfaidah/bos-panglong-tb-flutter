@@ -338,20 +338,20 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
         double vol = _getVolumePerBatangReng();
         if (vol > 0) {
           int batangPerKubik = (10000 / vol).ceil();
-          int isiPerIkat = int.tryParse(_inputIsiPerDusController.text.replaceAll('.', '')) ?? 1;
-          if (isiPerIkat <= 0) isiPerIkat = 1;
+          double isiPerIkat = double.tryParse(_inputIsiPerDusController.text.replaceAll(',', '.')) ?? 1.0;
+          if (isiPerIkat <= 0) isiPerIkat = 1.0;
 
           if (isModal) {
             int hargaKubik = _parseMoney(_modalGrosirController.text);
             int hargaSatuan = (hargaKubik / batangPerKubik).round();
-            int hargaIkat = hargaSatuan * isiPerIkat; 
+            int hargaIkat = (hargaSatuan * isiPerIkat).round(); 
             
             _modalSatuanController.text = _formatMoney(hargaSatuan);
             _modalIkatController.text = _formatMoney(hargaIkat);
           } else {
             int hargaKubik = _parseMoney(_jualGrosirController.text);
             int hargaSatuan = (hargaKubik / batangPerKubik).round();
-            int hargaIkat = hargaSatuan * isiPerIkat;
+            int hargaIkat = (hargaSatuan * isiPerIkat).round();
             
             _jualSatuanController.text = _formatMoney(hargaSatuan);
             _jualIkatController.text = _formatMoney(hargaIkat);
@@ -360,8 +360,8 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
       }
     } else {
       if (_selectedBangunanGrosirUnit == null || _selectedBangunanUnit == null) return;
-      int isiPerGrosir = int.tryParse(_inputIsiPerDusController.text.replaceAll('.', '')) ?? 1;
-      if (isiPerGrosir <= 0) isiPerGrosir = 1;
+      double isiPerGrosir = double.tryParse(_inputIsiPerDusController.text.replaceAll(',', '.')) ?? 1.0;
+      if (isiPerGrosir <= 0) isiPerGrosir = 1.0;
 
       if (isModal) {
         int hargaGrosir = _parseMoney(_modalGrosirController.text);
@@ -420,8 +420,8 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
     double vol = _getVolumePerBatangReng();
     if (vol > 0) {
       int batangPerKubik = (10000 / vol).ceil(); 
-      int isiPerIkat = int.tryParse(_inputIsiPerDusController.text) ?? 1;
-      if (isiPerIkat == 0) isiPerIkat = 1;
+      double isiPerIkat = double.tryParse(_inputIsiPerDusController.text.replaceAll(',', '.')) ?? 1.0;
+      if (isiPerIkat <= 0) isiPerIkat = 1.0;
       
       double ikatPerKubik = batangPerKubik / isiPerIkat; 
       
@@ -457,8 +457,8 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
           inputVal = int.tryParse(_inputQtyMasukController.text.replaceAll('.', '')) ?? 0;
         } else if (_rengInputMode == 1) { 
           int qtyIkat = int.tryParse(_inputQtyMasukController.text.replaceAll('.', '')) ?? 0;
-          int isi = int.tryParse(_inputIsiPerDusController.text.replaceAll('.', '')) ?? 1;
-          inputVal = qtyIkat * isi;
+          double isi = double.tryParse(_inputIsiPerDusController.text.replaceAll(',', '.')) ?? 1.0;
+          inputVal = (qtyIkat * isi).round();
         } else if (_rengInputMode == 2) { 
           double qtyKubik = double.tryParse(_inputKubikController.text.replaceAll(',', '.')) ?? 0;
           double vol = _getVolumePerBatangReng();
@@ -476,8 +476,8 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
       int qtySatuan = int.tryParse(_bgnSatuanQtyController.text.replaceAll('.', '')) ?? 0;
       
       if (_selectedBangunanGrosirUnit != null && _selectedBangunanUnit != null) {
-          int isi = int.tryParse(_inputIsiPerDusController.text.replaceAll('.', '')) ?? 1;
-          inputVal = (qtyGrosir * isi) + qtySatuan;
+          double isi = double.tryParse(_inputIsiPerDusController.text.replaceAll(',', '.')) ?? 1.0;
+          inputVal = (qtyGrosir * isi).round() + qtySatuan;
       } else if (_selectedBangunanGrosirUnit != null) {
           inputVal = qtyGrosir;
       } else if (_selectedBangunanUnit != null) {
@@ -500,8 +500,8 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
           _kayuPreviewText = "Setara: $totalBatang Batang ≈ ${kubik.toStringAsFixed(4).replaceAll(RegExp(r'0*$'), '').replaceAll(RegExp(r'\.$'), '')} m³";
         }
       } else if (_selectedWoodType == 1) {
-        int isi = int.tryParse(_inputIsiPerDusController.text.replaceAll('.', '')) ?? 1;
-        if (isi == 0) isi = 1;
+        double isi = double.tryParse(_inputIsiPerDusController.text.replaceAll(',', '.')) ?? 1.0;
+        if (isi <= 0) isi = 1.0;
         
         int ikat = (totalBatang / isi).ceil();
         double vol = _getVolumePerBatangReng();
@@ -698,11 +698,11 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
         dim = _selectedBangunanUnit ?? (_selectedBangunanGrosirUnit ?? ""); 
       }
 
-      int packContent = 1;
+      double packContent = 1.0;
       if (type == 'RENG') {
-        packContent = int.tryParse(_inputIsiPerDusController.text.replaceAll('.', '')) ?? 1;
+        packContent = double.tryParse(_inputIsiPerDusController.text.replaceAll(',', '.')) ?? 1.0;
       } else if (type == 'BANGUNAN' && _selectedBangunanGrosirUnit != null && _selectedBangunanUnit != null) {
-        packContent = int.tryParse(_inputIsiPerDusController.text.replaceAll('.', '')) ?? 1;
+        packContent = double.tryParse(_inputIsiPerDusController.text.replaceAll(',', '.')) ?? 1.0;
       }
 
       String? woodClassToSave;
@@ -910,11 +910,11 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
         _selectedBangunanGrosirUnit = null;
       }
 
-      int isiPcs = p.packContent > 0 ? p.packContent : 1;
+      double isiPcs = p.packContent > 0 ? p.packContent : 1.0;
       
       if (_selectedBangunanUnit != null && _selectedBangunanGrosirUnit != null) {
-          int g = p.stock ~/ isiPcs; 
-          int s = p.stock % isiPcs;  
+          int g = (p.stock / isiPcs).floor(); 
+          int s = (p.stock - (g * isiPcs)).round();  
           if (g > 0) _bgnGrosirQtyController.text = g.toString();
           if (s > 0) _bgnSatuanQtyController.text = s.toString();
       } else if (_selectedBangunanGrosirUnit != null) {
@@ -1414,7 +1414,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
   
   Widget _box(Widget child) => Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: AppColors.pureWhite, borderRadius: BorderRadius.circular(15), border: Border.all(color: Colors.grey.shade200)), child: child);
   
-  Widget _field(String label, TextEditingController c, {bool isNum = false, bool readOnly = false, String? hint, String? suffix, bool isOptional = false}) => TextFormField(controller: c, readOnly: readOnly, keyboardType: isNum ? TextInputType.number : TextInputType.text, decoration: InputDecoration(labelText: label, hintText: hint, suffixText: suffix, filled: true, fillColor: readOnly ? AppColors.backgroundWhite : AppColors.pureWhite, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.grey.shade300)), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.grey.shade300)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.primaryNavy, width: 2)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14)), validator: (v) => (!isOptional && v!.isEmpty && !readOnly) ? "Wajib" : null);
+  Widget _field(String label, TextEditingController c, {bool isNum = false, bool readOnly = false, String? hint, String? suffix, bool isOptional = false}) => TextFormField(controller: c, readOnly: readOnly, keyboardType: isNum ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text, decoration: InputDecoration(labelText: label, hintText: hint, suffixText: suffix, filled: true, fillColor: readOnly ? AppColors.backgroundWhite : AppColors.pureWhite, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.grey.shade300)), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.grey.shade300)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.primaryNavy, width: 2)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14)), validator: (v) => (!isOptional && v!.isEmpty && !readOnly) ? "Wajib" : null);
   
   Widget _moneyField(String label, TextEditingController c, {FocusNode? focusNode}) => TextFormField(controller: c, focusNode: focusNode, keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly, CurrencyInputFormatter()], decoration: InputDecoration(labelText: label, prefixText: "Rp ", filled: true, fillColor: AppColors.backgroundWhite, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.grey.shade300)), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.grey.shade300)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.primaryNavy, width: 2)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14)));
 }
