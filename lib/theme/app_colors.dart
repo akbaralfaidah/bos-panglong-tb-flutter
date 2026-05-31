@@ -2,35 +2,35 @@
 import 'package:flutter/material.dart';
 
 class AppColors {
-  // --- WARNA UTAMA ---
-  static const Color primaryNavy = Color(0xFF0A2647); 
-  static const Color secondaryNavy = Color(0xFF144272); 
-  static const Color accentGold = Color(0xFFF39C12); 
+  // --- WARNA UTAMA (DARK ELEGANCE) ---
+  static const Color primaryNavy = Color(0xFF0F172A); // Slate 900
+  static const Color secondaryNavy = Color(0xFF1E293B); // Slate 800
+  static const Color accentGold = Color(0xFFF59E0B); // Amber 500
   
-  static const Color backgroundWhite = Color(0xFFF4F7F6); // Background utama (agak abu)
-  static const Color pureWhite = Color(0xFFFFFFFF); // Putih murni untuk Card
-  static const Color surfaceGrey = Color(0xFFEDF2F7); // Abu-abu terang elegan untuk tombol Karyawan
+  static const Color backgroundWhite = Color(0xFF020617); // Slate 950 (Absolute background)
+  static const Color pureWhite = Color(0xFFFFFFFF); 
+  static const Color surfaceGrey = Color(0xFF334155); // Slate 700 (Surface elevated)
   
-  static const Color textDark = Color(0xFF1E293B);
-  static const Color textGrey = Color(0xFF64748B);
+  static const Color textDark = Color(0xFFF8FAFC); // Slate 50 (High emphasis text)
+  static const Color textGrey = Color(0xFF94A3B8); // Slate 400 (Medium emphasis)
 
   // --- GRADIENT KARTU PROFIT ---
-  static const Color cardNavyStart = Color(0xFF0A2647);
-  static const Color cardNavyEnd = Color(0xFF205295);
+  static const Color cardNavyStart = Color(0xFF1E293B);
+  static const Color cardNavyEnd = Color(0xFF0F172A);
 
-  // --- WARNA MENU GRID ---
-  static const Color menuTealBg = Color(0xFFE0F2F1);
-  static const Color menuTealIcon = Color(0xFF00796B);
+  // --- WARNA MENU GRID (GLASSMORPHIC TINTS) ---
+  static const Color menuTealBg = Color(0x3310B981); // Emerald tinted
+  static const Color menuTealIcon = Color(0xFF34D399); // Emerald neon
   
-  static const Color menuAmberBg = Color(0xFFFFF8E1);
-  static const Color menuAmberIcon = Color(0xFFF57F17);
+  static const Color menuAmberBg = Color(0x33F59E0B); // Amber tinted
+  static const Color menuAmberIcon = Color(0xFFFBBF24); // Amber neon
 
-  static const Color menuBlueBg = Color(0xFFE3F2FD);
-  static const Color menuBlueIcon = Color(0xFF1565C0);
+  static const Color menuBlueBg = Color(0x333B82F6); // Blue tinted
+  static const Color menuBlueIcon = Color(0xFF60A5FA); // Blue neon
 
-  static const Color menuIndigoBg = Color(0xFFE8EAF6);
-  static const Color menuIndigoIcon = Color(0xFF3F51B5);
+  static const Color menuIndigoBg = Color(0x336366F1); // Indigo tinted
+  static const Color menuIndigoIcon = Color(0xFF818CF8); // Indigo neon
   
-  static const Color statusGreen = Color(0xFF198754);
-  static const Color statusRed = Color(0xFFDC3545);
+  static const Color statusGreen = Color(0xFF10B981); // Emerald 500
+  static const Color statusRed = Color(0xFFEF4444); // Red 500
 }

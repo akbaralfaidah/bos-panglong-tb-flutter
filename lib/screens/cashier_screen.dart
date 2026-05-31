@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:barcode_scan2/barcode_scan2.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:ui';
 import '../models/product.dart';
 import '../controllers/cashier_controller.dart';
 import 'review_transaction_screen.dart';
@@ -786,13 +787,14 @@ class _CashierScreenState extends State<CashierScreen>
 
     return Scaffold(
       backgroundColor: AppColors.backgroundWhite,
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
         title: _isSearching
             ? TextField(
                 controller: _searchController,
                 autofocus: true,
                 style: const TextStyle(
-                  color: AppColors.primaryNavy,
+                  color: AppColors.pureWhite,
                   fontWeight: FontWeight.bold,
                 ),
                 decoration: const InputDecoration(
@@ -807,16 +809,24 @@ class _CashierScreenState extends State<CashierScreen>
               )
             : const Text(
                 "Kasir Toko",
-                style: TextStyle(fontWeight: FontWeight.bold),
+                style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 1),
               ),
-        backgroundColor: AppColors.pureWhite,
-        foregroundColor: AppColors.primaryNavy,
+        backgroundColor: Colors.transparent,
+        flexibleSpace: ClipRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+            child: Container(
+              color: AppColors.primaryNavy.withOpacity(0.7),
+            ),
+          ),
+        ),
+        foregroundColor: AppColors.pureWhite,
         elevation: 0,
         actions: [
           IconButton(
             icon: const Icon(
               Icons.qr_code_scanner,
-              color: AppColors.primaryNavy,
+              color: AppColors.accentGold,
             ),
             onPressed: _scanBarcode,
           ),
@@ -838,7 +848,7 @@ class _CashierScreenState extends State<CashierScreen>
           controller: _tabController,
           indicatorColor: AppColors.accentGold,
           indicatorWeight: 4,
-          labelColor: AppColors.primaryNavy,
+          labelColor: AppColors.accentGold,
           unselectedLabelColor: AppColors.textGrey,
           tabs: const [
             Tab(
@@ -958,125 +968,128 @@ class _CashierScreenState extends State<CashierScreen>
       ),
       bottomNavigationBar: _cart.isEmpty
           ? null
-          : Container(
-              padding: const EdgeInsets.all(16),
-              decoration: const BoxDecoration(
-                color: AppColors.pureWhite,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black12,
-                    blurRadius: 15,
-                    offset: Offset(0, -5),
+          : ClipRRect(
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryNavy.withOpacity(0.85),
+                    border: const Border(top: BorderSide(color: Colors.white12, width: 1.5)),
                   ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        "Total Tagihan:",
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textGrey,
-                          fontWeight: FontWeight.bold,
+                  child: SafeArea(
+                    child: Row(
+                      children: [
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              "Total Tagihan:",
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: AppColors.textGrey,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 1,
+                              ),
+                            ),
+                            Text(
+                              _formatRp(_cartTotal),
+                              style: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w900,
+                                color: AppColors.pureWhite,
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                      Text(
-                        _formatRp(_cartTotal),
-                        style: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w900,
-                          color: AppColors.primaryNavy,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const Spacer(),
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primaryNavy,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 15,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(15),
-                      ),
-                    ),
-                    onPressed: () async {
-                      List<Map<String, dynamic>> structuredCart = _cart.map((
-                        item,
-                      ) {
-                        return {
-                          'product_id': item.product.id,
-                          'product_name': item.product.name,
-                          'product_type': item.product.type,
-                          'dimensions': item.product.dimensions, // 🔥 FIX: Sertakan dimensi
-                          'quantity': item.stockDeduction,
-                          'request_qty': item.qty,
-                          'unit_type': item.unitName,
-                          'sell_price': item.sellPrice,
-                          'agreed_total': item.agreedPriceTotal,
-                          'capital_price': item.capitalPrice,
-                          // 🔥 FIX BUG PROFIT: MODAL DIKALI QUANTITY PECAHAN! BUKAN DIKALI PEMBULATAN FISIK! 🔥
-                          'capital_total': (item.capitalPrice * item.qty)
-                              .round(),
-                          'product_obj': item.product,
-                          'is_grosir': item.isGrosir,
-                        };
-                      }).toList();
-
-                      final returnedCart = await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => ReviewTransactionScreen(
-                            cartItems: structuredCart,
-                            totalPrice: _cartTotal,
-                            discount: 0,
+                        const Spacer(),
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.accentGold,
+                            foregroundColor: AppColors.primaryNavy,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 25,
+                              vertical: 18,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(15),
+                            ),
+                            elevation: 10,
+                            shadowColor: AppColors.accentGold.withOpacity(0.5),
+                          ),
+                          onPressed: () async {
+                            List<Map<String, dynamic>> structuredCart = _cart.map((
+                              item,
+                            ) {
+                              return {
+                                'product_id': item.product.id,
+                                'product_name': item.product.name,
+                                'product_type': item.product.type,
+                                'dimensions': item.product.dimensions, 
+                                'quantity': item.stockDeduction,
+                                'request_qty': item.qty,
+                                'unit_type': item.unitName,
+                                'sell_price': item.sellPrice,
+                                'agreed_total': item.agreedPriceTotal,
+                                'capital_price': item.capitalPrice,
+                                'capital_total': (item.capitalPrice * item.qty)
+                                    .round(),
+                                'product_obj': item.product,
+                                'is_grosir': item.isGrosir,
+                              };
+                            }).toList();
+      
+                            final returnedCart = await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => ReviewTransactionScreen(
+                                  cartItems: structuredCart,
+                                  totalPrice: _cartTotal,
+                                  discount: 0,
+                                ),
+                              ),
+                            );
+      
+                            if (returnedCart != null &&
+                                returnedCart is List<Map<String, dynamic>>) {
+                              setState(() {
+                                _cart = returnedCart.map((mapItem) {
+                                  return CartItem(
+                                    product: mapItem['product_obj'] as Product,
+                                    qty: (mapItem['request_qty'] as num).toDouble(),
+                                    isGrosir: mapItem['is_grosir'] ?? false,
+                                    sellPrice: mapItem['sell_price'] as int,
+                                    agreedPriceTotal: mapItem['agreed_total'] as int,
+                                    capitalPrice: mapItem['capital_price'] as int,
+                                    unitName: mapItem['unit_type'] as String,
+                                    stockDeduction: mapItem['quantity'] as int,
+                                  );
+                                }).toList();
+                              });
+                              _saveCart();
+                            } else {
+                              _syncCart();
+                              _loadProducts();
+                            }
+                          },
+                          icon: const Icon(
+                            Icons.shopping_cart_checkout,
+                            size: 24,
+                          ),
+                          label: Text(
+                            "BAYAR (${_cart.length})",
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w900,
+                              fontSize: 16,
+                              letterSpacing: 1,
+                            ),
                           ),
                         ),
-                      );
-
-                      if (returnedCart != null &&
-                          returnedCart is List<Map<String, dynamic>>) {
-                        setState(() {
-                          _cart = returnedCart.map((mapItem) {
-                            return CartItem(
-                              product: mapItem['product_obj'] as Product,
-                              qty: (mapItem['request_qty'] as num).toDouble(),
-                              isGrosir: mapItem['is_grosir'] ?? false,
-                              sellPrice: mapItem['sell_price'] as int,
-                              agreedPriceTotal: mapItem['agreed_total'] as int,
-                              capitalPrice: mapItem['capital_price'] as int,
-                              unitName: mapItem['unit_type'] as String,
-                              stockDeduction: mapItem['quantity'] as int,
-                            );
-                          }).toList();
-                        });
-                        _saveCart();
-                      } else {
-                        // 🔥 PAKSA SINKRONISASI JIKA TRANSAKSI SUKSES ATAU KELUAR 🔥
-                        _syncCart();
-                        _loadProducts();
-                      }
-                    },
-                    icon: const Icon(
-                      Icons.shopping_cart_checkout,
-                      color: AppColors.accentGold,
-                    ),
-                    label: Text(
-                      "BAYAR (${_cart.length})",
-                      style: const TextStyle(
-                        color: AppColors.accentGold,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
+                      ],
                     ),
                   ),
-                ],
+                ),
               ),
             ),
     );

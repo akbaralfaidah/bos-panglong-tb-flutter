@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'dart:io';
-import 'package:shared_preferences/shared_preferences.dart'; // 🔥 IMPORT WAJIB
+import 'dart:ui'; // 🔥 IMPORT WAJIB UNTUK GLASSMORPHISM
+import 'package:shared_preferences/shared_preferences.dart'; 
 import '../data/datasources/firebase/core_firebase_datasource.dart';
 import '../controllers/dashboard_controller.dart';
 import '../helpers/session_manager.dart';
@@ -51,7 +52,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   @override
   void initState() {
     super.initState();
-    _checkSessionTimeout(); // 🔥 CEK WAKTU LOGIN PAS DASHBOARD DIBUKA
+    _checkSessionTimeout(); 
     WidgetsBinding.instance.addObserver(this);
     initializeDateFormatting('id_ID', null).then((_) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -65,7 +66,6 @@ class _DashboardScreenState extends State<DashboardScreen>
     });
   }
 
-  // SESSION TIMEOUT 10 MENIT
   Future<void> _checkSessionTimeout() async {
     final prefs = await SharedPreferences.getInstance();
     
@@ -76,13 +76,11 @@ class _DashboardScreenState extends State<DashboardScreen>
         DateTime loginDate = DateTime.fromMillisecondsSinceEpoch(loginTime);
         DateTime now = DateTime.now();
         
-        // Cek kalau udah lebih dari 10 menit
         if (now.difference(loginDate).inMinutes >= 10) {
           await SessionManager().logout(); 
           await prefs.remove('boss_session_timestamp'); 
           
           if (mounted) {
-            // Langsung redirect tanpa notif error
             Navigator.pushReplacement(
               context, 
               MaterialPageRoute(builder: (context) => const LoginScreen())
@@ -102,7 +100,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      _checkSessionTimeout(); // 🔥 CEK JUGA PAS APLIKASI DI-RESUME (DIBUKA LAGI)
+      _checkSessionTimeout(); 
       Future.delayed(const Duration(milliseconds: 500), () {
         if (mounted) _refreshStats();
       });
@@ -113,19 +111,19 @@ class _DashboardScreenState extends State<DashboardScreen>
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.pureWhite,
+        backgroundColor: AppColors.surfaceGrey,
         title: const Text(
           "Keluar Aplikasi?",
           style: TextStyle(
             fontWeight: FontWeight.bold,
-            color: AppColors.primaryNavy,
+            color: AppColors.pureWhite,
           ),
         ),
         content: const Text(
           "Anda akan kembali ke halaman login.",
-          style: TextStyle(color: AppColors.textDark),
+          style: TextStyle(color: AppColors.textGrey),
         ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15), side: const BorderSide(color: Colors.white12)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -190,27 +188,50 @@ class _DashboardScreenState extends State<DashboardScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.backgroundWhite,
-
+      extendBodyBehindAppBar: true, 
       appBar: AppBar(
-        toolbarHeight: 70,
-        backgroundColor: AppColors.backgroundWhite,
+        toolbarHeight: 80,
+        backgroundColor: Colors.transparent, // Glassmorphism Appbar
+        flexibleSpace: ClipRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              color: AppColors.backgroundWhite.withOpacity(0.5),
+            ),
+          ),
+        ),
         elevation: 0,
         title: Row(
           children: [
             if (_logoPath != null && File(_logoPath!).existsSync())
-              CircleAvatar(
-                backgroundImage: FileImage(File(_logoPath!)),
-                radius: 20,
-                backgroundColor: Colors.transparent,
+              Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: AppColors.accentGold.withOpacity(0.5), width: 2),
+                ),
+                child: CircleAvatar(
+                  backgroundImage: FileImage(File(_logoPath!)),
+                  radius: 20,
+                  backgroundColor: Colors.transparent,
+                ),
               )
             else
-              const CircleAvatar(
-                backgroundColor: AppColors.menuTealBg,
-                radius: 20,
-                child: Icon(
-                  Icons.store,
-                  color: AppColors.menuTealIcon,
-                  size: 20,
+              Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: AppColors.accentGold.withOpacity(0.5), width: 2),
+                  boxShadow: [
+                    BoxShadow(color: AppColors.accentGold.withOpacity(0.2), blurRadius: 10)
+                  ]
+                ),
+                child: const CircleAvatar(
+                  backgroundColor: AppColors.surfaceGrey,
+                  radius: 20,
+                  child: Icon(
+                    Icons.store,
+                    color: AppColors.accentGold,
+                    size: 20,
+                  ),
                 ),
               ),
             const SizedBox(width: 12),
@@ -223,15 +244,16 @@ class _DashboardScreenState extends State<DashboardScreen>
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 18,
-                      color: AppColors.primaryNavy,
+                      color: AppColors.pureWhite,
                     ),
                   ),
                   Text(
                     _storeName.toUpperCase(),
                     style: const TextStyle(
                       fontSize: 11,
-                      color: AppColors.textGrey,
+                      color: AppColors.accentGold,
                       fontWeight: FontWeight.w600,
+                      letterSpacing: 1.5,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -242,14 +264,14 @@ class _DashboardScreenState extends State<DashboardScreen>
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh, color: AppColors.primaryNavy),
+            icon: const Icon(Icons.refresh, color: AppColors.pureWhite),
             onPressed: _refreshStats,
           ),
           if (_isOwner)
             IconButton(
               icon: const Icon(
                 Icons.settings_outlined,
-                color: AppColors.primaryNavy,
+                color: AppColors.pureWhite,
               ),
               onPressed: () => _nav(const SettingsScreen()),
             ),
@@ -259,370 +281,422 @@ class _DashboardScreenState extends State<DashboardScreen>
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (_isOwner)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 25),
-                child: InkWell(
-                  onTap: () => _nav(const ProfitHistoryScreen()),
-                  borderRadius: BorderRadius.circular(20),
-                  child: Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [
-                          AppColors.cardNavyStart,
-                          AppColors.cardNavyEnd,
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
+      body: Stack(
+        children: [
+          // Background Gradient Orbs for super premium feel
+          Positioned(
+            top: -100,
+            right: -50,
+            child: Container(
+              width: 300,
+              height: 300,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppColors.accentGold.withOpacity(0.15),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 200,
+            left: -100,
+            child: Container(
+              width: 250,
+              height: 250,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppColors.menuTealIcon.withOpacity(0.1),
+              ),
+            ),
+          ),
+          // Blur everything behind
+          Positioned.fill(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 50, sigmaY: 50),
+              child: Container(color: Colors.transparent),
+            ),
+          ),
+          // Main Content
+          SafeArea(
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (_isOwner)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 20, 20, 25),
+                      child: InkWell(
+                        onTap: () => _nav(const ProfitHistoryScreen()),
+                        borderRadius: BorderRadius.circular(25),
+                        child: Container(
+                          padding: const EdgeInsets.all(25),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [
+                                AppColors.surfaceGrey,
+                                AppColors.primaryNavy,
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(25),
+                            border: Border.all(color: Colors.white12, width: 1.5),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.5),
+                                blurRadius: 20,
+                                offset: const Offset(0, 10),
+                              ),
+                              BoxShadow(
+                                color: AppColors.accentGold.withOpacity(0.1),
+                                blurRadius: 20,
+                                offset: const Offset(0, -5),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text(
+                                    "PROFIT BERSIH (HARI INI)",
+                                    style: TextStyle(
+                                      color: AppColors.textGrey,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                      letterSpacing: 1.2,
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 5,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.accentGold.withOpacity(0.2),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(color: AppColors.accentGold.withOpacity(0.5)),
+                                    ),
+                                    child: const Text(
+                                      "UTAMA",
+                                      style: TextStyle(
+                                        color: AppColors.accentGold,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: 1,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 15),
+                              FittedBox(
+                                child: Text(
+                                  _formatRp(_profitBersih),
+                                  style: TextStyle(
+                                    fontSize: 42,
+                                    fontWeight: FontWeight.w900,
+                                    color: _profitBersih >= 0
+                                        ? AppColors.pureWhite
+                                        : AppColors.statusRed,
+                                    letterSpacing: 1.5,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+                              const Row(
+                                children: [
+                                  Icon(
+                                    Icons.insights,
+                                    color: AppColors.accentGold,
+                                    size: 18,
+                                  ),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    "Ketuk untuk lihat rincian analitik",
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: AppColors.textGrey,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
-                      borderRadius: BorderRadius.circular(20),
+                    )
+                  else
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 20, 20, 25),
+                      child: Container(
+                        padding: const EdgeInsets.all(25),
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceGrey.withOpacity(0.4),
+                          borderRadius: BorderRadius.circular(25),
+                          border: Border.all(
+                            color: AppColors.menuTealIcon.withOpacity(0.3),
+                            width: 1.5,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.3),
+                              blurRadius: 15,
+                              offset: const Offset(0, 5),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  "STATUS SHIFT AKTIF",
+                                  style: TextStyle(
+                                    color: AppColors.menuTealIcon,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                    letterSpacing: 1,
+                                  ),
+                                ),
+                                Icon(
+                                  Icons.verified_user,
+                                  color: AppColors.menuTealIcon,
+                                  size: 18,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 15),
+                            Text(
+                              "Selamat bertugas, $_firstName!",
+                              style: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w900,
+                                color: AppColors.pureWhite,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            const Text(
+                              "Pastikan melayani pelanggan dengan ramah dan mencatat transaksi dengan jujur & teliti.",
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: AppColors.textGrey,
+                                height: 1.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryNavy.withOpacity(0.7),
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(40)),
+                      border: const Border(top: BorderSide(color: Colors.white12, width: 1.5)),
                       boxShadow: [
                         BoxShadow(
-                          color: AppColors.primaryNavy.withOpacity(0.4),
-                          blurRadius: 15,
-                          offset: const Offset(0, 8),
+                          color: Colors.black.withOpacity(0.5),
+                          blurRadius: 30,
+                          offset: const Offset(0, -10),
                         ),
                       ],
                     ),
+                    padding: const EdgeInsets.fromLTRB(20, 35, 20, 50),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text(
-                              "PROFIT BERSIH (HARI INI)",
-                              style: TextStyle(
-                                color: Colors.white70,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 12,
-                              ),
+                        if (_isOwner) ...[
+                          const Text(
+                            "Ringkasan Bisnis",
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 18,
+                              color: AppColors.pureWhite,
+                              letterSpacing: 0.5,
                             ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: const Text(
-                                "UTAMA",
-                                style: TextStyle(
-                                  color: AppColors.accentGold,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
+                          ),
+                          const SizedBox(height: 20),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _statCardClean(
+                                  "Piutang Total",
+                                  _totalPiutang,
+                                  AppColors.menuIndigoBg,
+                                  AppColors.menuIndigoIcon,
+                                  Icons.menu_book,
+                                  () => _nav(const DebtHistoryScreen()),
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        FittedBox(
-                          child: Text(
-                            _formatRp(_profitBersih),
-                            style: TextStyle(
-                              fontSize: 36,
-                              fontWeight: FontWeight.w900,
-                              color: _profitBersih >= 0
-                                  ? AppColors.pureWhite
-                                  : AppColors.statusRed,
-                              letterSpacing: 1,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 15),
-                        const Row(
-                          children: [
-                            Icon(
-                              Icons.remove_red_eye,
-                              color: AppColors.accentGold,
-                              size: 16,
-                            ),
-                            SizedBox(width: 5),
-                            Text(
-                              "Ketuk untuk lihat rincian",
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: Colors.white70,
+                              const SizedBox(width: 15),
+                              Expanded(
+                                child: _statCardClean(
+                                  "Omset Harian",
+                                  _omsetKotor,
+                                  AppColors.menuBlueBg,
+                                  AppColors.menuBlueIcon,
+                                  Icons.storefront,
+                                  () => _nav(const TransactionHistoryScreen()),
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              )
-            else
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 25),
-                child: Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFFE0F2F1), Color(0xFFB2DFDB)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: const Color(0xFF00695C).withOpacity(0.3),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 10,
-                        offset: const Offset(0, 5),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            "STATUS SHIFT AKTIF",
-                            style: TextStyle(
-                              color: Color(0xFF00695C),
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
-                            ),
+                            ],
                           ),
-                          Icon(
-                            Icons.verified_user,
-                            color: Color(0xFF00695C),
-                            size: 18,
+                          const SizedBox(height: 15),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _statCardClean(
+                                  "Operasional",
+                                  _uangOperasional,
+                                  AppColors.menuAmberBg,
+                                  AppColors.menuAmberIcon,
+                                  Icons.account_balance_wallet,
+                                  () => _nav(const OperationalManagementScreen()),
+                                ),
+                              ),
+                              const SizedBox(width: 15),
+                              Expanded(
+                                child: _statCardClean(
+                                  "Stok Masuk",
+                                  _totalBeliStok,
+                                  AppColors.menuTealBg,
+                                  AppColors.menuTealIcon,
+                                  Icons.shopping_cart,
+                                  () => _nav(const StockHistoryScreen()),
+                                ),
+                              ),
+                            ],
                           ),
+                          const SizedBox(height: 35),
                         ],
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        "Selamat bertugas, $_firstName!",
-                        style: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w900,
-                          color: AppColors.primaryNavy,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        "Pastikan melayani pelanggan dengan ramah dan mencatat transaksi dengan jujur & teliti.",
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textDark,
-                          height: 1.4,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            Container(
-              decoration: const BoxDecoration(
-                color: AppColors.pureWhite,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(35)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black12,
-                    blurRadius: 20,
-                    offset: Offset(0, -5),
-                  ),
-                ],
-              ),
-              padding: const EdgeInsets.fromLTRB(20, 35, 20, 50),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (_isOwner) ...[
-                    const Text(
-                      "Ringkasan Bisnis",
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                        color: AppColors.textDark,
-                      ),
-                    ),
-                    const SizedBox(height: 15),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _statCardClean(
-                            "Piutang Total",
-                            _totalPiutang,
-                            AppColors.menuIndigoBg,
-                            AppColors.menuIndigoIcon,
-                            Icons.menu_book,
-                            () => _nav(const DebtHistoryScreen()),
+                        const Text(
+                          "Menu Utama",
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 18,
+                            color: AppColors.pureWhite,
+                            letterSpacing: 0.5,
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _statCardClean(
-                            "Omset Harian",
-                            _omsetKotor,
-                            AppColors.menuBlueBg,
-                            AppColors.menuBlueIcon,
-                            Icons.storefront,
-                            () => _nav(const TransactionHistoryScreen()),
-                          ),
+                        const SizedBox(height: 20),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _wondrMenuBtnWide(
+                                "Kasir",
+                                Icons.point_of_sale,
+                                AppColors.menuTealBg,
+                                AppColors.menuTealIcon,
+                                () => _nav(const CashierScreen()),
+                              ),
+                            ),
+                            const SizedBox(width: 15),
+                            Expanded(
+                              child: _wondrMenuBtnWide(
+                                "Gudang",
+                                Icons.inventory_2,
+                                AppColors.menuAmberBg,
+                                AppColors.menuAmberIcon,
+                                () => _nav(const ProductListScreen()),
+                              ),
+                            ),
+                          ],
                         ),
+                        const SizedBox(height: 20),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: _wondrMenuBtn(
+                                "Laporan",
+                                Icons.analytics,
+                                AppColors.menuBlueBg,
+                                AppColors.menuBlueIcon,
+                                () {
+                                  if (_isOwner)
+                                    _nav(const ReportScreen());
+                                  else
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          "Akses Ditolak: Hanya Bos yang bisa buka!",
+                                        ),
+                                        backgroundColor: AppColors.statusRed,
+                                      ),
+                                    );
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _wondrMenuBtn(
+                                "Riwayat",
+                                Icons.history,
+                                AppColors.menuIndigoBg,
+                                AppColors.menuIndigoIcon,
+                                () => _nav(
+                                  _isOwner
+                                      ? const CashFlowScreen()
+                                      : const TransactionHistoryScreen(),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _wondrMenuBtn(
+                                "Pelanggan",
+                                Icons.people_alt,
+                                AppColors.menuTealBg, // changed to fit dark theme
+                                AppColors.menuTealIcon,
+                                () {
+                                  if (_isOwner)
+                                    _nav(const CustomerScreen());
+                                  else
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text("Akses Ditolak"),
+                                        backgroundColor: AppColors.statusRed,
+                                      ),
+                                    );
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _wondrMenuBtn(
+                                "Modal",
+                                Icons.savings,
+                                AppColors.menuAmberBg, // changed to fit dark theme
+                                AppColors.menuAmberIcon,
+                                () {
+                                  if (_isOwner)
+                                    _nav(const CapitalManagementScreen());
+                                  else
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text("Akses Ditolak"),
+                                        backgroundColor: AppColors.statusRed,
+                                      ),
+                                    );
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 100),
                       ],
                     ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _statCardClean(
-                            "Operasional Harian",
-                            _uangOperasional,
-                            AppColors.menuAmberBg,
-                            AppColors.menuAmberIcon,
-                            Icons.account_balance_wallet,
-                            () => _nav(const OperationalManagementScreen()),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _statCardClean(
-                            "Stok Masuk Harian",
-                            _totalBeliStok,
-                            AppColors.menuTealBg,
-                            AppColors.menuTealIcon,
-                            Icons.shopping_cart,
-                            () => _nav(const StockHistoryScreen()),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 30),
-                  ],
-                  const Text(
-                    "Menu Utama",
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                      color: AppColors.textDark,
-                    ),
                   ),
-                  const SizedBox(height: 15),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _wondrMenuBtnWide(
-                          "Kasir",
-                          Icons.point_of_sale,
-                          AppColors.menuTealBg,
-                          AppColors.menuTealIcon,
-                          () => _nav(const CashierScreen()),
-                        ),
-                      ),
-                      const SizedBox(width: 15),
-                      Expanded(
-                        child: _wondrMenuBtnWide(
-                          "Gudang",
-                          Icons.inventory_2,
-                          AppColors.menuAmberBg,
-                          AppColors.menuAmberIcon,
-                          () => _nav(const ProductListScreen()),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: _wondrMenuBtn(
-                          "Laporan",
-                          Icons.analytics,
-                          AppColors.menuBlueBg,
-                          AppColors.menuBlueIcon,
-                          () {
-                            if (_isOwner)
-                              _nav(const ReportScreen());
-                            else
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    "Akses Ditolak: Hanya Bos yang bisa buka!",
-                                  ),
-                                  backgroundColor: AppColors.statusRed,
-                                ),
-                              );
-                          },
-                        ),
-                      ),
-                      Expanded(
-                        child: _wondrMenuBtn(
-                          "Riwayat",
-                          Icons.history,
-                          AppColors.menuIndigoBg,
-                          AppColors.menuIndigoIcon,
-                          () => _nav(
-                            _isOwner
-                                ? const CashFlowScreen()
-                                : const TransactionHistoryScreen(),
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        child: _wondrMenuBtn(
-                          "Pelanggan",
-                          Icons.people_alt,
-                          Colors.green.shade50,
-                          Colors.green,
-                          () {
-                            if (_isOwner)
-                              _nav(const CustomerScreen());
-                            else
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text("Akses Ditolak"),
-                                  backgroundColor: AppColors.statusRed,
-                                ),
-                              );
-                          },
-                        ),
-                      ),
-                      Expanded(
-                        child: _wondrMenuBtn(
-                          "Modal",
-                          Icons.savings,
-                          Colors.orange.shade50,
-                          Colors.orange.shade800,
-                          () {
-                            if (_isOwner)
-                              _nav(const CapitalManagementScreen());
-                            else
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text("Akses Ditolak"),
-                                  backgroundColor: AppColors.statusRed,
-                                ),
-                              );
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 100),
                 ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -638,55 +712,65 @@ class _DashboardScreenState extends State<DashboardScreen>
   ) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(15),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: AppColors.pureWhite,
-          borderRadius: BorderRadius.circular(15),
-          border: Border.all(color: Colors.grey.shade200),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: bgIcon,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, size: 18, color: colorIcon),
+      borderRadius: BorderRadius.circular(20),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            padding: const EdgeInsets.all(15),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceGrey.withOpacity(0.5),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.white12, width: 1.5),
             ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 10,
-                      color: AppColors.textGrey,
-                      fontWeight: FontWeight.w600,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: bgIcon,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(color: colorIcon.withOpacity(0.3), blurRadius: 8)
+                        ]
+                      ),
+                      child: Icon(icon, size: 16, color: colorIcon),
                     ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 2),
-                  FittedBox(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      _formatRp(value),
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textDark,
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: AppColors.textGrey,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.5,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                FittedBox(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    _formatRp(value),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      color: AppColors.pureWhite,
+                      letterSpacing: 0.5,
+                    ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -701,25 +785,45 @@ class _DashboardScreenState extends State<DashboardScreen>
   ) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(15),
+      borderRadius: BorderRadius.circular(20),
       child: Column(
         children: [
-          Container(
-            height: 65,
-            width: 65,
-            decoration: BoxDecoration(
-              color: bgColor,
-              borderRadius: BorderRadius.circular(18),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+              child: Container(
+                height: 65,
+                width: 65,
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceGrey.withOpacity(0.5),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.white12, width: 1),
+                ),
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: bgColor,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(color: iconColor.withOpacity(0.3), blurRadius: 10)
+                      ]
+                    ),
+                    child: Icon(icon, color: iconColor, size: 26),
+                  ),
+                ),
+              ),
             ),
-            child: Icon(icon, color: iconColor, size: 30),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           Text(
             label,
             style: const TextStyle(
-              fontSize: 12,
+              fontSize: 11,
               fontWeight: FontWeight.w600,
-              color: AppColors.textDark,
+              color: AppColors.textGrey,
+              letterSpacing: 0.5,
             ),
             textAlign: TextAlign.center,
           ),
@@ -737,28 +841,46 @@ class _DashboardScreenState extends State<DashboardScreen>
   ) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
-      child: Container(
-        height: 65,
-        width: double.infinity,
-        decoration: BoxDecoration(
-          color: bgColor,
-          borderRadius: BorderRadius.circular(18),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: iconColor, size: 28),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w900,
-                color: iconColor,
-              ),
+      borderRadius: BorderRadius.circular(20),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+          child: Container(
+            height: 70,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: AppColors.surfaceGrey.withOpacity(0.5),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.white12, width: 1),
             ),
-          ],
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: bgColor,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(color: iconColor.withOpacity(0.3), blurRadius: 10)
+                    ]
+                  ),
+                  child: Icon(icon, color: iconColor, size: 22),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.pureWhite,
+                    letterSpacing: 1,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
