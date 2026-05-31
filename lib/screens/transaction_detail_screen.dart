@@ -16,6 +16,7 @@ import '../helpers/printer_helper.dart';
 import '../controllers/transaction_detail_controller.dart';
 import '../theme/app_colors.dart';
 import '../helpers/session_manager.dart';
+import 'edit_transaction_screen.dart';
 
 class TransactionDetailScreen extends StatefulWidget {
   final Map<String, dynamic> transaction;
@@ -2145,6 +2146,44 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
 
                         if (!widget.isNewTransaction &&
                             SessionManager().isOwner) ...[
+                          const SizedBox(height: 15),
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              icon: const Icon(Icons.edit, color: AppColors.menuAmberIcon, size: 20),
+                              label: const Text(
+                                "EDIT TRANSAKSI",
+                                style: TextStyle(
+                                  color: AppColors.menuAmberIcon,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(
+                                  color: AppColors.menuAmberIcon,
+                                  width: 2,
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 15,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                backgroundColor: AppColors.menuAmberBg,
+                              ),
+                              onPressed: () async {
+                                final res = await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => EditTransactionScreen(transactionData: widget.transaction),
+                                  ),
+                                );
+                                if (res == true) {
+                                  _fetchData();
+                                }
+                              },
+                            ),
+                          ),
                           const SizedBox(height: 15),
                           SizedBox(
                             width: double.infinity,

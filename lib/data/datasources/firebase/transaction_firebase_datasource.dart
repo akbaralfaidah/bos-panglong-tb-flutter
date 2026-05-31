@@ -112,4 +112,68 @@ class TransactionFirebaseDataSource {
     batch.delete(_col('transactions').doc(transId.toString()));
     await batch.commit();
   }
+
+  // 🔥 EDIT TRANSAKSI: REVERSE LAMA, APPLY BARU 🔥
+  Future<void> updateTransaction(
+    int transId, 
+    List<Map<String, dynamic>> oldItems, 
+    List<Map<String, dynamic>> newItems,
+    Map<String, dynamic> updatedTransData,
+  ) async {
+    WriteBatch batch = _db.batch();
+
+    bool wasLunas = false;
+    final tDocs = await _safeQuery(_col('transactions').where('id', isEqualTo: transId));
+    if (tDocs.isNotEmpty) {
+       var tData = tDocs.first.data() as Map<String, dynamic>;
+       wasLunas = (tData['payment_status'] ?? '').toString().toLowerCase() == 'lunas';
+    }
+
+    bool isNowLunas = (updatedTransData['payment_status'] ?? '').toString().toLowerCase() == 'lunas';
+
+    // 1. REVERSE OLD ITEMS (Kembalikan stok & tarik modal)
+    for (var item in oldItems) {
+      if (item['product_id'] != null && item['quantity'] != null) {
+        double qtyToRestore = (item['quantity'] as num).toDouble();
+        double cap = (item['capital_price'] as num?)?.toDouble() ?? 0;
+        DocumentReference prodRef = _col('products').doc(item['product_id'].toString());
+        
+        if (wasLunas) {
+          batch.set(prodRef, {
+            'stock': FieldValue.increment(qtyToRestore),
+            'modal_cair': FieldValue.increment(-(cap * qtyToRestore)) 
+          }, SetOptions(merge: true));
+        } else {
+          batch.set(prodRef, {
+            'stock': FieldValue.increment(qtyToRestore)
+          }, SetOptions(merge: true));
+        }
+      }
+    }
+
+    // 2. APPLY NEW ITEMS (Potong stok & tambah modal)
+    for (var item in newItems) {
+      if (item['product_id'] != null && item['quantity'] != null) {
+        double qtyToDeduct = (item['quantity'] as num).toDouble();
+        double cap = (item['capital_price'] as num?)?.toDouble() ?? 0;
+        DocumentReference prodRef = _col('products').doc(item['product_id'].toString());
+        
+        if (isNowLunas) {
+          batch.set(prodRef, {
+            'stock': FieldValue.increment(-qtyToDeduct),
+            'modal_cair': FieldValue.increment(cap * qtyToDeduct) 
+          }, SetOptions(merge: true));
+        } else {
+          batch.set(prodRef, {
+            'stock': FieldValue.increment(-qtyToDeduct)
+          }, SetOptions(merge: true));
+        }
+      }
+    }
+
+    // 3. UPDATE TRANSACTION DOC
+    batch.update(_col('transactions').doc(transId.toString()), updatedTransData);
+
+    await batch.commit();
+  }
 }
