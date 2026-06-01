@@ -90,7 +90,24 @@ class ReportFirebaseDataSource {
             modalTerjual += capitalTotal;
           }
         } else {
-          // Filtered — hitung dari item yang cocok saja
+          // Filtered — hitung dari item yang cocok saja, dengan distribusi diskon global
+          double tp = (t['total_price'] as num?)?.toDouble() ?? 0;
+          double ongkir = (t['operational_cost'] as num?)?.toDouble() ?? 0;
+          double realOmsetAll = tp - ongkir;
+
+          double totalAgreedAll = 0;
+          for (var i in items) {
+             double qty = (i['quantity'] as num?)?.toDouble() ?? 0;
+             double reqQty = (i['request_qty'] as num?)?.toDouble() ?? 0;
+             double displayQty = reqQty > 0 ? reqQty : (qty > 0 ? qty : 1);
+             double agreedTotal = i.containsKey('agreed_total') 
+                  ? (i['agreed_total'] as num).toDouble() 
+                  : (((i['sell_price'] as num?)?.toDouble() ?? 0) * displayQty);
+             totalAgreedAll += agreedTotal;
+          }
+
+          double ratio = totalAgreedAll > 0 ? (realOmsetAll / totalAgreedAll) : 1.0;
+
           for (var i in items) {
             String pType = i['product_type'] ?? '';
             bool matchFilter = false;
@@ -112,7 +129,7 @@ class ReportFirebaseDataSource {
                   ? (i['capital_total'] as num).toDouble() 
                   : (((i['capital_price'] as num?)?.toDouble() ?? 0) * displayQty);
               
-              omsetBarangMurni += agreedTotal;
+              omsetBarangMurni += (agreedTotal * ratio);
               modalTerjual += capitalTotal;
             }
           }
