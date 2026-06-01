@@ -154,9 +154,11 @@ class ReportFirebaseDataSource {
   }
 
   // 🔥 UPDATE 1: Aset Gudang dipisah 🔥
-  Future<double> getAssetValue() async {
+  Future<Map<String, double>> getAssetValue() async {
     final pDocs = await _safeQuery(_col('products'));
-    double assetValue = 0;
+    double totalAsset = 0;
+    double kayuAsset = 0;
+    double bangunanAsset = 0;
     for (var doc in pDocs) {
       var p = doc.data() as Map<String, dynamic>;
       int stock = (p['stock'] as num?)?.toInt() ?? 0;
@@ -166,9 +168,22 @@ class ReportFirebaseDataSource {
       } else if (p['buy_price_cubic'] != null && p['buy_price_cubic'] > 0) {
         modal = (p['buy_price_cubic'] as num).toInt();
       }
-      if (stock > 0) assetValue += (stock * modal);
+      if (stock > 0) {
+        double value = (stock * modal).toDouble();
+        totalAsset += value;
+        String pType = p['type'] ?? '';
+        if (['KAYU', 'RENG', 'BULAT'].contains(pType)) {
+          kayuAsset += value;
+        } else if (pType == 'BANGUNAN') {
+          bangunanAsset += value;
+        }
+      }
     }
-    return assetValue;
+    return {
+      'total': totalAsset,
+      'kayu': kayuAsset,
+      'bangunan': bangunanAsset,
+    };
   }
 
   // 🔥 UPDATE 2: Mesin Grafik (6 Hari / 6 Bulan / 6 Tahun) 🔥

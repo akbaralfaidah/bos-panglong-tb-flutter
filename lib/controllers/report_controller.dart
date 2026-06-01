@@ -21,7 +21,7 @@ class ReportController {
   }
 
   // 🔥 FUNGSI ASET GUDANG 🔥
-  Future<double> getAssetValue() async {
+  Future<Map<String, double>> getAssetValue() async {
     return await _reportDS.getAssetValue();
   }
 

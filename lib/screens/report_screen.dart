@@ -22,7 +22,7 @@ class _ReportScreenState extends State<ReportScreen>
   bool _isLoading = false;
 
   // State Tab 1 (Dashboard)
-  double _assetValue = 0;
+  Map<String, double> _assetValue = {'total': 0, 'kayu': 0, 'bangunan': 0};
   List<Map<String, dynamic>> _topProducts = [];
   Map<String, double> _chartOmset = {};
   Map<String, double> _chartProfit = {};
@@ -695,7 +695,7 @@ class _ReportScreenState extends State<ReportScreen>
                     ),
                     SizedBox(width: 10),
                     Text(
-                      "Total Nilai Aset di Gudang",
+                      "Total Nilai Aset Keseluruhan",
                       style: TextStyle(
                         color: Colors.white70,
                         fontWeight: FontWeight.bold,
@@ -703,16 +703,27 @@ class _ReportScreenState extends State<ReportScreen>
                     ),
                   ],
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 5),
                 Text(
-                  _formatRp(_assetValue),
+                  _formatRp(_assetValue['total'] ?? 0),
                   style: const TextStyle(
                     color: AppColors.pureWhite,
                     fontSize: 30,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
-                const SizedBox(height: 5),
+                const SizedBox(height: 15),
+                
+                const Text("Nilai Aset Kayu", style: TextStyle(color: Colors.white70, fontSize: 13)),
+                const SizedBox(height: 2),
+                Text(_formatRp(_assetValue['kayu'] ?? 0), style: const TextStyle(color: AppColors.pureWhite, fontWeight: FontWeight.bold, fontSize: 18)),
+                const SizedBox(height: 10),
+                
+                const Text("Nilai Aset Bangunan", style: TextStyle(color: Colors.white70, fontSize: 13)),
+                const SizedBox(height: 2),
+                Text(_formatRp(_assetValue['bangunan'] ?? 0), style: const TextStyle(color: AppColors.pureWhite, fontWeight: FontWeight.bold, fontSize: 18)),
+                
+                const SizedBox(height: 15),
                 const Text(
                   "Berdasarkan jumlah stok fisik dikali harga modal.",
                   style: TextStyle(color: Colors.white54, fontSize: 11),
