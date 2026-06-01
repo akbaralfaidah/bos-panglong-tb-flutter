@@ -16,8 +16,8 @@ class ReportController {
     return await _reportDS.getCompleteReportData(startDate: startDate, endDate: endDate);
   }
 
-  Future<Map<String, double>> calculateFinancialStats(String startDate, String endDate) async {
-    return await _reportDS.getFinancialStatsData(startDate, endDate);
+  Future<Map<String, double>> calculateFinancialStats(String startDate, String endDate, {String businessFilter = 'SEMUA'}) async {
+    return await _reportDS.getFinancialStatsData(startDate, endDate, businessFilter: businessFilter);
   }
 
   // 🔥 FUNGSI ASET GUDANG 🔥

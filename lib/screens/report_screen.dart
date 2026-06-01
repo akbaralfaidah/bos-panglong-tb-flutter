@@ -40,6 +40,7 @@ class _ReportScreenState extends State<ReportScreen>
   double _totalBensin = 0;
   double _totalProfit = 0;
   List<Map<String, dynamic>> _exportData = [];
+  String _rekapBusinessFilter = 'SEMUA';
 
   final List<String> _dateFilters = [
     'Hari Ini',
@@ -130,7 +131,7 @@ class _ReportScreenState extends State<ReportScreen>
         ? '2100-12-31'
         : DateFormat('yyyy-MM-dd').format(_selectedDateRange!.end);
 
-    final stats = await _controller.calculateFinancialStats(start, end);
+    final stats = await _controller.calculateFinancialStats(start, end, businessFilter: _rekapBusinessFilter);
     final reportItems = await _controller.getCompleteReport(start, end);
 
     if (mounted) {
@@ -228,13 +229,13 @@ class _ReportScreenState extends State<ReportScreen>
   ).format(number);
 
   Color _getPieColor(int index) {
-    List<Color> colors = [
-      Colors.blue,
-      Colors.green,
-      Colors.amber,
-      Colors.purple,
-      Colors.red,
-      Colors.teal,
+    const List<Color> colors = [
+      Color(0xFF4E79A7),
+      Color(0xFF59A14F),
+      Color(0xFFF28E2B),
+      Color(0xFFB07AA1),
+      Color(0xFFE15759),
+      Color(0xFF76B7B2),
     ];
     return colors[index % colors.length];
   }
@@ -254,6 +255,10 @@ class _ReportScreenState extends State<ReportScreen>
     double maxYChart = maxRaw <= 0 ? 10 : (maxRaw / 1000000) * 1.4;
     double minYChart = minRaw >= 0 ? 0 : (minRaw / 1000000) * 1.2;
 
+    final gradientColors = barColor == AppColors.primaryNavy
+        ? [AppColors.secondaryNavy, AppColors.primaryNavy]
+        : [const Color(0xFF43A047), const Color(0xFF1B5E20)];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -265,53 +270,55 @@ class _ReportScreenState extends State<ReportScreen>
                 title,
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
-                  fontSize: 15,
+                  fontSize: 16,
                   color: AppColors.textDark,
                 ),
               ),
             ),
-            DropdownButton<String>(
-              value: _chartPeriod,
-              style: const TextStyle(
-                fontSize: 12,
-                color: AppColors.primaryNavy,
-                fontWeight: FontWeight.bold,
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppColors.primaryNavy.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(20),
               ),
-              underline: const SizedBox(),
-              items: const [
-                DropdownMenuItem(
-                  value: '6_DAYS',
-                  child: Text("6 Hari Terakhir"),
+              child: DropdownButton<String>(
+                value: _chartPeriod,
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: AppColors.primaryNavy,
+                  fontWeight: FontWeight.bold,
                 ),
-                DropdownMenuItem(
-                  value: '6_MONTHS',
-                  child: Text("6 Bulan Terakhir"),
-                ),
-                DropdownMenuItem(
-                  value: '6_YEARS',
-                  child: Text("6 Tahun Terakhir"),
-                ),
-              ],
-              onChanged: (v) {
-                if (v != null) {
-                  setState(() => _chartPeriod = v);
-                  _loadChartData();
-                }
-              },
+                underline: const SizedBox(),
+                icon: const Icon(Icons.keyboard_arrow_down, size: 16, color: AppColors.primaryNavy),
+                isDense: true,
+                items: const [
+                  DropdownMenuItem(value: '6_DAYS', child: Text("6 Hari Terakhir")),
+                  DropdownMenuItem(value: '6_MONTHS', child: Text("6 Bulan Terakhir")),
+                  DropdownMenuItem(value: '6_YEARS', child: Text("6 Tahun Terakhir")),
+                ],
+                onChanged: (v) {
+                  if (v != null) {
+                    setState(() => _chartPeriod = v);
+                    _loadChartData();
+                  }
+                },
+              ),
             ),
           ],
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 12),
         Container(
-          height: 250,
-          padding: const EdgeInsets.all(15),
+          height: 265,
+          padding: const EdgeInsets.fromLTRB(10, 20, 15, 10),
           decoration: BoxDecoration(
             color: AppColors.pureWhite,
-            borderRadius: BorderRadius.circular(15),
-            border: Border.all(color: Colors.grey.shade200),
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 15, offset: const Offset(0, 4)),
+            ],
           ),
           child: dataMap.isEmpty
-              ? const Center(child: Text("Belum ada data grafik"))
+              ? const Center(child: Text("Belum ada data grafik", style: TextStyle(color: AppColors.textGrey)))
               : BarChart(
                   BarChartData(
                     alignment: BarChartAlignment.spaceAround,
@@ -322,15 +329,15 @@ class _ReportScreenState extends State<ReportScreen>
                       touchTooltipData: BarTouchTooltipData(
                         getTooltipColor: (group) => Colors.transparent,
                         tooltipPadding: EdgeInsets.zero,
-                        tooltipMargin: 4,
+                        tooltipMargin: 6,
                         getTooltipItem: (group, groupIndex, rod, rodIndex) {
                           if (rod.toY == 0) return null;
                           return BarTooltipItem(
                             "${NumberFormat.currency(locale: 'id', symbol: '', decimalDigits: 1).format(rod.toY)} Jt",
-                            const TextStyle(
-                              color: AppColors.textDark,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 10,
+                            TextStyle(
+                              color: gradientColors[1],
+                              fontWeight: FontWeight.w800,
+                              fontSize: 11,
                             ),
                           );
                         },
@@ -341,6 +348,7 @@ class _ReportScreenState extends State<ReportScreen>
                       bottomTitles: AxisTitles(
                         sideTitles: SideTitles(
                           showTitles: true,
+                          reservedSize: 35,
                           getTitlesWidget: (value, meta) {
                             int index = value.toInt();
                             if (index < 0 || index >= dataMap.keys.length)
@@ -383,27 +391,43 @@ class _ReportScreenState extends State<ReportScreen>
                         sideTitles: SideTitles(showTitles: false),
                       ),
                     ),
-                    gridData: const FlGridData(show: false),
+                    gridData: FlGridData(
+                      show: true,
+                      drawVerticalLine: false,
+                      horizontalInterval: maxYChart > 0 ? maxYChart / 4 : 2.5,
+                      getDrawingHorizontalLine: (value) => FlLine(
+                        color: Colors.grey.shade200,
+                        strokeWidth: 0.8,
+                        dashArray: [5, 5],
+                      ),
+                    ),
                     borderData: FlBorderData(show: false),
-                    barGroups: dataMap.entries.toList().asMap().entries.map((
-                      e,
-                    ) {
+                    barGroups: dataMap.entries.toList().asMap().entries.map((e) {
                       return BarChartGroupData(
                         x: e.key,
-                        showingTooltipIndicators: [0],
+                        showingTooltipIndicators: e.value.value != 0 ? [0] : [],
                         barRods: [
                           BarChartRodData(
                             toY: e.value.value / 1000000,
-                            color: barColor,
-                            width: 18,
-                            borderRadius: const BorderRadius.vertical(
-                              top: Radius.circular(5),
+                            gradient: LinearGradient(
+                              colors: [gradientColors[0].withOpacity(0.7), gradientColors[1]],
+                              begin: Alignment.bottomCenter,
+                              end: Alignment.topCenter,
+                            ),
+                            width: 22,
+                            borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+                            backDrawRodData: BackgroundBarChartRodData(
+                              show: minYChart >= 0,
+                              toY: maxYChart,
+                              color: Colors.grey.shade100,
                             ),
                           ),
                         ],
                       );
                     }).toList(),
                   ),
+                  swapAnimationDuration: const Duration(milliseconds: 400),
+                  swapAnimationCurve: Curves.easeInOut,
                 ),
         ),
         const SizedBox(height: 25),
@@ -421,11 +445,13 @@ class _ReportScreenState extends State<ReportScreen>
     if (total == 0) {
       return Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
           color: AppColors.pureWhite,
-          borderRadius: BorderRadius.circular(15),
-          border: Border.all(color: Colors.grey.shade200),
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 15, offset: const Offset(0, 4)),
+          ],
         ),
         child: const Center(
           child: Text(
@@ -436,13 +462,17 @@ class _ReportScreenState extends State<ReportScreen>
       );
     }
 
+    const profitColor = Color(0xFF2ECC71);
+    const modalColor = Color(0xFFE74C3C);
+    const bensinColor = Color(0xFFF39C12);
+
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: AppColors.pureWhite,
-        borderRadius: BorderRadius.circular(15),
-        boxShadow: const [
-          BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 3)),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 15, offset: const Offset(0, 4)),
         ],
       ),
       child: Column(
@@ -450,62 +480,67 @@ class _ReportScreenState extends State<ReportScreen>
           const Text(
             "VISUALISASI ALOKASI OMSET",
             style: TextStyle(
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w800,
+              fontSize: 13,
+              letterSpacing: 1.2,
               color: AppColors.textGrey,
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
           SizedBox(
-            height: 240,
+            height: 260,
             child: Stack(
               alignment: Alignment.center,
               children: [
                 PieChart(
                   PieChartData(
-                    sectionsSpace: 4,
-                    centerSpaceRadius: 75,
+                    sectionsSpace: 3,
+                    centerSpaceRadius: 60,
+                    startDegreeOffset: -90,
                     sections: [
                       if (profit > 0)
                         PieChartSectionData(
-                          color: AppColors.statusGreen,
+                          color: profitColor,
                           value: profit,
-                          title:
-                              "${((profit / total) * 100).toStringAsFixed(1)}%",
-                          radius: 40,
+                          title: "${((profit / total) * 100).toStringAsFixed(1)}%",
+                          radius: 55,
                           titleStyle: const TextStyle(
-                            fontSize: 11,
+                            fontSize: 12,
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
                           ),
+                          titlePositionPercentageOffset: 0.55,
                         ),
                       if (modal > 0)
                         PieChartSectionData(
-                          color: AppColors.statusRed.withOpacity(0.8),
+                          color: modalColor,
                           value: modal,
-                          title:
-                              "${((modal / total) * 100).toStringAsFixed(1)}%",
-                          radius: 40,
+                          title: "${((modal / total) * 100).toStringAsFixed(1)}%",
+                          radius: 55,
                           titleStyle: const TextStyle(
-                            fontSize: 11,
+                            fontSize: 12,
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
                           ),
+                          titlePositionPercentageOffset: 0.55,
                         ),
                       if (bensin > 0)
                         PieChartSectionData(
-                          color: AppColors.menuAmberIcon,
+                          color: bensinColor,
                           value: bensin,
-                          title:
-                              "${((bensin / total) * 100).toStringAsFixed(1)}%",
-                          radius: 40,
+                          title: "${((bensin / total) * 100).toStringAsFixed(1)}%",
+                          radius: 55,
                           titleStyle: const TextStyle(
-                            fontSize: 11,
+                            fontSize: 12,
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
                           ),
+                          titlePositionPercentageOffset: 0.55,
                         ),
                     ],
                   ),
+                  swapAnimationDuration: const Duration(milliseconds: 500),
+                  swapAnimationCurve: Curves.easeInOutCubic,
                 ),
                 Column(
                   mainAxisSize: MainAxisSize.min,
@@ -513,17 +548,21 @@ class _ReportScreenState extends State<ReportScreen>
                     const Text(
                       "TOTAL OMSET",
                       style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1,
                         color: AppColors.textGrey,
                       ),
                     ),
-                    Text(
-                      _formatRp(_totalOmset),
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w900,
-                        color: AppColors.primaryNavy,
+                    const SizedBox(height: 4),
+                    FittedBox(
+                      child: Text(
+                        _formatRp(_totalOmset),
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                          color: AppColors.primaryNavy,
+                        ),
                       ),
                     ),
                   ],
@@ -533,13 +572,11 @@ class _ReportScreenState extends State<ReportScreen>
           ),
           const SizedBox(height: 20),
           Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _buildPieLegend(AppColors.statusGreen, "Profit"),
-              const SizedBox(width: 15),
-              _buildPieLegend(AppColors.statusRed.withOpacity(0.8), "Modal"),
-              const SizedBox(width: 15),
-              _buildPieLegend(AppColors.menuAmberIcon, "Bensin"),
+              _buildPieLegend(profitColor, "Profit", _formatRp(profit)),
+              _buildPieLegend(modalColor, "Modal", _formatRp(modal)),
+              _buildPieLegend(bensinColor, "Bensin", _formatRp(bensin)),
             ],
           ),
         ],
@@ -547,23 +584,42 @@ class _ReportScreenState extends State<ReportScreen>
     );
   }
 
-  Widget _buildPieLegend(Color color, String text) {
-    return Row(
+  Widget _buildPieLegend(Color color, String text, [String? amount]) {
+    return Column(
       children: [
-        Container(
-          width: 12,
-          height: 12,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 10,
+              height: 10,
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(3),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              text,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textDark,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 6),
-        Text(
-          text,
-          style: const TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-            color: AppColors.textDark,
+        if (amount != null) ...[
+          const SizedBox(height: 2),
+          Text(
+            amount,
+            style: const TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textGrey,
+            ),
           ),
-        ),
+        ],
       ],
     );
   }
@@ -768,92 +824,151 @@ class _ReportScreenState extends State<ReportScreen>
           const SizedBox(height: 15),
 
           Container(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: AppColors.pureWhite,
-              borderRadius: BorderRadius.circular(15),
-              border: Border.all(color: Colors.grey.shade200),
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 15, offset: const Offset(0, 4)),
+              ],
             ),
             child: _topProducts.isEmpty
                 ? const Center(
-                    child: Text("Belum ada penjualan di periode ini."),
+                    child: Padding(
+                      padding: EdgeInsets.all(20),
+                      child: Text("Belum ada penjualan di periode ini.", style: TextStyle(color: AppColors.textGrey)),
+                    ),
                   )
                 : Column(
                     children: [
-                      ListView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: _topProducts.length,
-                        itemBuilder: (context, i) {
-                          final item = _topProducts[i];
-                          String cleanName = item['product_name']
-                              .toString()
-                              .replaceAll(RegExp(r'Kelas \d+\s?'), '')
-                              .replaceAll('()', '')
-                              .trim();
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 12.0),
+                      ...(_topProducts.asMap().entries.map((entry) {
+                        int i = entry.key;
+                        final item = entry.value;
+                        String cleanName = item['product_name']
+                            .toString()
+                            .replaceAll(RegExp(r'Kelas \d+\s?'), '')
+                            .replaceAll('()', '')
+                            .trim();
+                        int qty = (item['qty'] as num).toInt();
+                        int maxQty = (_topProducts.first['qty'] as num).toInt();
+                        double progress = maxQty > 0 ? qty / maxQty : 0;
+                        bool isOther = item['product_name'] == 'Lainnya';
+
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: _getPieColor(i).withOpacity(0.06),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: _getPieColor(i).withOpacity(0.15)),
+                            ),
                             child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
                                 Container(
-                                  width: 14,
-                                  height: 14,
+                                  width: 28,
+                                  height: 28,
                                   decoration: BoxDecoration(
-                                    color: _getPieColor(i),
+                                    gradient: isOther
+                                        ? null
+                                        : LinearGradient(
+                                            colors: [_getPieColor(i), _getPieColor(i).withOpacity(0.7)],
+                                            begin: Alignment.topLeft,
+                                            end: Alignment.bottomRight,
+                                          ),
+                                    color: isOther ? AppColors.textGrey.withOpacity(0.3) : null,
                                     shape: BoxShape.circle,
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      isOther ? '∞' : '${i + 1}',
+                                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                                    ),
                                   ),
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
-                                  child: Text(
-                                    cleanName,
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                      color: AppColors.textDark,
-                                    ),
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        cleanName,
+                                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textDark),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 5),
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(4),
+                                        child: LinearProgressIndicator(
+                                          value: progress,
+                                          backgroundColor: Colors.grey.shade200,
+                                          valueColor: AlwaysStoppedAnimation(_getPieColor(i)),
+                                          minHeight: 4,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                                Text(
-                                  "${item['qty']} Terjual",
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.bold,
-                                    color: AppColors.statusGreen,
+                                const SizedBox(width: 12),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: _getPieColor(i).withOpacity(0.15),
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Text(
+                                    "$qty Terjual",
+                                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: _getPieColor(i)),
                                   ),
                                 ),
                               ],
                             ),
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 25),
-                      SizedBox(
-                        height: 220,
-                        child: PieChart(
-                          PieChartData(
-                            sectionsSpace: 2,
-                            centerSpaceRadius: 40,
-                            sections: _topProducts.asMap().entries.map((entry) {
-                              int idx = entry.key;
-                              var item = entry.value;
-                              int qty = (item['qty'] as num).toInt();
-                              return PieChartSectionData(
-                                color: _getPieColor(idx),
-                                value: qty.toDouble(),
-                                title: qty.toString(),
-                                radius: 65,
-                                titleStyle: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
-                              );
-                            }).toList(),
                           ),
+                        );
+                      })),
+                      const SizedBox(height: 20),
+                      SizedBox(
+                        height: 240,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            PieChart(
+                              PieChartData(
+                                sectionsSpace: 3,
+                                centerSpaceRadius: 45,
+                                startDegreeOffset: -90,
+                                sections: _topProducts.asMap().entries.map((entry) {
+                                  int idx = entry.key;
+                                  var item = entry.value;
+                                  int qty = (item['qty'] as num).toInt();
+                                  int totalQty = _topProducts.fold<int>(0, (sum, e) => sum + (e['qty'] as num).toInt());
+                                  double percentage = totalQty > 0 ? (qty / totalQty * 100) : 0;
+                                  return PieChartSectionData(
+                                    color: _getPieColor(idx),
+                                    value: qty.toDouble(),
+                                    title: '${percentage.toStringAsFixed(0)}%',
+                                    radius: 70,
+                                    titleStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
+                                    titlePositionPercentageOffset: 0.55,
+                                  );
+                                }).toList(),
+                              ),
+                              swapAnimationDuration: const Duration(milliseconds: 500),
+                              swapAnimationCurve: Curves.easeInOutCubic,
+                            ),
+                            Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Text('TOTAL', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.textGrey)),
+                                Text(
+                                  '${_topProducts.fold<int>(0, (sum, e) => sum + (e['qty'] as num).toInt())}',
+                                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: AppColors.primaryNavy),
+                                ),
+                                const Text('Terjual', style: TextStyle(fontSize: 10, color: AppColors.textGrey)),
+                              ],
+                            ),
+                          ],
                         ),
                       ),
                     ],
@@ -885,6 +1000,48 @@ class _ReportScreenState extends State<ReportScreen>
             fontSize: 11,
             fontWeight: FontWeight.bold,
             color: isSelected ? AppColors.pureWhite : AppColors.textGrey,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRekapBusinessBtn(String label, String value, IconData icon) {
+    bool isSelected = _rekapBusinessFilter == value;
+    return Expanded(
+      child: InkWell(
+        onTap: () {
+          setState(() => _rekapBusinessFilter = value);
+          _loadFinanceData();
+        },
+        borderRadius: BorderRadius.circular(10),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: isSelected ? AppColors.primaryNavy : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+            boxShadow: isSelected
+                ? [BoxShadow(color: AppColors.primaryNavy.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 2))]
+                : [],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 14, color: isSelected ? AppColors.accentGold : AppColors.textGrey),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: isSelected ? AppColors.pureWhite : AppColors.textGrey,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -948,6 +1105,23 @@ class _ReportScreenState extends State<ReportScreen>
                           ),
                         ],
                       ],
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceGrey,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          _buildRekapBusinessBtn('Kayu + Bangunan', 'SEMUA', Icons.store),
+                          const SizedBox(width: 4),
+                          _buildRekapBusinessBtn('Kayu', 'KAYU', Icons.forest),
+                          const SizedBox(width: 4),
+                          _buildRekapBusinessBtn('Bangunan', 'BANGUNAN', Icons.home_work),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 20),
 
