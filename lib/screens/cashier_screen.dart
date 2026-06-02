@@ -179,7 +179,7 @@ class _CashierScreenState extends State<CashierScreen>
         }
 
         if (foundProduct != null) {
-          int stockInCart = _cart
+          double stockInCart = _cart
               .where((c) => c.product.id == foundProduct!.id)
               .fold(0.0, (sum, item) => sum + item.stockDeduction);
           double displayStock = foundProduct.stock - stockInCart;
@@ -279,9 +279,10 @@ class _CashierScreenState extends State<CashierScreen>
         if (sortBy == "Baru Ditambahkan") return (b.id ?? 0).compareTo(a.id ?? 0);
         if (sortBy == "Sering Dibeli") return a.orderIndex.compareTo(b.orderIndex);
 
-        int cmp = a.orderIndex.compareTo(b.orderIndex);
-        if (cmp == 0) return _naturalCompare(a.name, b.name);
-        return cmp;
+        int scoreA = SearchHelper.calculateRelevance(_searchQuery, a.name);
+        int scoreB = SearchHelper.calculateRelevance(_searchQuery, b.name);
+        if (scoreA != scoreB) return scoreB.compareTo(scoreA); // Descending score
+        return _naturalCompare(a.name, b.name);
       });
       return;
     }
@@ -388,10 +389,10 @@ class _CashierScreenState extends State<CashierScreen>
       return p.buyPriceUnit;
     }
 
-    int getStockDeduction(double q, int mode) {
+    double getStockDeduction(double q, int mode) {
       if (p.type == 'RENG') {
-        if (mode == 0) return q.round();
-        if (mode == 1) return (q * p.packContent).round();
+        if (mode == 0) return q;
+        if (mode == 1) return (q * p.packContent);
         if (mode == 2) {
           double vol = 0;
           if (p.dimensions == '2x3')
@@ -400,12 +401,12 @@ class _CashierScreenState extends State<CashierScreen>
             vol = 48.0;
           if (vol > 0) {
             int bpk = (10000 / vol).ceil();
-            return (q * bpk).round();
+            return (q * bpk);
           }
         }
-        return q.round();
+        return q;
       } else if (p.type == 'KAYU') {
-        if (mode == 0) return q.round();
+        if (mode == 0) return q;
         if (mode == 1) {
           double vol = 0;
           if (p.dimensions != null && p.dimensions!.contains('x')) {
@@ -419,14 +420,13 @@ class _CashierScreenState extends State<CashierScreen>
           }
           if (vol > 0) {
             int bpk = (10000 / vol).ceil();
-            return (q * bpk).round();
+            return (q * bpk);
           }
         }
-        return q.round();
+        return q;
       } else {
-        if (mode == 1) return (q * p.packContent).round();
-        return q
-            .round(); // Pembulatan hanya untuk fisik barang, bukan perhitungan untung.
+        if (mode == 1) return (q * p.packContent);
+        return q; 
       }
     }
 
@@ -800,7 +800,7 @@ class _CashierScreenState extends State<CashierScreen>
   }
 
   int get _cartTotal {
-    return _cart.fold(0.0, (sum, item) => sum + item.agreedPriceTotal);
+    return _cart.fold(0, (sum, item) => sum + item.agreedPriceTotal);
   }
 
   @override
@@ -1074,8 +1074,8 @@ class _CashierScreenState extends State<CashierScreen>
                               sellPrice: mapItem['sell_price'] as int,
                               agreedPriceTotal: mapItem['agreed_total'] as int,
                               capitalPrice: mapItem['capital_price'] as int,
+                              stockDeduction: (mapItem['quantity'] as num).toDouble(),
                               unitName: mapItem['unit_type'] as String,
-                              stockDeduction: mapItem['quantity'] as int,
                             );
                           }).toList();
                         });
@@ -1122,7 +1122,7 @@ class _CashierScreenState extends State<CashierScreen>
     List<Product> empty = [];
 
     for (var p in products) {
-      int stockInCart = _cart
+      double stockInCart = _cart
           .where((c) => c.product.id == p.id)
           .fold(0.0, (sum, item) => sum + item.stockDeduction);
       if (p.stock - stockInCart > 0)
@@ -1272,7 +1272,7 @@ class _CashierScreenState extends State<CashierScreen>
       }
     }
 
-    int stockInCartDeduction = _cart
+    double stockInCartDeduction = _cart
         .where((c) => c.product.id == p.id)
         .fold(0.0, (sum, item) => sum + item.stockDeduction);
     double displayStock = p.stock - stockInCartDeduction;
