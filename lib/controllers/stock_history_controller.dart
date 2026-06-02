@@ -1,5 +1,6 @@
 import 'package:intl/intl.dart';
 import '../data/datasources/firebase/stock_history_firebase_datasource.dart';
+import '../data/datasources/firebase/product_firebase_datasource.dart';
 
 class StockHistoryController {
   final StockHistoryFirebaseDataSource _stockHistoryDS = StockHistoryFirebaseDataSource();
@@ -32,5 +33,13 @@ class StockHistoryController {
 
   Future<List<Map<String, dynamic>>> getStockLogsByExactDate(String exactDate) async {
     return await _stockHistoryDS.getStockLogsByExactDate(exactDate);
+  }
+
+  Future<void> deleteStockItem(int logId) async {
+    await ProductFirebaseDataSource().deleteStockItem(logId);
+  }
+
+  Future<void> updateStockItemQuantity(int logId, double newQty, int newPrice) async {
+    await ProductFirebaseDataSource().updateStockItemQuantity(logId, newQty, newPrice);
   }
 }

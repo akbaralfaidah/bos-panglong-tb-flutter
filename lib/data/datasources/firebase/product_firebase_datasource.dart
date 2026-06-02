@@ -232,4 +232,64 @@ class ProductFirebaseDataSource {
     }
     await batch.commit();
   }
+
+  // 🔥 FITUR EDIT/HAPUS PARSIAL STOK MASUK 🔥
+  Future<void> deleteStockItem(int logId) async {
+    final docRef = _col('stock_logs').doc(logId.toString());
+    final docSnap = await docRef.get(const GetOptions(source: Source.server));
+    
+    if (!docSnap.exists) throw Exception("Log stok tidak ditemukan!");
+    
+    Map<String, dynamic> log = docSnap.data() as Map<String, dynamic>;
+    int productId = log['product_id'];
+    double voidQty = (log['quantity'] as num).toDouble();
+    
+    final prodDoc = await _col('products').doc(productId.toString()).get(const GetOptions(source: Source.server));
+    if (!prodDoc.exists) throw Exception("Produk tidak ditemukan di database!");
+    
+    Map<String, dynamic> pData = prodDoc.data() as Map<String, dynamic>;
+    double currentStock = (pData['stock'] as num).toDouble();
+    
+    if (currentStock < voidQty) {
+      throw Exception("GAGAL HAPUS: Stok di gudang saat ini ($currentStock) lebih sedikit dari yang mau ditarik ($voidQty).");
+    }
+    
+    WriteBatch batch = _db.batch();
+    batch.update(prodDoc.reference, {'stock': FieldValue.increment(-voidQty)});
+    batch.delete(docRef);
+    await batch.commit();
+  }
+
+  Future<void> updateStockItemQuantity(int logId, double newQty, int newPrice) async {
+    final docRef = _col('stock_logs').doc(logId.toString());
+    final docSnap = await docRef.get(const GetOptions(source: Source.server));
+    
+    if (!docSnap.exists) throw Exception("Log stok tidak ditemukan!");
+    
+    Map<String, dynamic> log = docSnap.data() as Map<String, dynamic>;
+    int productId = log['product_id'];
+    double oldQty = (log['quantity'] as num).toDouble();
+    double diffQty = newQty - oldQty;
+    
+    final prodDoc = await _col('products').doc(productId.toString()).get(const GetOptions(source: Source.server));
+    if (!prodDoc.exists) throw Exception("Produk tidak ditemukan di database!");
+    
+    Map<String, dynamic> pData = prodDoc.data() as Map<String, dynamic>;
+    double currentStock = (pData['stock'] as num).toDouble();
+    
+    if (currentStock + diffQty < 0) {
+      throw Exception("GAGAL EDIT: Perubahan stok akan membuat total fisik gudang menjadi negatif!");
+    }
+    
+    WriteBatch batch = _db.batch();
+    batch.update(prodDoc.reference, {'stock': FieldValue.increment(diffQty)});
+    batch.update(docRef, {
+      'quantity': newQty,
+      'input_qty': newQty, // Asumsi input mengikuti quantity
+      'price': newPrice,
+      'total_price': (newQty * newPrice).round()
+    });
+    
+    await batch.commit();
+  }
 }

@@ -19,6 +19,7 @@ import 'product_list_screen.dart';
 import '../helpers/session_manager.dart';
 import '../data/datasources/firebase/core_firebase_datasource.dart';
 import '../controllers/product_controller.dart';
+import 'edit_stock_history_screen.dart';
 
 class StockReceiptScreen extends StatefulWidget {
   final List<StockCartItem> items;
@@ -685,6 +686,23 @@ class _StockReceiptScreenState extends State<StockReceiptScreen>
             onPressed: () =>
                 Navigator.of(context).popUntil((route) => route.isFirst),
           ),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.edit_document),
+              onPressed: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => EditStockHistoryScreen(
+                      exactDate: widget.transactionDate,
+                    ),
+                  ),
+                );
+                // Return to home or reload
+                if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
+              },
+            ),
+          ],
         ),
         body: _isLoading
             ? const Center(
