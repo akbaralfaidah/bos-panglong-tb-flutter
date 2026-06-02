@@ -95,9 +95,9 @@ class _OperationalManagementScreenState extends State<OperationalManagementScree
     return DateFormat('dd MMM yyyy').format(target);
   }
 
-  Future<void> _addPengeluaran(String title, int amount) async {
+  Future<void> _addPengeluaran(String title, int amount, {DateTime? customDate}) async {
     setState(() => _isLoading = true);
-    await _controller.addOperationalExpense(amount, title);
+    await _controller.addOperationalExpense(amount, title, customDate: customDate);
     _fetchOperationalData();
   }
 
@@ -110,39 +110,87 @@ class _OperationalManagementScreenState extends State<OperationalManagementScree
   void _showAddDialog() {
     final TextEditingController descCtrl = TextEditingController();
     final TextEditingController amountCtrl = TextEditingController();
+    DateTime selectedDate = DateTime.now();
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.pureWhite,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text("Catat Pengeluaran", style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryNavy, fontSize: 16)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(controller: descCtrl, decoration: InputDecoration(labelText: "Keterangan (Cth: Gaji / Bensin L300)", border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)))),
-            const SizedBox(height: 15),
-            TextField(
-              controller: amountCtrl, keyboardType: TextInputType.number, 
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly, CurrencyInputFormatter()],
-              decoration: InputDecoration(labelText: "Nominal Keluar", prefixText: "Rp ", border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)))
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            backgroundColor: AppColors.pureWhite,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: const Text("Catat Pengeluaran", style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryNavy, fontSize: 16)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(controller: descCtrl, decoration: InputDecoration(labelText: "Keterangan (Cth: Gaji / Bensin L300)", border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)))),
+                const SizedBox(height: 15),
+                TextField(
+                  controller: amountCtrl, keyboardType: TextInputType.number, 
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly, CurrencyInputFormatter()],
+                  decoration: InputDecoration(labelText: "Nominal Keluar", prefixText: "Rp ", border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)))
+                ),
+                const SizedBox(height: 15),
+                const Text("Tanggal Pengeluaran:", style: TextStyle(color: AppColors.textGrey, fontSize: 12, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 5),
+                InkWell(
+                  onTap: () async {
+                    DateTime? picked = await showDatePicker(
+                      context: context,
+                      initialDate: selectedDate,
+                      firstDate: DateTime(2020),
+                      lastDate: DateTime.now(),
+                      builder: (context, child) => Theme(data: ThemeData.light().copyWith(colorScheme: const ColorScheme.light(primary: AppColors.primaryNavy)), child: child!),
+                    );
+                    if (picked != null) {
+                      TimeOfDay? time = await showTimePicker(
+                        context: context, 
+                        initialTime: TimeOfDay.fromDateTime(selectedDate), 
+                        builder: (context, child) => Theme(data: ThemeData.light().copyWith(colorScheme: const ColorScheme.light(primary: AppColors.primaryNavy)), child: child!)
+                      );
+                      if (time != null) {
+                        setDialogState(() {
+                          selectedDate = DateTime(picked.year, picked.month, picked.day, time.hour, time.minute);
+                        });
+                      }
+                    }
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: AppColors.backgroundWhite,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.grey.shade300)
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.calendar_month, color: AppColors.primaryNavy, size: 20),
+                        const SizedBox(width: 10),
+                        Expanded(child: Text(DateFormat('dd MMM yyyy, HH:mm').format(selectedDate), style: const TextStyle(fontWeight: FontWeight.bold))),
+                        const Text("UBAH", style: TextStyle(color: AppColors.menuBlueIcon, fontWeight: FontWeight.bold, fontSize: 12)),
+                      ]
+                    )
+                  )
+                ),
+              ],
             ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("BATAL", style: TextStyle(color: AppColors.textGrey))),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.statusRed, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-            onPressed: () {
-              if (descCtrl.text.isNotEmpty && amountCtrl.text.isNotEmpty) {
-                int amount = int.tryParse(amountCtrl.text.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
-                _addPengeluaran(descCtrl.text, amount);
-                Navigator.pop(ctx);
-              }
-            }, 
-            child: const Text("SIMPAN", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))
-          )
-        ],
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("BATAL", style: TextStyle(color: AppColors.textGrey))),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.statusRed, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                onPressed: () {
+                  if (descCtrl.text.isNotEmpty && amountCtrl.text.isNotEmpty) {
+                    int amount = int.tryParse(amountCtrl.text.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+                    _addPengeluaran(descCtrl.text, amount, customDate: selectedDate);
+                    Navigator.pop(ctx);
+                  }
+                }, 
+                child: const Text("SIMPAN", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))
+              )
+            ],
+          );
+        }
       )
     );
   }

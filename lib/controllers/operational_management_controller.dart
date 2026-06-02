@@ -4,8 +4,8 @@ import '../data/datasources/firebase/operational_firebase_datasource.dart';
 class OperationalManagementController {
   final OperationalFirebaseDataSource _operationalDS = OperationalFirebaseDataSource();
 
-  Future<void> addOperationalExpense(int amount, String desc) async {
-    await _operationalDS.addOperationalExpense(amount, desc);
+  Future<void> addOperationalExpense(int amount, String desc, {DateTime? customDate}) async {
+    await _operationalDS.addOperationalExpense(amount, desc, customDate: customDate);
   }
 
   Future<Map<String, dynamic>> getOperationalSummary(String filterType) async {

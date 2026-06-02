@@ -29,9 +29,9 @@ class OperationalFirebaseDataSource {
     }
   }
 
-  Future<void> addOperationalExpense(int amount, String desc) async {
+  Future<void> addOperationalExpense(int amount, String desc, {DateTime? customDate}) async {
     int id = DateTime.now().millisecondsSinceEpoch;
-    String dateNow = DateTime.now().toIso8601String();
+    String dateNow = customDate?.toIso8601String() ?? DateTime.now().toIso8601String();
     
     // Tetap simpan di 'gas_expenses' agar data histori lama lu tidak hangus
     _col('gas_expenses').doc(id.toString()).set({

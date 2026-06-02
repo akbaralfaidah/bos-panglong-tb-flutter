@@ -19,7 +19,7 @@ class CartItem {
   int agreedPriceTotal;
   int capitalPrice;
   String unitName;
-  int stockDeduction;
+  double stockDeduction;
 
   CartItem({
     required this.product,
@@ -181,8 +181,8 @@ class _CashierScreenState extends State<CashierScreen>
         if (foundProduct != null) {
           int stockInCart = _cart
               .where((c) => c.product.id == foundProduct!.id)
-              .fold(0, (sum, item) => sum + item.stockDeduction);
-          int displayStock = foundProduct.stock - stockInCart;
+              .fold(0.0, (sum, item) => sum + item.stockDeduction);
+          double displayStock = foundProduct.stock - stockInCart;
 
           if (displayStock <= 0) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -330,7 +330,7 @@ class _CashierScreenState extends State<CashierScreen>
     setState(() {});
   }
 
-  void _showQuickAddDialog(Product p, String displayName, int displayStock) {
+  void _showQuickAddDialog(Product p, String displayName, double displayStock) {
     final TextEditingController qtyCtrl = TextEditingController(text: "1");
 
     int unitMode = 0;
@@ -716,7 +716,7 @@ class _CashierScreenState extends State<CashierScreen>
                                     totalPriceCtrl.text.replaceAll('.', ''),
                                   ) ??
                                   0;
-                              int requiredStock = getStockDeduction(
+                              double requiredStock = getStockDeduction(
                                 finalQty,
                                 unitMode,
                               );
@@ -800,7 +800,7 @@ class _CashierScreenState extends State<CashierScreen>
   }
 
   int get _cartTotal {
-    return _cart.fold(0, (sum, item) => sum + item.agreedPriceTotal);
+    return _cart.fold(0.0, (sum, item) => sum + item.agreedPriceTotal);
   }
 
   @override
@@ -1124,7 +1124,7 @@ class _CashierScreenState extends State<CashierScreen>
     for (var p in products) {
       int stockInCart = _cart
           .where((c) => c.product.id == p.id)
-          .fold(0, (sum, item) => sum + item.stockDeduction);
+          .fold(0.0, (sum, item) => sum + item.stockDeduction);
       if (p.stock - stockInCart > 0)
         available.add(p);
       else
@@ -1274,8 +1274,8 @@ class _CashierScreenState extends State<CashierScreen>
 
     int stockInCartDeduction = _cart
         .where((c) => c.product.id == p.id)
-        .fold(0, (sum, item) => sum + item.stockDeduction);
-    int displayStock = p.stock - stockInCartDeduction;
+        .fold(0.0, (sum, item) => sum + item.stockDeduction);
+    double displayStock = p.stock - stockInCartDeduction;
     int inCartCount = _cart.where((c) => c.product.id == p.id).length;
 
     Widget stockWidget;

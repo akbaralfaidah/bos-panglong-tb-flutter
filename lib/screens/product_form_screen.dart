@@ -665,9 +665,9 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
     }
 
     try {
-      int stockBaru = int.tryParse(_stockController.text.replaceAll('.', '')) ?? 0;
-      int stockLama = (widget.product?.stock ?? 0).toInt();
-      int addedQty = stockBaru - stockLama; 
+      double stockBaru = double.tryParse(_stockController.text.replaceAll(',', '.')) ?? 0;
+      double stockLama = widget.product?.stock ?? 0;
+      double addedQty = stockBaru - stockLama; 
       
       String cleanName = _nameController.text;
       String finalName = "";

@@ -5,7 +5,7 @@ class Product {
   final String? dimensions; 
   final String source;      
   final String? woodClass;  
-  final int stock;          
+  final double stock;          
   
   final int buyPriceUnit;   
   final int buyPriceCubic;  
@@ -46,7 +46,7 @@ class Product {
     dimensions: json['dimensions'],
     source: json['source'] ?? '',
     woodClass: json['wood_class'], 
-    stock: json['stock'],
+    stock: (json['stock'] as num).toDouble(),
     buyPriceUnit: json['buy_price_unit'],
     buyPriceCubic: json['buy_price_cubic'] ?? 0,
     sellPriceUnit: json['sell_price_unit'],
@@ -82,7 +82,7 @@ class CartItemModel {
   final int productId;
   final String productName;
   final String productType; 
-  final int quantity;       
+  final double quantity;       
   final double requestQty;  
   final String unitType;    
   final int capitalPrice;   

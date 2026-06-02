@@ -784,10 +784,10 @@ class _StockHistoryScreenState extends State<StockHistoryScreen>
                                       bFinalName = "Reng $bDim".trim();
                                   }
 
-                                  int bCurrentStock =
-                                      (bItem['current_stock'] as num?)?.toInt() ??
-                                      0;
-                                  int bStokAwal = bCurrentStock - bQty.toInt();
+                                  double bCurrentStock =
+                                      (bItem['current_stock'] as num?)?.toDouble() ??
+                                      0.0;
+                                  double bStokAwal = bCurrentStock - bQty;
                                   if (bStokAwal < 0) bStokAwal = 0;
 
                                   Product p = Product(
@@ -812,7 +812,7 @@ class _StockHistoryScreenState extends State<StockHistoryScreen>
                                       totalExpense: bTotal,
                                       isGrosir: false,
                                       unitName: bRawInputUnit,
-                                      finalStockAdd: bStokAwal + bQty.toInt(),
+                                      finalStockAdd: bStokAwal + bQty,
                                     ),
                                   );
                                 }

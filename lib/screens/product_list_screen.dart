@@ -20,7 +20,7 @@ class StockCartItem {
   final bool isGrosir;
   final int totalExpense;
   final String unitName;
-  final int finalStockAdd;
+  final double finalStockAdd;
   final bool useProfitForCapital; 
 
   StockCartItem({
@@ -45,11 +45,11 @@ class StockCartItem {
 
   factory StockCartItem.fromMap(Map<String, dynamic> map) => StockCartItem(
     product: Product.fromMap(map['product']),
-    addedQty: map['added_qty'],
+    addedQty: (map['added_qty'] as num).toDouble(),
     isGrosir: map['is_grosir'],
     totalExpense: map['total_expense'],
     unitName: map['unit_name'],
-    finalStockAdd: map['final_stock_add'],
+    finalStockAdd: (map['final_stock_add'] as num).toDouble(),
     useProfitForCapital: map['use_profit_for_capital'] ?? false,
   );
 }
@@ -1392,14 +1392,14 @@ class _ProductListScreenState extends State<ProductListScreen>
           String unitStringForNota = "Pcs";
 
           double currentInputQty = double.tryParse(stockController.text.replaceAll(',', '.')) ?? 0;
-          int calculatedPcs = 0;
+          double calculatedQty = 0;
 
           if (isKayu) {
             if (inputMode == 0) {
               inputLabel = "Jumlah Batang";
               inputLabelSatuan = "Batang";
               unitStringForNota = "Btg";
-              calculatedPcs = currentInputQty.round();
+              calculatedQty = currentInputQty;
             } else if (inputMode == 2) {
               inputLabel = "Jumlah Kubik (m³)";
               inputLabelSatuan = "Batang";
@@ -1408,7 +1408,7 @@ class _ProductListScreenState extends State<ProductListScreen>
               if (vol > 0) {
                 int bpk = (10000 / vol).ceil();
                 conversionInfo = "Info: 1 Kubik = $bpk Batang";
-                calculatedPcs = (currentInputQty * bpk).round();
+                calculatedQty = (currentInputQty * bpk);
               }
             }
           } else if (isReng) {
@@ -1416,13 +1416,13 @@ class _ProductListScreenState extends State<ProductListScreen>
               inputLabel = "Jumlah Batang";
               inputLabelSatuan = "Batang";
               unitStringForNota = "Btg";
-              calculatedPcs = currentInputQty.round();
+              calculatedQty = currentInputQty;
             } else if (inputMode == 1) {
               inputLabel = "Jumlah Ikat";
               inputLabelSatuan = "Batang";
               unitStringForNota = "Ikat";
               conversionInfo = "Info: 1 Ikat = ${p.packContent} Batang";
-              calculatedPcs = (currentInputQty * p.packContent).round();
+              calculatedQty = (currentInputQty * p.packContent);
             } else if (inputMode == 2) {
               inputLabel = "Jumlah Kubik (m³)";
               inputLabelSatuan = "Batang";
@@ -1430,20 +1430,20 @@ class _ProductListScreenState extends State<ProductListScreen>
               int bpk = getBpk();
               int ikatPerKubik = (bpk / (p.packContent > 0 ? p.packContent : 1)).round();
               conversionInfo = "Info: 1 Kubik = $bpk Btg ($ikatPerKubik Ikat)";
-              calculatedPcs = (currentInputQty * bpk).round();
+              calculatedQty = (currentInputQty * bpk);
             }
           } else if (isBulat) {
             inputLabel = "Jumlah Batang (Bulat)";
             inputLabelSatuan = "Batang";
             unitStringForNota = "Btg";
-            calculatedPcs = currentInputQty.round();
+            calculatedQty = currentInputQty;
           } else {
             inputLabelSatuan = p.dimensions ?? "Pcs";
             unitStringForNota = p.dimensions ?? "Pcs";
 
             double gQty = double.tryParse(bgnGrosirCtrl.text.replaceAll(',', '.')) ?? 0;
             double sQty = double.tryParse(bgnEceranCtrl.text.replaceAll(',', '.')) ?? 0;
-            calculatedPcs = ((gQty * p.packContent) + sQty).round();
+            calculatedQty = (gQty * p.packContent) + sQty;
           }
 
           int parseMoney(String v) => int.tryParse(v.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
@@ -1685,7 +1685,7 @@ class _ProductListScreenState extends State<ProductListScreen>
                             Expanded(
                               child: TextField(
                                 controller: bgnGrosirCtrl,
-                                keyboardType: TextInputType.number,
+                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
                                 decoration: InputDecoration(
                                   labelText: "Jml ${p.grosirUnit ?? 'Dus'}",
                                   border: OutlineInputBorder(
@@ -1700,7 +1700,7 @@ class _ProductListScreenState extends State<ProductListScreen>
                             Expanded(
                               child: TextField(
                                 controller: bgnEceranCtrl,
-                                keyboardType: TextInputType.number,
+                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
                                 decoration: InputDecoration(
                                   labelText: "Jml Eceran",
                                   border: OutlineInputBorder(
@@ -1729,11 +1729,11 @@ class _ProductListScreenState extends State<ProductListScreen>
 
                   if (isKayu || isReng || isBulat
                       ? currentInputQty > 0
-                      : calculatedPcs > 0)
+                      : calculatedQty > 0)
                     Padding(
                       padding: const EdgeInsets.only(top: 8, bottom: 8),
                       child: Text(
-                        "Total didapat: $calculatedPcs $inputLabelSatuan",
+                        "Total didapat: ${calculatedQty % 1 == 0 ? calculatedQty.toInt() : calculatedQty} $inputLabelSatuan",
                         style: const TextStyle(
                           color: AppColors.statusGreen,
                           fontWeight: FontWeight.bold,
@@ -1899,7 +1899,7 @@ class _ProductListScreenState extends State<ProductListScreen>
                             isGrosir: inputMode != 0,
                             totalExpense: manualTotal,
                             unitName: unitStringForNota,
-                            finalStockAdd: calculatedPcs,
+                            finalStockAdd: calculatedQty,
                             useProfitForCapital: useProfit, 
                           ),
                         );
@@ -1936,7 +1936,7 @@ class _ProductListScreenState extends State<ProductListScreen>
                             isGrosir: true,
                             totalExpense: gExpense,
                             unitName: p.grosirUnit ?? "Dus",
-                            finalStockAdd: (gQty * p.packContent).round(),
+                            finalStockAdd: (gQty * p.packContent),
                             useProfitForCapital: useProfit, 
                           ),
                         );
@@ -1950,7 +1950,7 @@ class _ProductListScreenState extends State<ProductListScreen>
                             isGrosir: false,
                             totalExpense: sExpense,
                             unitName: p.dimensions ?? "Pcs",
-                            finalStockAdd: sQty.round(),
+                            finalStockAdd: sQty,
                             useProfitForCapital: useProfit, 
                           ),
                         );

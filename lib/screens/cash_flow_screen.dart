@@ -190,7 +190,7 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
         isGrosir: false,
         totalExpense: item.amount,
         unitName: rawInputUnit,
-        finalStockAdd: (item.rawData['quantity'] as num?)?.toInt() ?? 1,
+        finalStockAdd: (item.rawData['quantity'] as num?)?.toDouble() ?? 1.0,
       );
 
       Navigator.push(

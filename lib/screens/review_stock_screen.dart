@@ -73,9 +73,9 @@ class _ReviewStockScreenState extends State<ReviewStockScreen> {
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDialogState) {
           double currentInputQty = double.tryParse(stockController.text.replaceAll(',', '.')) ?? 0;
-          int calculatedPcs = item.isGrosir && item.product.packContent > 0 
-              ? (currentInputQty * item.product.packContent).round() 
-              : currentInputQty.round();
+          double calculatedPcs = item.isGrosir && item.product.packContent > 0 
+              ? (currentInputQty * item.product.packContent) 
+              : currentInputQty;
 
           return AlertDialog(
             backgroundColor: AppColors.pureWhite,

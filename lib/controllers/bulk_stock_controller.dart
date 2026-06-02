@@ -26,7 +26,7 @@ class BulkStockController {
     for (var pid in groupedItems.keys) {
       var productItems = groupedItems[pid]!;
       
-      int totalAddedStockForProduct = 0;
+      double totalAddedStockForProduct = 0;
       int totalExpenseForProduct = 0;
       Product baseProduct = productItems.first.product;
 
@@ -53,7 +53,7 @@ class BulkStockController {
         );
       }
 
-      int oldStock = baseProduct.stock.toInt();
+      double oldStock = baseProduct.stock;
       int finalBuyPriceUnit = baseProduct.buyPriceUnit;
       int finalBuyPriceCubic = baseProduct.buyPriceCubic;
 
@@ -69,13 +69,13 @@ class BulkStockController {
               .get();
           if (oldDoc.exists && oldDoc.data() != null) {
             oldBuyPriceUnit = (oldDoc.data()!['buy_price_unit'] as num?)?.toInt() ?? finalBuyPriceUnit;
-            oldStock = (oldDoc.data()!['stock'] as num?)?.toInt() ?? oldStock;
+            oldStock = (oldDoc.data()!['stock'] as num?)?.toDouble() ?? oldStock;
           }
         } catch (_) {}
 
-        int newStock = oldStock + totalAddedStockForProduct;
-        int oldTotalValueUnit = oldStock * oldBuyPriceUnit;
-        int newTotalValueUnit = totalExpenseForProduct; 
+        double newStock = oldStock + totalAddedStockForProduct;
+        double oldTotalValueUnit = oldStock * oldBuyPriceUnit;
+        double newTotalValueUnit = totalExpenseForProduct.toDouble(); 
 
         double rawAvgUnit = (oldTotalValueUnit + newTotalValueUnit) / newStock;
         finalBuyPriceUnit = rawAvgUnit.round();
