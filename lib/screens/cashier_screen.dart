@@ -279,10 +279,9 @@ class _CashierScreenState extends State<CashierScreen>
         if (sortBy == "Baru Ditambahkan") return (b.id ?? 0).compareTo(a.id ?? 0);
         if (sortBy == "Sering Dibeli") return a.orderIndex.compareTo(b.orderIndex);
 
-        int scoreA = SearchHelper.calculateRelevance(_searchQuery, a.name);
-        int scoreB = SearchHelper.calculateRelevance(_searchQuery, b.name);
-        if (scoreA != scoreB) return scoreB.compareTo(scoreA); // Descending score
-        return _naturalCompare(a.name, b.name);
+        int cmp = a.orderIndex.compareTo(b.orderIndex);
+        if (cmp == 0) return _naturalCompare(a.name, b.name);
+        return cmp;
       });
       return;
     }
