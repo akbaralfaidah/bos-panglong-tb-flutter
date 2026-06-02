@@ -213,6 +213,18 @@ class _StockHistoryScreenState extends State<StockHistoryScreen>
              SearchHelper.smartSearch(_searchQuery, cName);
     }).toList();
 
+    if (_searchQuery.isNotEmpty) {
+      displayedList.sort((a, b) {
+        int getScore(Map<String, dynamic> item) {
+          int s1 = SearchHelper.calculateRelevance(_searchQuery, (item['product_name'] ?? '').toString());
+          int s2 = SearchHelper.calculateRelevance(_searchQuery, (item['note'] ?? '').toString());
+          int s3 = SearchHelper.calculateRelevance(_searchQuery, (item['cashier_name'] ?? '').toString());
+          return s1 > s2 ? (s1 > s3 ? s1 : s3) : (s2 > s3 ? s2 : s3);
+        }
+        return getScore(b).compareTo(getScore(a));
+      });
+    }
+
     int totalUangKeluarTabAktif = 0;
     int totalBatangMasuk = 0;
     double totalVolumeMasuk = 0;

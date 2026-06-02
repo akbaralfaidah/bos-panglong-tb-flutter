@@ -139,6 +139,26 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> wit
       return false;
     }).toList();
 
+    if (_searchQuery.isNotEmpty) {
+      displayedList.sort((a, b) {
+        int getScore(Map<String, dynamic> t) {
+          int s1 = SearchHelper.calculateRelevance(_searchQuery, (t['customer_name'] ?? '').toString());
+          int s2 = SearchHelper.calculateRelevance(_searchQuery, (t['id'] ?? '').toString());
+          int s3 = SearchHelper.calculateRelevance(_searchQuery, 'inv-${t['id']}');
+          int maxS = s1 > s2 ? (s1 > s3 ? s1 : s3) : (s2 > s3 ? s2 : s3);
+          
+          if (t['items'] != null && t['items'] is List) {
+            for (var item in t['items']) {
+               int s4 = SearchHelper.calculateRelevance(_searchQuery, (item['product_name'] ?? '').toString());
+               if (s4 > maxS) maxS = s4;
+            }
+          }
+          return maxS;
+        }
+        return getScore(b).compareTo(getScore(a));
+      });
+    }
+
     // =========================================================================
     // 🔥 HITUNG ULANG TOTALAN BERDASARKAN HASIL PENCARIAN 🔥
     // =========================================================================

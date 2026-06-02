@@ -90,6 +90,14 @@ class _CapitalManagementScreenState extends State<CapitalManagementScreen> {
 
         return matchesSearch && matchesStatus;
       }).toList();
+
+      if (_searchController.text.isNotEmpty) {
+        _displayedData.sort((a, b) {
+          int scoreA = SearchHelper.calculateRelevance(_searchController.text, (a['name'] ?? '').toString());
+          int scoreB = SearchHelper.calculateRelevance(_searchController.text, (b['name'] ?? '').toString());
+          return scoreB.compareTo(scoreA);
+        });
+      }
     });
   }
 

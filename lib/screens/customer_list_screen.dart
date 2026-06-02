@@ -46,6 +46,11 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
         _filteredCustomers = _customers;
       } else {
         _filteredCustomers = _customers.where((c) => SearchHelper.smartSearch(query, c)).toList();
+        _filteredCustomers.sort((a, b) {
+          int scoreA = SearchHelper.calculateRelevance(query, a);
+          int scoreB = SearchHelper.calculateRelevance(query, b);
+          return scoreB.compareTo(scoreA);
+        });
       }
     });
   }

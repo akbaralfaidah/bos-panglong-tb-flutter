@@ -432,6 +432,21 @@ class _HistoryScreenState extends State<HistoryScreen>
           SearchHelper.smartSearch(_searchQuery, id);
     }).toList();
 
+    if (_searchQuery.isNotEmpty) {
+      displayedList.sort((a, b) {
+        int getScore(Map<String, dynamic> item) {
+          int s1 = SearchHelper.calculateRelevance(_searchQuery, (item['product_name'] ?? '').toString());
+          int s2 = SearchHelper.calculateRelevance(_searchQuery, (item['customer_name'] ?? '').toString());
+          int s3 = SearchHelper.calculateRelevance(_searchQuery, (item['note'] ?? '').toString());
+          int s4 = SearchHelper.calculateRelevance(_searchQuery, (item['id'] ?? item['trans_id'] ?? '').toString());
+          int max1 = s1 > s2 ? s1 : s2;
+          int max2 = s3 > s4 ? s3 : s4;
+          return max1 > max2 ? max1 : max2;
+        }
+        return getScore(b).compareTo(getScore(a));
+      });
+    }
+
     return Container(
       decoration: const BoxDecoration(
         color: Color(0xFFF5F5F5),

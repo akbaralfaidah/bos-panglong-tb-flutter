@@ -80,6 +80,16 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
         return SearchHelper.smartSearch(query, p.name) ||
             (p.barcode != null && SearchHelper.smartSearch(query, p.barcode!));
       }).toList();
+      _displayedProducts.sort((a, b) {
+        int scoreA1 = SearchHelper.calculateRelevance(query, a.name);
+        int scoreA2 = a.barcode != null ? SearchHelper.calculateRelevance(query, a.barcode!) : 0;
+        int scoreA = scoreA1 > scoreA2 ? scoreA1 : scoreA2;
+
+        int scoreB1 = SearchHelper.calculateRelevance(query, b.name);
+        int scoreB2 = b.barcode != null ? SearchHelper.calculateRelevance(query, b.barcode!) : 0;
+        int scoreB = scoreB1 > scoreB2 ? scoreB1 : scoreB2;
+        return scoreB.compareTo(scoreA);
+      });
     }
     setState(() {});
   }
@@ -520,6 +530,11 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
                         _displayedProducts = _allProducts;
                       } else {
                         _displayedProducts = _allProducts.where((p) => SearchHelper.smartSearch(v, p.name)).toList();
+                        _displayedProducts.sort((a, b) {
+                          int scoreA = SearchHelper.calculateRelevance(v, a.name);
+                          int scoreB = SearchHelper.calculateRelevance(v, b.name);
+                          return scoreB.compareTo(scoreA);
+                        });
                       }
                     });
                   },

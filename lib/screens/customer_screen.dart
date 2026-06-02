@@ -45,6 +45,11 @@ class _CustomerScreenState extends State<CustomerScreen> {
         _filteredCustomers = _crmCustomers;
       } else {
         _filteredCustomers = _crmCustomers.where((c) => SearchHelper.smartSearch(query, c['name'].toString())).toList();
+        _filteredCustomers.sort((a, b) {
+          int scoreA = SearchHelper.calculateRelevance(query, a['name'].toString());
+          int scoreB = SearchHelper.calculateRelevance(query, b['name'].toString());
+          return scoreB.compareTo(scoreA);
+        });
       }
     });
   }

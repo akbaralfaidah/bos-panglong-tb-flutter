@@ -123,6 +123,19 @@ class _ReviewTransactionScreenState extends State<ReviewTransactionScreen> {
             SearchHelper.smartSearch(searchQuery, c['name'].toString()) ||
             SearchHelper.smartSearch(searchQuery, (c['phone'] ?? '').toString())
           ).toList();
+          
+          if (searchQuery.isNotEmpty) {
+            filteredList.sort((a, b) {
+              int scoreA1 = SearchHelper.calculateRelevance(searchQuery, a['name'].toString());
+              int scoreA2 = a['phone'] != null ? SearchHelper.calculateRelevance(searchQuery, a['phone'].toString()) : 0;
+              int scoreA = scoreA1 > scoreA2 ? scoreA1 : scoreA2;
+
+              int scoreB1 = SearchHelper.calculateRelevance(searchQuery, b['name'].toString());
+              int scoreB2 = b['phone'] != null ? SearchHelper.calculateRelevance(searchQuery, b['phone'].toString()) : 0;
+              int scoreB = scoreB1 > scoreB2 ? scoreB1 : scoreB2;
+              return scoreB.compareTo(scoreA);
+            });
+          }
 
           return AlertDialog(
             backgroundColor: AppColors.pureWhite,

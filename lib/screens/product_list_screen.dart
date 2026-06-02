@@ -207,6 +207,30 @@ class _ProductListScreenState extends State<ProductListScreen>
   }
 
   void _sortList(List<Product> list, String sortBy) {
+    if (_searchQuery.isNotEmpty) {
+      list.sort((a, b) {
+        int scoreA1 = SearchHelper.calculateRelevance(_searchQuery, a.name);
+        int scoreA2 = SearchHelper.calculateRelevance(_searchQuery, a.source);
+        int scoreA = scoreA1 > scoreA2 ? scoreA1 : scoreA2;
+
+        int scoreB1 = SearchHelper.calculateRelevance(_searchQuery, b.name);
+        int scoreB2 = SearchHelper.calculateRelevance(_searchQuery, b.source);
+        int scoreB = scoreB1 > scoreB2 ? scoreB1 : scoreB2;
+
+        if (scoreA != scoreB) return scoreB.compareTo(scoreA);
+
+        if (sortBy == "A-Z") return _naturalCompare(a.name, b.name);
+        if (sortBy == "Z-A") return _naturalCompare(b.name, a.name);
+        if (sortBy == "Baru Ditambahkan") return (b.id ?? 0).compareTo(a.id ?? 0);
+        if (sortBy == "Sering Dibeli") return a.orderIndex.compareTo(b.orderIndex);
+
+        int cmp = a.orderIndex.compareTo(b.orderIndex);
+        if (cmp == 0) return _naturalCompare(a.name, b.name);
+        return cmp;
+      });
+      return;
+    }
+
     if (sortBy == "A-Z") {
       list.sort((a, b) => _naturalCompare(a.name, b.name));
     } else if (sortBy == "Z-A") {
