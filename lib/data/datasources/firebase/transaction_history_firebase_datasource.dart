@@ -98,4 +98,59 @@ class TransactionHistoryFirebaseDataSource {
       'total_bensin': globalBensin.round(), // 🔥 KIRIM DATA BENSIN KE UI
     };
   }
+
+  Future<Map<String, dynamic>> getCapitalTransactionHistory({
+    required String startDate, 
+    required String endDate
+  }) async {
+    String start = "${startDate}T00:00:00.000";
+    String end = "${endDate}T23:59:59.999";
+
+    final snapshot = await _cacheFirstQuery(
+      _col('transactions').where('transaction_date', isGreaterThanOrEqualTo: start).where('transaction_date', isLessThanOrEqualTo: end)
+    );
+        
+    List<Map<String, dynamic>> results = snapshot.docs.map((doc) => doc.data() as Map<String, dynamic>).toList();
+
+    results.sort((a, b) => (b['transaction_date'] as String).compareTo(a['transaction_date'] as String));
+
+    double globalModalKayu = 0;
+    double globalModalBangunan = 0;
+    double globalBensin = 0; 
+
+    for (var t in results) {
+      List<dynamic> items = t['items'] ?? [];
+      double trxModalKayu = 0;
+      double trxModalBangunan = 0;
+      
+      double opCost = (t['operational_cost'] as num?)?.toDouble() ?? 0;
+      globalBensin += opCost; 
+
+      for (var i in items) {
+        double capPrice = (i['capital_price'] as num?)?.toDouble() ?? 0;
+        double reqQty = (i['request_qty'] as num?)?.toDouble() ?? 0;
+        double qty = (i['quantity'] as num?)?.toDouble() ?? 0;
+        double displayQty = reqQty > 0 ? reqQty : qty; 
+        
+        double itemModal = capPrice * displayQty;
+
+        String pType = i['product_type'] ?? '';
+        if (['KAYU', 'RENG', 'BULAT'].contains(pType)) {
+          trxModalKayu += itemModal;
+        } else {
+          trxModalBangunan += itemModal;
+        }
+      }
+
+      globalModalKayu += trxModalKayu;
+      globalModalBangunan += trxModalBangunan;
+    }
+
+    return {
+      'history': results,
+      'modal_kayu': globalModalKayu.round(),
+      'modal_bangunan': globalModalBangunan.round(),
+      'total_bensin': globalBensin.round(), 
+    };
+  }
 }

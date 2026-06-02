@@ -5,6 +5,7 @@ import '../helpers/session_manager.dart';
 import '../theme/app_colors.dart';
 import '../controllers/capital_management_controller.dart';
 import '../helpers/search_helper.dart';
+import 'capital_history_screen.dart';
 
 class CapitalManagementScreen extends StatefulWidget {
   const CapitalManagementScreen({super.key});
@@ -186,6 +187,23 @@ class _CapitalManagementScreenState extends State<CapitalManagementScreen> {
                       child: _buildSummaryBox("MODAL CAIR", "Siap Belanja", _totalModalCair, Colors.green.shade100, Colors.green.shade900),
                     ),
                   ],
+                ),
+                const SizedBox(height: 15),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.accentGold,
+                      foregroundColor: AppColors.primaryNavy,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    icon: const Icon(Icons.history, size: 20),
+                    label: const Text("Riwayat Modal Keluar per Transaksi", style: TextStyle(fontWeight: FontWeight.bold)),
+                    onPressed: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => const CapitalHistoryScreen()));
+                    },
+                  ),
                 ),
                 const SizedBox(height: 15),
                 TextField(
