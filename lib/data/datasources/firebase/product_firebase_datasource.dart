@@ -45,7 +45,6 @@ class ProductFirebaseDataSource {
         if (data['is_active'] == false) continue;
 
         [
-          'stock',
           'buy_price_unit',
           'sell_price_unit',
           'buy_price_cubic',
@@ -54,6 +53,10 @@ class ProductFirebaseDataSource {
         ].forEach((key) {
           if (data[key] != null) data[key] = (data[key] as num).toInt();
         });
+
+        if (data['stock'] != null) {
+          data['stock'] = (data['stock'] as num).toDouble();
+        }
 
         data['woodClass'] = data['woodClass'] ?? data['wood_class'] ?? '';
         data['wood_class'] = data['wood_class'] ?? data['woodClass'] ?? '';
@@ -157,7 +160,7 @@ class ProductFirebaseDataSource {
             totalExpense: expense > 0 ? expense : null,
           );
         }
-        _col('products').doc(id.toString()).update({'stock': newStock.toInt()});
+        _col('products').doc(id.toString()).update({'stock': newStock});
       }
     } catch (_) {}
   }
