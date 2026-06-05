@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../controllers/debt_controller.dart';
 import '../theme/app_colors.dart';
 import 'transaction_detail_screen.dart';
+import 'customer_debt_list_screen.dart';
 
 class DebtHistoryScreen extends StatefulWidget {
   const DebtHistoryScreen({super.key});
@@ -15,7 +16,7 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen> {
   final DebtController _controller = DebtController();
 
   bool _isLoading = true;
-  List<Map<String, dynamic>> _debts = [];
+  List<Map<String, dynamic>> _groups = [];
   int _totalSisaPiutang = 0;
 
   @override
@@ -24,15 +25,15 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen> {
     _fetchDebts();
   }
 
-  // MESIN PENARIK DATA HUTANG DARI SQLITE
+  // MESIN PENARIK DATA HUTANG DARI FIREBASE (GROUPED PER PELANGGAN)
   Future<void> _fetchDebts() async {
     setState(() => _isLoading = true);
 
-    final data = await _controller.getDebtSummary();
+    final data = await _controller.getGroupedDebtSummary();
 
     if (mounted) {
       setState(() {
-        _debts = data['debts'];
+        _groups = data['groups'];
         _totalSisaPiutang = data['total_sisa'];
         _isLoading = false;
       });
@@ -44,6 +45,15 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen> {
     symbol: 'Rp ',
     decimalDigits: 0,
   ).format(number);
+
+  // Hitung total transaksi belum lunas (bukan total grup)
+  int get _totalTransaksiBelumLunas {
+    int count = 0;
+    for (var g in _groups) {
+      count += (g['transaction_count'] as int);
+    }
+    return count;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -103,30 +113,54 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen> {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.menuIndigoBg,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      "${_debts.length} Transaksi Belum Lunas",
-                      style: const TextStyle(
-                        color: AppColors.menuIndigoIcon,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.menuIndigoBg,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          "${_groups.length} Pelanggan",
+                          style: const TextStyle(
+                            color: AppColors.menuIndigoIcon,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
                       ),
-                    ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.statusRed.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          "$_totalTransaksiBelumLunas Nota",
+                          style: const TextStyle(
+                            color: AppColors.statusRed,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
           ),
 
-          // 2. DAFTAR ORANG NGUTANG
+          // 2. DAFTAR PELANGGAN YANG NGUTANG (GROUPED)
           Expanded(
             child: _isLoading
                 ? const Center(
@@ -134,7 +168,7 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen> {
                       color: AppColors.primaryNavy,
                     ),
                   )
-                : _debts.isEmpty
+                : _groups.isEmpty
                 ? const Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -157,22 +191,20 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen> {
                   )
                 : ListView.builder(
                     padding: const EdgeInsets.all(16),
-                    itemCount: _debts.length,
+                    itemCount: _groups.length,
                     itemBuilder: (ctx, i) {
-                      final t = _debts[i];
-                      int totalPrice = (t['total_price'] as int?) ?? 0;
-                      int discount = (t['discount'] as int?) ?? 0;
-                      int dicicil = (t['total_dicicil'] as int?) ?? 0;
-                      int sisa = totalPrice - dicicil;
-
-                      String dateStr = DateFormat(
-                        'dd MMM yyyy',
-                      ).format(DateTime.parse(t['transaction_date']));
-                      String customer = t['customer_name'] ?? 'Pelanggan Umum';
+                      final group = _groups[i];
+                      String customerName = group['customer_name'];
+                      int sisaHutang = group['sisa_hutang'] as int;
+                      int totalHutang = group['total_hutang'] as int;
+                      int totalDicicil = group['total_dicicil'] as int;
+                      int transCount = group['transaction_count'] as int;
+                      List<Map<String, dynamic>> transactions =
+                          group['transactions'] as List<Map<String, dynamic>>;
 
                       return Card(
-                        color: AppColors.pureWhite, // Warna Putih Solid
-                        elevation: 4, // Shadow lebih tebal
+                        color: AppColors.pureWhite,
+                        elevation: 4,
                         shadowColor: AppColors.primaryNavy.withOpacity(0.2),
                         margin: const EdgeInsets.only(bottom: 15),
                         shape: RoundedRectangleBorder(
@@ -185,19 +217,38 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen> {
                         child: InkWell(
                           borderRadius: BorderRadius.circular(15),
                           onTap: () async {
-                            await Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    TransactionDetailScreen(transaction: t),
-                              ),
-                            );
-                            _fetchDebts();
+                            if (transCount == 1) {
+                              // LANGSUNG BUKA NOTA DETAIL
+                              await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => TransactionDetailScreen(
+                                    transaction: transactions.first,
+                                  ),
+                                ),
+                              );
+                            } else {
+                              // BUKA DAFTAR HUTANG PER PELANGGAN
+                              await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => CustomerDebtListScreen(
+                                    customerName: customerName,
+                                    transactions: transactions,
+                                    totalHutang: totalHutang,
+                                    totalDicicil: totalDicicil,
+                                    sisaHutang: sisaHutang,
+                                  ),
+                                ),
+                              );
+                            }
+                            _fetchDebts(); // Refresh setelah kembali
                           },
                           child: Padding(
                             padding: const EdgeInsets.all(16),
                             child: Row(
                               children: [
+                                // Ikon pelanggan
                                 Container(
                                   padding: const EdgeInsets.all(12),
                                   decoration: BoxDecoration(
@@ -205,18 +256,18 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen> {
                                     shape: BoxShape.circle,
                                   ),
                                   child: const Icon(
-                                    Icons.account_balance_wallet,
+                                    Icons.person,
                                     color: AppColors.statusRed,
                                   ),
                                 ),
                                 const SizedBox(width: 15),
+                                // Info pelanggan
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
+                                    crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        customer,
+                                        customerName,
                                         style: const TextStyle(
                                           fontWeight: FontWeight.w900,
                                           color: AppColors.primaryNavy,
@@ -226,18 +277,41 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen> {
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                       const SizedBox(height: 4),
-                                      Text(
-                                        "INV-${t['id']} • $dateStr",
-                                        style: const TextStyle(
-                                          color: AppColors.textGrey,
-                                          fontSize: 12,
-                                        ),
+                                      Row(
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 6,
+                                              vertical: 2,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: AppColors.menuIndigoBg,
+                                              borderRadius: BorderRadius.circular(4),
+                                            ),
+                                            child: Text(
+                                              "$transCount Nota",
+                                              style: const TextStyle(
+                                                color: AppColors.menuIndigoIcon,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 10,
+                                              ),
+                                            ),
+                                          ),
+                                          if (transCount > 1) ...[
+                                            const SizedBox(width: 6),
+                                            const Icon(
+                                              Icons.arrow_forward_ios,
+                                              size: 10,
+                                              color: AppColors.textGrey,
+                                            ),
+                                          ],
+                                        ],
                                       ),
                                       const SizedBox(height: 8),
                                       LinearProgressIndicator(
-                                        value: totalPrice == 0
+                                        value: totalHutang == 0
                                             ? 0
-                                            : dicicil / totalPrice,
+                                            : totalDicicil / totalHutang,
                                         backgroundColor: Colors.grey.shade200,
                                         color: AppColors.statusGreen,
                                         minHeight: 6,
@@ -247,6 +321,7 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen> {
                                   ),
                                 ),
                                 const SizedBox(width: 15),
+                                // Sisa hutang
                                 Column(
                                   crossAxisAlignment: CrossAxisAlignment.end,
                                   children: [
@@ -260,7 +335,7 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen> {
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
-                                      _formatRp(sisa),
+                                      _formatRp(sisaHutang),
                                       style: const TextStyle(
                                         fontWeight: FontWeight.w900,
                                         color: AppColors.statusRed,

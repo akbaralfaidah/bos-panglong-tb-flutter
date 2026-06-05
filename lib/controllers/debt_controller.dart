@@ -30,4 +30,19 @@ class DebtController {
       'total_sisa': totalSisaPiutang,
     };
   }
+
+  // METODE BARU: Ambil data hutang yang sudah digrupkan per nama pelanggan
+  Future<Map<String, dynamic>> getGroupedDebtSummary() async {
+    final groupedDebts = await _debtDS.getActiveDebtsGroupedByCustomer();
+
+    int totalSisaPiutang = 0;
+    for (var group in groupedDebts) {
+      totalSisaPiutang += (group['sisa_hutang'] as int);
+    }
+
+    return {
+      'groups': groupedDebts,
+      'total_sisa': totalSisaPiutang,
+    };
+  }
 }

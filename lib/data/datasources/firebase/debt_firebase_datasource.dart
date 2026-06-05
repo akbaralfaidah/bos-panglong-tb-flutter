@@ -53,4 +53,47 @@ class DebtFirebaseDataSource {
     );
     return activeDebts;
   }
+
+  // GRUPKAN HUTANG BERDASARKAN NAMA PELANGGAN
+  Future<List<Map<String, dynamic>>> getActiveDebtsGroupedByCustomer() async {
+    // 1. Ambil semua hutang aktif (pakai method yang sudah ada)
+    final allDebts = await getActiveDebtsWithDetails();
+
+    // 2. Kelompokkan berdasarkan nama pelanggan (sebelum ' - ')
+    Map<String, Map<String, dynamic>> grouped = {};
+
+    for (var debt in allDebts) {
+      String rawName = debt['customer_name'] ?? 'Pelanggan Umum';
+      // Ambil nama saja (sebelum ' - ' jika ada nomor HP/alamat)
+      String customerKey = rawName.split(' - ').first.split('\n').first.trim();
+      if (customerKey.isEmpty) customerKey = 'Pelanggan Umum';
+
+      if (!grouped.containsKey(customerKey)) {
+        grouped[customerKey] = {
+          'customer_name': customerKey,
+          'full_customer_name': rawName, // simpan nama lengkap dari transaksi pertama
+          'total_hutang': 0,
+          'total_dicicil': 0,
+          'sisa_hutang': 0,
+          'transactions': <Map<String, dynamic>>[],
+          'transaction_count': 0,
+        };
+      }
+
+      int totalPrice = (debt['total_price'] as num?)?.toInt() ?? 0;
+      int dicicil = (debt['total_dicicil'] as num?)?.toInt() ?? 0;
+
+      grouped[customerKey]!['total_hutang'] += totalPrice;
+      grouped[customerKey]!['total_dicicil'] += dicicil;
+      grouped[customerKey]!['sisa_hutang'] += (totalPrice - dicicil);
+      (grouped[customerKey]!['transactions'] as List<Map<String, dynamic>>).add(debt);
+      grouped[customerKey]!['transaction_count'] += 1;
+    }
+
+    // 3. Convert ke list dan sort berdasarkan sisa hutang terbesar
+    List<Map<String, dynamic>> result = grouped.values.toList();
+    result.sort((a, b) => (b['sisa_hutang'] as int).compareTo(a['sisa_hutang'] as int));
+
+    return result;
+  }
 }
