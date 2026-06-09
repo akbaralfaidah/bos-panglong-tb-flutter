@@ -438,46 +438,46 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
   }
 
   void _calculateFinalStock() {
-    int inputVal = 0;
+    double inputVal = 0;
 
     if (_mainTabController.index == 0) { 
       if (_selectedWoodType == 0) {
         if (!_isInputKubik) {
-          inputVal = int.tryParse(_inputQtyMasukController.text.replaceAll('.', '')) ?? 0;
+          inputVal = double.tryParse(_inputQtyMasukController.text.replaceAll(',', '.').replaceAll('.', '', )) ?? 0;
         } else {
           double inputKubik = double.tryParse(_inputKubikController.text.replaceAll(',', '.')) ?? 0;
           double vol = _getVolumePerBatang();
           if (vol > 0 && inputKubik > 0) {
             int bpk = (10000 / vol).ceil();
-            inputVal = (inputKubik * bpk).round(); 
+            inputVal = (inputKubik * bpk); 
           }
         }
       } else if (_selectedWoodType == 1) { 
         if (_rengInputMode == 0) { 
-          inputVal = int.tryParse(_inputQtyMasukController.text.replaceAll('.', '')) ?? 0;
+          inputVal = double.tryParse(_inputQtyMasukController.text.replaceAll(',', '.').replaceAll('.', '')) ?? 0;
         } else if (_rengInputMode == 1) { 
-          int qtyIkat = int.tryParse(_inputQtyMasukController.text.replaceAll('.', '')) ?? 0;
+          double qtyIkat = double.tryParse(_inputQtyMasukController.text.replaceAll(',', '.').replaceAll('.', '')) ?? 0;
           double isi = double.tryParse(_inputIsiPerDusController.text.replaceAll(',', '.')) ?? 1.0;
-          inputVal = (qtyIkat * isi).round();
+          inputVal = (qtyIkat * isi);
         } else if (_rengInputMode == 2) { 
           double qtyKubik = double.tryParse(_inputKubikController.text.replaceAll(',', '.')) ?? 0;
           double vol = _getVolumePerBatangReng();
           if (vol > 0 && qtyKubik > 0) {
             int bpk = (10000 / vol).ceil();
-            inputVal = (qtyKubik * bpk).round(); 
+            inputVal = (qtyKubik * bpk); 
           }
         }
       } else {
-        inputVal = int.tryParse(_inputQtyMasukController.text.replaceAll('.', '')) ?? 0;
+        inputVal = double.tryParse(_inputQtyMasukController.text.replaceAll(',', '.').replaceAll('.', '')) ?? 0;
       }
     } 
     else { 
-      int qtyGrosir = int.tryParse(_bgnGrosirQtyController.text.replaceAll('.', '')) ?? 0;
-      int qtySatuan = int.tryParse(_bgnSatuanQtyController.text.replaceAll('.', '')) ?? 0;
+      double qtyGrosir = double.tryParse(_bgnGrosirQtyController.text.replaceAll(',', '.')) ?? 0;
+      double qtySatuan = double.tryParse(_bgnSatuanQtyController.text.replaceAll(',', '.')) ?? 0;
       
       if (_selectedBangunanGrosirUnit != null && _selectedBangunanUnit != null) {
           double isi = double.tryParse(_inputIsiPerDusController.text.replaceAll(',', '.')) ?? 1.0;
-          inputVal = (qtyGrosir * isi).round() + qtySatuan;
+          inputVal = (qtyGrosir * isi) + qtySatuan;
       } else if (_selectedBangunanGrosirUnit != null) {
           inputVal = qtyGrosir;
       } else if (_selectedBangunanUnit != null) {
@@ -485,7 +485,9 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
       }
     }
     
-    _stockController.text = inputVal.toString();
+    // Simpan stok dengan presisi 2 desimal
+    double rounded = double.parse(inputVal.toStringAsFixed(2));
+    _stockController.text = rounded == rounded.roundToDouble() ? rounded.round().toString() : rounded.toString();
   }
 
   void _updatePreviewTexts() {
@@ -554,16 +556,16 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
     else { 
       int mGrosir = _parseMoney(_modalGrosirController.text);
       int mSatuan = _parseMoney(_modalSatuanController.text);
-      int qtyGrosir = int.tryParse(_bgnGrosirQtyController.text.replaceAll('.', '')) ?? 0;
-      int qtySatuan = int.tryParse(_bgnSatuanQtyController.text.replaceAll('.', '')) ?? 0;
+      double qtyGrosir = double.tryParse(_bgnGrosirQtyController.text.replaceAll(',', '.')) ?? 0;
+      double qtySatuan = double.tryParse(_bgnSatuanQtyController.text.replaceAll(',', '.')) ?? 0;
       
       if (_selectedBangunanGrosirUnit != null && _selectedBangunanUnit != null) {
-          int totalPcs = int.tryParse(_stockController.text.replaceAll('.', '')) ?? 0;
-          totalEstimasi = totalPcs * mSatuan;
+          double totalPcs = double.tryParse(_stockController.text.replaceAll(',', '.')) ?? 0;
+          totalEstimasi = (totalPcs * mSatuan).round();
       } else if (_selectedBangunanGrosirUnit != null) {
-          totalEstimasi = qtyGrosir * mGrosir;
+          totalEstimasi = (qtyGrosir * mGrosir).round();
       } else if (_selectedBangunanUnit != null) {
-          totalEstimasi = qtySatuan * mSatuan;
+          totalEstimasi = (qtySatuan * mSatuan).round();
       }
     }
 
@@ -863,8 +865,9 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
     
     _sourceController.text = p.source;
     
-    _stockController.text = p.stock.toInt().toString();
-    _inputQtyMasukController.text = p.stock.toInt().toString(); 
+    String stockStr = p.stock == p.stock.roundToDouble() ? p.stock.round().toString() : p.stock.toStringAsFixed(2);
+    _stockController.text = stockStr;
+    _inputQtyMasukController.text = stockStr; 
     
     _modalSatuanController.text = _formatMoney(p.buyPriceUnit);
     _jualSatuanController.text = _formatMoney(p.sellPriceUnit);
@@ -914,13 +917,16 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
       
       if (_selectedBangunanUnit != null && _selectedBangunanGrosirUnit != null) {
           int g = (p.stock / isiPcs).floor(); 
-          int s = (p.stock - (g * isiPcs)).round();  
+          double s = p.stock - (g * isiPcs);  
           if (g > 0) _bgnGrosirQtyController.text = g.toString();
-          if (s > 0) _bgnSatuanQtyController.text = s.toString();
+          if (s > 0) {
+            String sStr = s == s.roundToDouble() ? s.round().toString() : double.parse(s.toStringAsFixed(2)).toString();
+            _bgnSatuanQtyController.text = sStr;
+          }
       } else if (_selectedBangunanGrosirUnit != null) {
-          _bgnGrosirQtyController.text = p.stock.toString();
+          _bgnGrosirQtyController.text = p.stockDisplay;
       } else if (_selectedBangunanUnit != null) {
-          _bgnSatuanQtyController.text = p.stock.toString();
+          _bgnSatuanQtyController.text = p.stockDisplay;
       }
     }
     

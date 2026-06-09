@@ -182,7 +182,7 @@ class _CashierScreenState extends State<CashierScreen>
           double stockInCart = _cart
               .where((c) => c.product.id == foundProduct!.id)
               .fold(0.0, (sum, item) => sum + item.stockDeduction);
-          double displayStock = foundProduct.stock - stockInCart;
+          double displayStock = double.parse((foundProduct.stock - stockInCart).toStringAsFixed(2));
 
           if (displayStock <= 0) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -546,7 +546,7 @@ class _CashierScreenState extends State<CashierScreen>
                     ),
                     const SizedBox(height: 5),
                     Text(
-                      "Sisa Stok di Rak: $displayStock",
+                      "Sisa Stok di Rak: ${displayStock == displayStock.roundToDouble() ? displayStock.round().toString() : displayStock.toStringAsFixed(2)}",
                       style: TextStyle(
                         fontSize: 13,
                         color: displayStock <= 0
@@ -1345,8 +1345,9 @@ class _CashierScreenState extends State<CashierScreen>
     double stockInCartDeduction = _cart
         .where((c) => c.product.id == p.id)
         .fold(0.0, (sum, item) => sum + item.stockDeduction);
-    double displayStock = p.stock - stockInCartDeduction;
+    double displayStock = double.parse((p.stock - stockInCartDeduction).toStringAsFixed(2));
     int inCartCount = _cart.where((c) => c.product.id == p.id).length;
+    String displayStockStr = displayStock == displayStock.roundToDouble() ? displayStock.round().toString() : displayStock.toStringAsFixed(2);
 
     Widget stockWidget;
     if (isBangunan &&
@@ -1365,7 +1366,7 @@ class _CashierScreenState extends State<CashierScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              "Sisa: $displayStock $dim",
+              "Sisa: $displayStockStr $dim",
               style: TextStyle(
                 color: displayStock <= 5
                     ? AppColors.pureWhite
@@ -1390,7 +1391,7 @@ class _CashierScreenState extends State<CashierScreen>
         );
       } else {
         stockWidget = Text(
-          "Sisa: $displayStock $dim",
+          "Sisa: $displayStockStr $dim",
           style: TextStyle(
             color: displayStock <= 5
                 ? AppColors.pureWhite
@@ -1403,7 +1404,7 @@ class _CashierScreenState extends State<CashierScreen>
       }
     } else {
       stockWidget = Text(
-        "Sisa: $displayStock",
+        "Sisa: $displayStockStr",
         style: TextStyle(
           color: displayStock <= 5 ? AppColors.pureWhite : AppColors.accentGold,
           fontSize: 13,

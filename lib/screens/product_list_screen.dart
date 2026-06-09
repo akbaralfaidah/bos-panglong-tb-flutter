@@ -836,7 +836,7 @@ class _ProductListScreenState extends State<ProductListScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              "Sisa: ${p.stock} $dim",
+              "Sisa: ${p.stockDisplay} $dim",
               style: TextStyle(
                 color: p.stock <= 5
                     ? AppColors.pureWhite
@@ -861,7 +861,7 @@ class _ProductListScreenState extends State<ProductListScreen>
         );
       } else {
         stockWidget = Text(
-          "Sisa: ${p.stock} $dim",
+          "Sisa: ${p.stockDisplay} $dim",
           style: TextStyle(
             color: p.stock <= 5 ? AppColors.pureWhite : AppColors.accentGold,
             fontSize: 13,
@@ -872,7 +872,7 @@ class _ProductListScreenState extends State<ProductListScreen>
       }
     } else {
       stockWidget = Text(
-        "Sisa: ${p.stock}",
+        "Sisa: ${p.stockDisplay}",
         style: TextStyle(
           color: p.stock <= 5 ? AppColors.pureWhite : AppColors.accentGold,
           fontSize: 13,
@@ -1524,7 +1524,7 @@ class _ProductListScreenState extends State<ProductListScreen>
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                        const Text("Sisa Barang Gudang:", style: TextStyle(color: AppColors.textGrey, fontSize: 13)),
-                       Text("${p.stock}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.primaryNavy)),
+                       Text("${p.stockDisplay}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.primaryNavy)),
                     ],
                   ),
                   const SizedBox(height: 10),

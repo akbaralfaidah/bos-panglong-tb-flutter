@@ -5,7 +5,13 @@ class Product {
   final String? dimensions; 
   final String source;      
   final String? woodClass;  
-  final double stock;          
+  final double stock;
+  
+  /// Menampilkan stok dalam format bersih (35.75 bukan 35.749999999999)
+  String get stockDisplay {
+    if (stock == stock.roundToDouble()) return stock.round().toString();
+    return stock.toStringAsFixed(2);
+  }
   
   final int buyPriceUnit;   
   final int buyPriceCubic;  
@@ -46,7 +52,7 @@ class Product {
     dimensions: json['dimensions'],
     source: json['source'] ?? '',
     woodClass: json['wood_class'], 
-    stock: (json['stock'] as num).toDouble(),
+    stock: double.parse(((json['stock'] as num).toDouble()).toStringAsFixed(2)),
     buyPriceUnit: json['buy_price_unit'],
     buyPriceCubic: json['buy_price_cubic'] ?? 0,
     sellPriceUnit: json['sell_price_unit'],
@@ -65,7 +71,7 @@ class Product {
     'dimensions': dimensions,
     'source': source,
     'wood_class': woodClass, 
-    'stock': stock,
+    'stock': double.parse(stock.toStringAsFixed(2)),
     'buy_price_unit': buyPriceUnit,
     'buy_price_cubic': buyPriceCubic,
     'sell_price_unit': sellPriceUnit,
