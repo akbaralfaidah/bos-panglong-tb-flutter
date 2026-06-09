@@ -170,22 +170,22 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
       return p.buyPriceUnit;
     }
 
-    int getStockDeduction(double q, int mode) {
+    double getStockDeduction(double q, int mode) {
       if (p.type == 'RENG') {
-        if (mode == 0) return q.round();
-        if (mode == 1) return (q * p.packContent).round();
+        if (mode == 0) return q;
+        if (mode == 1) return (q * p.packContent);
         if (mode == 2) {
           double vol = 0;
           if (p.dimensions == '2x3') vol = 24.0;
           else if (p.dimensions == '3x4') vol = 48.0;
           if (vol > 0) {
             int bpk = (10000 / vol).ceil();
-            return (q * bpk).round();
+            return (q * bpk);
           }
         }
-        return q.round();
+        return q;
       } else if (p.type == 'KAYU') {
-        if (mode == 0) return q.round();
+        if (mode == 0) return q;
         if (mode == 1) {
           double vol = 0;
           if (p.dimensions != null && p.dimensions!.contains('x')) {
@@ -199,13 +199,13 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
           }
           if (vol > 0) {
             int bpk = (10000 / vol).ceil();
-            return (q * bpk).round();
+            return (q * bpk);
           }
         }
-        return q.round();
+        return q;
       } else {
-        if (mode == 1) return (q * p.packContent).round();
-        return q.round();
+        if (mode == 1) return (q * p.packContent);
+        return q;
       }
     }
 
@@ -377,7 +377,48 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
                             onPressed: () {
                               double finalQty = double.tryParse(qtyCtrl.text.replaceAll(',', '.')) ?? 1;
                               int finalTotal = int.tryParse(totalPriceCtrl.text.replaceAll('.', '')) ?? 0;
-                              int requiredStock = getStockDeduction(finalQty, unitMode);
+                              double requiredStock = getStockDeduction(finalQty, unitMode);
+                              
+                              // CALCULATE STOCK LIMIT
+                              double originalTaken = 0;
+                              for (var item in _originalItems) {
+                                if (item['product_id'] == p.id) {
+                                  originalTaken += (item['quantity'] as num?)?.toDouble() ?? 0.0;
+                                }
+                              }
+                              
+                              double currentlyTaken = 0;
+                              for (int i = 0; i < _cartItems.length; i++) {
+                                if (editIndex != null && i == editIndex) continue;
+                                var item = _cartItems[i];
+                                if (item['product_id'] == p.id) {
+                                  currentlyTaken += (item['quantity'] as num?)?.toDouble() ?? 0.0;
+                                }
+                              }
+                              
+                              double maxAvailableStock = p.stock + originalTaken - currentlyTaken;
+                              
+                              if (requiredStock > maxAvailableStock) {
+                                if (mounted) {
+                                  String maxDisplay = maxAvailableStock == maxAvailableStock.roundToDouble() ? maxAvailableStock.round().toString() : maxAvailableStock.toStringAsFixed(2);
+                                  showDialog(
+                                    context: context,
+                                    builder: (c) => AlertDialog(
+                                      backgroundColor: AppColors.pureWhite,
+                                      title: const Text("Stok Kurang!", style: TextStyle(color: AppColors.statusRed, fontWeight: FontWeight.bold)),
+                                      content: Text("Sisa maksimal yang bisa ditambahkan: $maxDisplay\nTidak cukup untuk memasukkan $requiredStock", style: const TextStyle(color: AppColors.textDark)),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(c),
+                                          child: const Text("OK", style: TextStyle(color: AppColors.primaryNavy)),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }
+                                return;
+                              }
+
                               int finalSellPrice = finalQty > 0 ? (finalTotal / finalQty).round() : 0;
 
                               setState(() {
