@@ -343,6 +343,10 @@ class _CashierScreenState extends State<CashierScreen>
     String profitInfo = "";
     Color profitColor = AppColors.textGrey;
 
+    // 🔥 FITUR HARGA CUSTOM PER SATUAN 🔥
+    bool _userEditedPrice = false;
+    int _customUnitPrice = 0;
+
     String getUnitLabel(int mode) {
       if (p.type == 'RENG') {
         if (mode == 0) return "Batang";
@@ -429,6 +433,12 @@ class _CashierScreenState extends State<CashierScreen>
       }
     }
 
+    // 🔥 HARGA EFEKTIF: Gunakan harga custom jika user sudah edit, atau harga asli gudang 🔥
+    int getEffectiveUnitPrice(int mode) {
+      if (_userEditedPrice) return _customUnitPrice;
+      return getSellPrice(mode);
+    }
+
     final TextEditingController totalPriceCtrl = TextEditingController(
       text: NumberFormat('#,###', 'id_ID').format(getSellPrice(unitMode)),
     );
@@ -440,7 +450,7 @@ class _CashierScreenState extends State<CashierScreen>
         builder: (context, setDialogState) {
           void calculateTotalFromQty() {
             double q = double.tryParse(qtyCtrl.text.replaceAll(',', '.')) ?? 0;
-            int total = (q * getSellPrice(unitMode)).round();
+            int total = (q * getEffectiveUnitPrice(unitMode)).round();
             totalPriceCtrl.text = NumberFormat('#,###', 'id_ID').format(total);
           }
 
@@ -461,6 +471,25 @@ class _CashierScreenState extends State<CashierScreen>
             }
           }
 
+          // 🔥 Ketika user edit harga total manual, tangkap harga custom per unit 🔥
+          void onTotalPriceManuallyEdited() {
+            double q = double.tryParse(qtyCtrl.text.replaceAll(',', '.')) ?? 0;
+            int inputTotal = int.tryParse(totalPriceCtrl.text.replaceAll('.', '')) ?? 0;
+            if (q > 0) {
+              _customUnitPrice = (inputTotal / q).round();
+              _userEditedPrice = true;
+            }
+            calculateMarginOnly();
+          }
+
+          // 🔥 Reset ke harga asli gudang 🔥
+          void resetToOriginalPrice() {
+            _userEditedPrice = false;
+            _customUnitPrice = 0;
+            calculateTotalFromQty();
+            calculateMarginOnly();
+          }
+
           if (profitInfo.isEmpty) calculateMarginOnly();
 
           Widget buildChip(String label, int modeValue) {
@@ -477,6 +506,9 @@ class _CashierScreenState extends State<CashierScreen>
               onSelected: (v) {
                 setDialogState(() {
                   unitMode = modeValue;
+                  // Reset harga custom saat ganti satuan
+                  _userEditedPrice = false;
+                  _customUnitPrice = 0;
                   calculateTotalFromQty();
                   calculateMarginOnly();
                 });
@@ -663,8 +695,47 @@ class _CashierScreenState extends State<CashierScreen>
                         CurrencyInputFormatter(),
                       ],
                       onChanged: (v) =>
-                          setDialogState(() => calculateMarginOnly()),
+                          setDialogState(() => onTotalPriceManuallyEdited()),
                     ),
+
+                    // 🔥 INFO HARGA CUSTOM + TOMBOL RESET 🔥
+                    if (_userEditedPrice) ...[
+                      const SizedBox(height: 6),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.edit, size: 14, color: AppColors.accentGold),
+                          const SizedBox(width: 4),
+                          Text(
+                            "Harga custom: ${_formatRp(_customUnitPrice)}/${getUnitLabel(unitMode)}",
+                            style: const TextStyle(
+                              color: AppColors.accentGold,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          GestureDetector(
+                            onTap: () => setDialogState(() => resetToOriginalPrice()),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AppColors.statusRed.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Text(
+                                "Reset",
+                                style: TextStyle(
+                                  color: AppColors.statusRed,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
 
                     if (_isOwner) ...[
                       const SizedBox(height: 8),
