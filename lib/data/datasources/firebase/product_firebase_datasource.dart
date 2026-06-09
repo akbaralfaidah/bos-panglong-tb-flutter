@@ -101,7 +101,44 @@ class ProductFirebaseDataSource {
           changes.add(
             "Modal(Grosir): ${fmt(old['buy_price_cubic'])} -> ${fmt(p.buyPriceCubic)}",
           );
-        if (old['name'] != p.name) changes.add("Nama diubah");
+        if (old['name'] != p.name) {
+          changes.add("Nama diubah");
+
+          // 🔥 UPDATE NAMA PRODUK DI SEMUA TRANSAKSI LAMA 🔥
+          try {
+            final tSnap = await _col('transactions').get(const GetOptions(source: Source.server));
+            WriteBatch batch = _db.batch();
+            int updateCount = 0;
+            
+            for (var tDoc in tSnap.docs) {
+              Map<String, dynamic> tData = tDoc.data() as Map<String, dynamic>;
+              List<dynamic> items = tData['items'] ?? [];
+              bool needsUpdate = false;
+              
+              for (var i = 0; i < items.length; i++) {
+                if (items[i]['product_id'] == p.id) {
+                  items[i]['product_name'] = p.name;
+                  needsUpdate = true;
+                }
+              }
+              
+              if (needsUpdate) {
+                batch.update(tDoc.reference, {'items': items});
+                updateCount++;
+                if (updateCount >= 450) {
+                  await batch.commit();
+                  batch = _db.batch();
+                  updateCount = 0;
+                }
+              }
+            }
+            if (updateCount > 0) {
+              await batch.commit();
+            }
+          } catch (e) {
+            print("Gagal update nama di transaksi lama: $e");
+          }
+        }
 
         String oldClass = old['wood_class'] ?? old['woodClass'] ?? '';
         if (oldClass != (p.woodClass ?? '') && p.woodClass != null)
