@@ -35,6 +35,7 @@ class DashboardFirebaseDataSource {
 
     // 1. SAPU BERSIH TRANSAKSI
     final tDocs = await _safeQuery(_col('transactions'));
+    Set<int> unpaidTransIds = {};
     for (var doc in tDocs) {
       var t = doc.data() as Map<String, dynamic>;
       double tp = (t['total_price'] as num?)?.toDouble() ?? 0;
@@ -74,6 +75,7 @@ class DashboardFirebaseDataSource {
         }
       } else {
         totalPiutangKotorAllTime += tp;
+        unpaidTransIds.add(t['id'] as int);
       }
     }
 
@@ -83,8 +85,12 @@ class DashboardFirebaseDataSource {
       var d = doc.data() as Map<String, dynamic>;
       double amount = (d['amount_paid'] as num?)?.toDouble() ?? 0;
       String pDate = d['payment_date'] ?? '';
+      int tid = d['transaction_id'] as int;
 
-      totalCicilanAllTime += amount;
+      if (unpaidTransIds.contains(tid)) {
+        totalCicilanAllTime += amount;
+      }
+      
       if (pDate.compareTo(startToday) >= 0 && pDate.compareTo(endToday) <= 0) {
         totalCicilanMasukHariIni += amount;
       }

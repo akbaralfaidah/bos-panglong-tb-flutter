@@ -77,6 +77,7 @@ class DebtFirebaseDataSource {
           'sisa_hutang': 0,
           'transactions': <Map<String, dynamic>>[],
           'transaction_count': 0,
+          'latest_transaction_date': debt['transaction_date'],
         };
       }
 
@@ -90,9 +91,9 @@ class DebtFirebaseDataSource {
       grouped[customerKey]!['transaction_count'] += 1;
     }
 
-    // 3. Convert ke list dan sort berdasarkan sisa hutang terbesar
+    // 3. Convert ke list dan sort berdasarkan tanggal transaksi terbaru
     List<Map<String, dynamic>> result = grouped.values.toList();
-    result.sort((a, b) => (b['sisa_hutang'] as int).compareTo(a['sisa_hutang'] as int));
+    result.sort((a, b) => (b['latest_transaction_date'] as String).compareTo(a['latest_transaction_date'] as String));
 
     return result;
   }

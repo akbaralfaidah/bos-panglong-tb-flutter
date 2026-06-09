@@ -28,17 +28,26 @@ class HistoryFirebaseDataSource {
     double totalUnpaid = 0;
 
     final pDocs = await _safeQuery(_col('debt_payments'));
-    Set<int> debtTransIds = pDocs.map((d) => (d.data() as Map<String, dynamic>)['transaction_id'] as int).toSet();
+    Map<int, double> dicicilPerTrans = {};
+    for (var doc in pDocs) {
+      var d = doc.data() as Map<String, dynamic>;
+      int tid = d['transaction_id'] as int;
+      double amount = (d['amount_paid'] as num).toDouble();
+      dicicilPerTrans[tid] = (dicicilPerTrans[tid] ?? 0) + amount;
+    }
 
     for (var doc in tDocs) {
       var t = doc.data() as Map<String, dynamic>;
       int tid = t['id'];
       String status = t['payment_status'] ?? '';
       
+      double paidAmount = dicicilPerTrans[tid] ?? 0.0;
+      t['total_paid'] = paidAmount;
+
       if (status != 'Lunas') {
         unpaid.add(t);
-        totalUnpaid += (t['total_price'] as num).toDouble();
-      } else if (debtTransIds.contains(tid)) {
+        totalUnpaid += ((t['total_price'] as num).toDouble() - paidAmount);
+      } else if (dicicilPerTrans.containsKey(tid)) {
         paid.add(t);
       }
     }
