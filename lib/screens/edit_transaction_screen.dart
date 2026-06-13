@@ -5,6 +5,7 @@ import '../models/product.dart';
 import '../controllers/edit_transaction_controller.dart';
 import '../theme/app_colors.dart';
 import '../helpers/search_helper.dart';
+import '../helpers/session_manager.dart';
 
 class EditTransactionScreen extends StatefulWidget {
   final Map<String, dynamic> transactionData;
@@ -16,6 +17,7 @@ class EditTransactionScreen extends StatefulWidget {
 }
 
 class _EditTransactionScreenState extends State<EditTransactionScreen> {
+  bool get _isOwner => SessionManager().isOwner;
   final EditTransactionController _controller = EditTransactionController();
   final TextEditingController _searchController = TextEditingController();
 
@@ -209,9 +211,31 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
       }
     }
 
-    int initialTotal = editIndex != null 
-        ? (_cartItems[editIndex]['agreed_total'] ?? (initialQty * getSellPrice(unitMode)).round())
-        : (initialQty * getSellPrice(unitMode)).round();
+    // 🔥 FITUR HARGA CUSTOM PER SATUAN 🔥
+    bool _userEditedPrice = false;
+    int _customUnitPrice = 0;
+
+    int initialTotal = 0;
+    if (editIndex != null) {
+      initialTotal = _cartItems[editIndex]['agreed_total'] ?? (initialQty * getSellPrice(unitMode)).round();
+      if (initialQty > 0) {
+        int oldCustomPrice = (initialTotal / initialQty).round();
+        if (oldCustomPrice != getSellPrice(unitMode)) {
+          _userEditedPrice = true;
+          _customUnitPrice = oldCustomPrice;
+        }
+      }
+    } else {
+      initialTotal = (initialQty * getSellPrice(unitMode)).round();
+    }
+
+    String profitInfo = "";
+    Color profitColor = AppColors.textGrey;
+
+    int getEffectiveUnitPrice(int mode) {
+      if (_userEditedPrice) return _customUnitPrice;
+      return getSellPrice(mode);
+    }
 
     final TextEditingController totalPriceCtrl = TextEditingController(
       text: NumberFormat('#,###', 'id_ID').format(initialTotal),
@@ -224,9 +248,43 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
         builder: (context, setDialogState) {
           void calculateTotalFromQty() {
             double q = double.tryParse(qtyCtrl.text.replaceAll(',', '.')) ?? 0;
-            int total = (q * getSellPrice(unitMode)).round();
+            int total = (q * getEffectiveUnitPrice(unitMode)).round();
             totalPriceCtrl.text = NumberFormat('#,###', 'id_ID').format(total);
           }
+
+          void calculateMarginOnly() {
+            double q = double.tryParse(qtyCtrl.text.replaceAll(',', '.')) ?? 0;
+            int inputTotal = int.tryParse(totalPriceCtrl.text.replaceAll('.', '')) ?? 0;
+            int totalModal = (q * getCapitalPrice(unitMode)).round(); 
+            int margin = inputTotal - totalModal;
+
+            if (margin < 0) {
+              profitInfo = "AWAS RUGI: " + NumberFormat.currency(locale: 'id', symbol: 'Rp ', decimalDigits: 0).format(margin);
+              profitColor = AppColors.statusRed;
+            } else {
+              profitInfo = "Estimasi Untung: " + NumberFormat.currency(locale: 'id', symbol: 'Rp ', decimalDigits: 0).format(margin);
+              profitColor = AppColors.statusGreen;
+            }
+          }
+
+          void onTotalPriceManuallyEdited() {
+            double q = double.tryParse(qtyCtrl.text.replaceAll(',', '.')) ?? 0;
+            int inputTotal = int.tryParse(totalPriceCtrl.text.replaceAll('.', '')) ?? 0;
+            if (q > 0) {
+              _customUnitPrice = (inputTotal / q).round();
+              _userEditedPrice = true;
+            }
+            calculateMarginOnly();
+          }
+
+          void resetToOriginalPrice() {
+            _userEditedPrice = false;
+            _customUnitPrice = 0;
+            calculateTotalFromQty();
+            calculateMarginOnly();
+          }
+
+          if (profitInfo.isEmpty) calculateMarginOnly();
 
           Widget buildChip(String label, int modeValue) {
             bool isSelected = modeValue == unitMode;
@@ -242,7 +300,10 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
               onSelected: (v) {
                 setDialogState(() {
                   unitMode = modeValue;
+                  _userEditedPrice = false;
+                  _customUnitPrice = 0;
                   calculateTotalFromQty();
+                  calculateMarginOnly();
                 });
               },
             );
@@ -309,6 +370,7 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
                               qtyCtrl.text = (c - 0.1).toStringAsFixed(1);
                             }
                             calculateTotalFromQty();
+                            calculateMarginOnly();
                             setDialogState(() {});
                           },
                         ),
@@ -321,6 +383,7 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
                             keyboardType: const TextInputType.numberWithOptions(decimal: true),
                             onChanged: (v) {
                               calculateTotalFromQty();
+                              calculateMarginOnly();
                               setDialogState(() {});
                             },
                             decoration: InputDecoration(
@@ -335,6 +398,7 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
                             double c = double.tryParse(qtyCtrl.text.replaceAll(',', '.')) ?? 0;
                             qtyCtrl.text = (c + 1).toStringAsFixed(0);
                             calculateTotalFromQty();
+                            calculateMarginOnly();
                             setDialogState(() {});
                           },
                         ),
@@ -356,7 +420,58 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
                         fillColor: AppColors.backgroundWhite,
                       ),
                       inputFormatters: [FilteringTextInputFormatter.digitsOnly, CurrencyInputFormatter()],
+                      onChanged: (v) => setDialogState(() => onTotalPriceManuallyEdited()),
                     ),
+
+                    if (_userEditedPrice) ...[
+                      const SizedBox(height: 6),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.edit, size: 14, color: AppColors.accentGold),
+                          const SizedBox(width: 4),
+                          Text(
+                            "Harga custom: " + NumberFormat.currency(locale: 'id', symbol: 'Rp ', decimalDigits: 0).format(_customUnitPrice) + "/${getUnitLabel(unitMode)}",
+                            style: const TextStyle(
+                              color: AppColors.accentGold,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          GestureDetector(
+                            onTap: () => setDialogState(() => resetToOriginalPrice()),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AppColors.statusRed.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Text(
+                                "Reset",
+                                style: TextStyle(
+                                  color: AppColors.statusRed,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+
+                    if (_isOwner) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        profitInfo,
+                        style: TextStyle(
+                          color: profitColor,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 20),
                     Row(
                       children: [
@@ -501,6 +616,13 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
                     decoration: const InputDecoration(labelText: "Quantity", border: OutlineInputBorder()),
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     onChanged: (v) {
+                      double currentCustomUnitPrice = 0;
+                      double oldQ = currentQty; 
+                      if (oldQ > 0) currentCustomUnitPrice = agreedTotal / oldQ;
+                      
+                      double newQ = double.tryParse(v.replaceAll(',', '.')) ?? 0;
+                      int updatedTotal = (newQ * currentCustomUnitPrice).round();
+                      totalCtrl.text = NumberFormat('#,###', 'id_ID').format(updatedTotal);
                       setStateDialog((){});
                     },
                   ),
@@ -510,6 +632,13 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
                     decoration: const InputDecoration(labelText: "Total Harga", prefixText: "Rp ", border: OutlineInputBorder()),
                     keyboardType: TextInputType.number,
                     inputFormatters: [FilteringTextInputFormatter.digitsOnly, CurrencyInputFormatter()],
+                    onChanged: (v) {
+                      int newTot = int.tryParse(v.replaceAll('.', '')) ?? 0;
+                      agreedTotal = newTot;
+                      double q = double.tryParse(qtyCtrl.text.replaceAll(',', '.')) ?? 1;
+                      if (q > 0) currentQty = q;
+                      setStateDialog((){});
+                    },
                   ),
                 ],
               ),
