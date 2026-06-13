@@ -654,13 +654,38 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              "Sisa Hutang: ${_formatRp(sisaHutang)}",
-              style: const TextStyle(
-                color: AppColors.statusRed,
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  "Sisa: ${_formatRp(sisaHutang)}",
+                  style: const TextStyle(
+                    color: AppColors.statusRed,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: () {
+                    amountCtrl.text = NumberFormat('#,###', 'id_ID').format(sisaHutang);
+                  },
+                  icon: const Icon(Icons.check_circle, size: 16, color: AppColors.statusGreen),
+                  label: const Text(
+                    "Bayar Lunas",
+                    style: TextStyle(
+                      color: AppColors.statusGreen,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    backgroundColor: AppColors.statusGreen.withOpacity(0.1),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 15),
             TextField(

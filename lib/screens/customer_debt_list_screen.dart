@@ -13,6 +13,7 @@ class CustomerDebtListScreen extends StatefulWidget {
   final int totalHutang;
   final int totalDicicil;
   final int sisaHutang;
+  final int totalPotentialProfit;
 
   const CustomerDebtListScreen({
     super.key,
@@ -21,6 +22,7 @@ class CustomerDebtListScreen extends StatefulWidget {
     required this.totalHutang,
     required this.totalDicicil,
     required this.sisaHutang,
+    this.totalPotentialProfit = 0,
   });
 
   @override
@@ -34,6 +36,7 @@ class _CustomerDebtListScreenState extends State<CustomerDebtListScreen> {
   late int _totalHutang;
   late int _totalDicicil;
   late int _sisaHutang;
+  late int _totalPotentialProfit;
 
   @override
   void initState() {
@@ -42,6 +45,7 @@ class _CustomerDebtListScreenState extends State<CustomerDebtListScreen> {
     _totalHutang = widget.totalHutang;
     _totalDicicil = widget.totalDicicil;
     _sisaHutang = widget.sisaHutang;
+    _totalPotentialProfit = widget.totalPotentialProfit;
   }
 
   String _formatRp(int number) => NumberFormat.currency(
@@ -53,16 +57,20 @@ class _CustomerDebtListScreenState extends State<CustomerDebtListScreen> {
   void _recalculateTotals() {
     int hutang = 0;
     int dicicil = 0;
+    int profit = 0;
     for (var t in _transactions) {
       int tp = (t['total_price'] as num?)?.toInt() ?? 0;
       int dc = (t['total_dicicil'] as num?)?.toInt() ?? 0;
+      int pt = (t['potential_profit'] as num?)?.toInt() ?? 0;
       hutang += tp;
       dicicil += dc;
+      profit += pt;
     }
     setState(() {
       _totalHutang = hutang;
       _totalDicicil = dicicil;
       _sisaHutang = hutang - dicicil;
+      _totalPotentialProfit = profit;
     });
   }
 
@@ -211,13 +219,38 @@ class _CustomerDebtListScreenState extends State<CustomerDebtListScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              "Sisa Hutang: ${_formatRp(sisaHutang)}",
-              style: const TextStyle(
-                color: AppColors.statusRed,
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  "Sisa: ${_formatRp(sisaHutang)}",
+                  style: const TextStyle(
+                    color: AppColors.statusRed,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: () {
+                    amountCtrl.text = NumberFormat('#,###', 'id_ID').format(sisaHutang);
+                  },
+                  icon: const Icon(Icons.check_circle, size: 16, color: AppColors.statusGreen),
+                  label: const Text(
+                    "Bayar Lunas",
+                    style: TextStyle(
+                      color: AppColors.statusGreen,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    backgroundColor: AppColors.statusGreen.withOpacity(0.1),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 15),
             TextField(
@@ -312,6 +345,7 @@ class _CustomerDebtListScreenState extends State<CustomerDebtListScreen> {
     );
   }
 
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -390,6 +424,15 @@ class _CustomerDebtListScreenState extends State<CustomerDebtListScreen> {
                                 ),
                               ),
                             ),
+                            const SizedBox(height: 2),
+                            Text(
+                              "Potensi Profit: ${_formatRp(_totalPotentialProfit)}",
+                              style: const TextStyle(
+                                color: AppColors.statusGreen,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -450,6 +493,7 @@ class _CustomerDebtListScreenState extends State<CustomerDebtListScreen> {
                 int totalPrice = (t['total_price'] as num?)?.toInt() ?? 0;
                 int dicicil = (t['total_dicicil'] as num?)?.toInt() ?? 0;
                 int sisa = totalPrice - dicicil;
+                int potProfit = (t['potential_profit'] as num?)?.toInt() ?? 0;
                 bool isLunas = sisa <= 0;
 
                 String dateStr = DateFormat('dd MMM yyyy').format(
@@ -569,13 +613,28 @@ class _CustomerDebtListScreenState extends State<CustomerDebtListScreen> {
                           const SizedBox(height: 8),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
-                              Text(
-                                "Total: ${_formatRp(totalPrice)}",
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: AppColors.textGrey,
-                                ),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    "Total: ${_formatRp(totalPrice)}",
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: AppColors.textGrey,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    "Potensi Profit: ${_formatRp(potProfit)}",
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: AppColors.statusGreen,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
                               ),
                               Text(
                                 isLunas ? "Lunas" : "Sisa: ${_formatRp(sisa)}",

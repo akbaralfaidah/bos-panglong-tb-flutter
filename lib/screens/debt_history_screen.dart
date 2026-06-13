@@ -18,6 +18,7 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen> {
   bool _isLoading = true;
   List<Map<String, dynamic>> _groups = [];
   int _totalSisaPiutang = 0;
+  int _totalPotentialProfit = 0;
 
   @override
   void initState() {
@@ -35,6 +36,7 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen> {
       setState(() {
         _groups = data['groups'];
         _totalSisaPiutang = data['total_sisa'];
+        _totalPotentialProfit = data['total_potential_profit'] ?? 0;
         _isLoading = false;
       });
     }
@@ -110,6 +112,15 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen> {
                         color: AppColors.statusRed,
                         fontSize: 32,
                       ),
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    "Total Potensi Profit: ${_formatRp(_totalPotentialProfit)}",
+                    style: const TextStyle(
+                      color: AppColors.statusGreen,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -199,6 +210,7 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen> {
                       int totalHutang = group['total_hutang'] as int;
                       int totalDicicil = group['total_dicicil'] as int;
                       int transCount = group['transaction_count'] as int;
+                      int potProfit = (group['potential_profit'] as num?)?.toInt() ?? 0;
                       List<Map<String, dynamic>> transactions =
                           group['transactions'] as List<Map<String, dynamic>>;
 
@@ -238,6 +250,7 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen> {
                                     totalHutang: totalHutang,
                                     totalDicicil: totalDicicil,
                                     sisaHutang: sisaHutang,
+                                    totalPotentialProfit: potProfit,
                                   ),
                                 ),
                               );
@@ -321,7 +334,7 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen> {
                                   ),
                                 ),
                                 const SizedBox(width: 15),
-                                // Sisa hutang
+                                // Sisa hutang & Profit
                                 Column(
                                   crossAxisAlignment: CrossAxisAlignment.end,
                                   children: [
@@ -340,6 +353,23 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen> {
                                         fontWeight: FontWeight.w900,
                                         color: AppColors.statusRed,
                                         fontSize: 14,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.statusGreen.withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Text(
+                                        "Potensi Profit:\n${_formatRp(potProfit)}",
+                                        textAlign: TextAlign.right,
+                                        style: const TextStyle(
+                                          color: AppColors.statusGreen,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                        ),
                                       ),
                                     ),
                                   ],
