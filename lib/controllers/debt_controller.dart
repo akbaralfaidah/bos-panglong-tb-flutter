@@ -52,4 +52,15 @@ class DebtController {
       'total_potential_profit': totalPotentialProfit,
     };
   }
-}
+
+  // 🔥 AMBIL SEMUA HUTANG AKTIF (FLAT, BUKAN GROUPED) 🔥
+  Future<List<Map<String, dynamic>>> getAllActiveDebts() async {
+    final result = await _debtDS.getActiveDebtsWithDetails();
+    return result;
+  }
+
+  // 🔥 LUNASI SEMUA HUTANG SEKALIGUS 🔥
+  Future<void> payAllDebts(List<Map<String, dynamic>> allDebts, DateTime paymentDate) async {
+    await _debtDS.payAllDebts(allDebts, paymentDate);
+  }
+}

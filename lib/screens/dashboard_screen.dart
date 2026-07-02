@@ -65,7 +65,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     });
   }
 
-  // SESSION TIMEOUT 10 MENIT
+  // SESSION TIMEOUT PER HARI
   Future<void> _checkSessionTimeout() async {
     final prefs = await SharedPreferences.getInstance();
     
@@ -76,8 +76,12 @@ class _DashboardScreenState extends State<DashboardScreen>
         DateTime loginDate = DateTime.fromMillisecondsSinceEpoch(loginTime);
         DateTime now = DateTime.now();
         
-        // Cek kalau udah lebih dari 10 menit
-        if (now.difference(loginDate).inMinutes >= 10) {
+        // Cek apakah tanggal, bulan, atau tahunnya sudah berbeda dari waktu login
+        bool isDifferentDay = now.year != loginDate.year || 
+                              now.month != loginDate.month || 
+                              now.day != loginDate.day;
+        
+        if (isDifferentDay) {
           await SessionManager().logout(); 
           await prefs.remove('boss_session_timestamp'); 
           

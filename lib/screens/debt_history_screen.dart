@@ -12,7 +12,8 @@ class DebtHistoryScreen extends StatefulWidget {
   State<DebtHistoryScreen> createState() => _DebtHistoryScreenState();
 }
 
-class _DebtHistoryScreenState extends State<DebtHistoryScreen> {
+class _DebtHistoryScreenState extends State<DebtHistoryScreen>
+    with SingleTickerProviderStateMixin {
   final DebtController _controller = DebtController();
 
   bool _isLoading = true;
@@ -20,10 +21,29 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen> {
   int _totalSisaPiutang = 0;
   int _totalPotentialProfit = 0;
 
+  // Animasi glow untuk tombol super
+  late AnimationController _glowController;
+  late Animation<double> _glowAnimation;
+
   @override
   void initState() {
     super.initState();
     _fetchDebts();
+
+    _glowController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1800),
+    )..repeat(reverse: true);
+
+    _glowAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _glowController, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _glowController.dispose();
+    super.dispose();
   }
 
   // MESIN PENARIK DATA HUTANG DARI FIREBASE (GROUPED PER PELANGGAN)
@@ -55,6 +75,559 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen> {
       count += (g['transaction_count'] as int);
     }
     return count;
+  }
+
+  // =====================================================
+  // 🔥 POPUP KONFIRMASI LUNASI SEMUA HUTANG 🔥
+  // =====================================================
+  void _showPayAllDebtsDialog() async {
+    // Tampilkan loading dulu sambil ambil data flat
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(color: AppColors.accentGold),
+      ),
+    );
+
+    final allDebts = await _controller.getAllActiveDebts();
+    if (!mounted) return;
+    Navigator.pop(context); // Tutup loading
+
+    if (allDebts.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Tidak ada hutang aktif!", style: TextStyle(fontWeight: FontWeight.bold)),
+          backgroundColor: AppColors.statusGreen,
+        ),
+      );
+      return;
+    }
+
+    DateTime selectedDate = DateTime.now();
+    bool isExpanded = false;
+    bool isProcessing = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setSheetState) {
+          // Hitung total
+          int totalSisa = 0;
+          int totalProfit = 0;
+          for (var debt in allDebts) {
+            int tp = (debt['total_price'] as num?)?.toInt() ?? 0;
+            int dc = (debt['total_dicicil'] as num?)?.toInt() ?? 0;
+            int sisa = tp - dc;
+            if (sisa > 0) totalSisa += sisa;
+            totalProfit += (debt['potential_profit'] as num?)?.toInt() ?? 0;
+          }
+
+          // Kumpulkan per pelanggan untuk dropdown
+          Map<String, int> perCustomer = {};
+          for (var debt in allDebts) {
+            String name = (debt['customer_name'] ?? 'Pelanggan Umum')
+                .toString().split(' - ').first.split('\n').first.trim();
+            if (name.isEmpty) name = 'Pelanggan Umum';
+            int tp = (debt['total_price'] as num?)?.toInt() ?? 0;
+            int dc = (debt['total_dicicil'] as num?)?.toInt() ?? 0;
+            int sisa = tp - dc;
+            if (sisa > 0) {
+              perCustomer[name] = (perCustomer[name] ?? 0) + sisa;
+            }
+          }
+
+          return DraggableScrollableSheet(
+            initialChildSize: 0.75,
+            maxChildSize: 0.92,
+            minChildSize: 0.5,
+            builder: (_, scrollController) => Container(
+              decoration: const BoxDecoration(
+                color: AppColors.pureWhite,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: Column(
+                children: [
+                  // Handle bar
+                  Container(
+                    margin: const EdgeInsets.only(top: 12, bottom: 4),
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+
+                  // Scrollable content
+                  Expanded(
+                    child: ListView(
+                      controller: scrollController,
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      children: [
+                        const SizedBox(height: 12),
+                        // HEADER
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [Color(0xFFF39C12), Color(0xFFE74C3C)],
+                                ),
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: const Icon(Icons.bolt, color: Colors.white, size: 28),
+                            ),
+                            const SizedBox(width: 14),
+                            const Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    "⚡ Lunasi Semua Hutang?",
+                                    style: TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.w900,
+                                      color: AppColors.primaryNavy,
+                                    ),
+                                  ),
+                                  SizedBox(height: 2),
+                                  Text(
+                                    "Semua hutang akan dilunasi sekaligus",
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: AppColors.textGrey,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 20),
+
+                        // DATE PICKER
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: AppColors.menuBlueBg,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: AppColors.menuBlueIcon.withOpacity(0.2)),
+                          ),
+                          child: InkWell(
+                            onTap: () async {
+                              DateTime? picked = await showDatePicker(
+                                context: context,
+                                initialDate: selectedDate,
+                                firstDate: DateTime(2020),
+                                lastDate: DateTime.now().add(const Duration(days: 365)),
+                                builder: (context, child) => Theme(
+                                  data: Theme.of(context).copyWith(
+                                    colorScheme: const ColorScheme.light(
+                                      primary: AppColors.primaryNavy,
+                                      onPrimary: Colors.white,
+                                    ),
+                                  ),
+                                  child: child!,
+                                ),
+                              );
+                              if (picked != null) {
+                                setSheetState(() => selectedDate = picked);
+                              }
+                            },
+                            child: Row(
+                              children: [
+                                const Icon(Icons.calendar_today, color: AppColors.menuBlueIcon, size: 22),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        "Tanggal Pelunasan",
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: AppColors.textGrey,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        DateFormat('EEEE, dd MMMM yyyy', 'id_ID').format(selectedDate),
+                                        style: const TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w900,
+                                          color: AppColors.menuBlueIcon,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const Icon(Icons.edit_calendar, color: AppColors.menuBlueIcon, size: 20),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // RINGKASAN TOTAL
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                AppColors.statusRed.withOpacity(0.05),
+                                AppColors.statusRed.withOpacity(0.12),
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: AppColors.statusRed.withOpacity(0.2)),
+                          ),
+                          child: Column(
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text(
+                                    "Total Hutang Dilunasi",
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.textGrey,
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.menuIndigoBg,
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      "${allDebts.length} Nota • ${perCustomer.length} Orang",
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.menuIndigoIcon,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              FittedBox(
+                                child: Text(
+                                  _formatRp(totalSisa),
+                                  style: const TextStyle(
+                                    fontSize: 32,
+                                    fontWeight: FontWeight.w900,
+                                    color: AppColors.statusRed,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // DROPDOWN DAFTAR PENGHUTANG
+                        Container(
+                          decoration: BoxDecoration(
+                            color: AppColors.backgroundWhite,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: AppColors.primaryNavy.withOpacity(0.1)),
+                          ),
+                          child: Column(
+                            children: [
+                              InkWell(
+                                borderRadius: BorderRadius.circular(14),
+                                onTap: () => setSheetState(() => isExpanded = !isExpanded),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(16),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(8),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.menuAmberBg,
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: const Icon(
+                                          Icons.people_alt,
+                                          color: AppColors.menuAmberIcon,
+                                          size: 20,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Text(
+                                          "Daftar Penghutang (${perCustomer.length} Orang)",
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.bold,
+                                            color: AppColors.primaryNavy,
+                                          ),
+                                        ),
+                                      ),
+                                      AnimatedRotation(
+                                        turns: isExpanded ? 0.5 : 0.0,
+                                        duration: const Duration(milliseconds: 300),
+                                        child: const Icon(
+                                          Icons.keyboard_arrow_down,
+                                          color: AppColors.textGrey,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              // Expandable list
+                              AnimatedCrossFade(
+                                firstChild: const SizedBox.shrink(),
+                                secondChild: Column(
+                                  children: [
+                                    const Divider(height: 1),
+                                    ...perCustomer.entries.map((entry) => Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            width: 36,
+                                            height: 36,
+                                            decoration: BoxDecoration(
+                                              color: AppColors.statusRed.withOpacity(0.1),
+                                              shape: BoxShape.circle,
+                                            ),
+                                            child: Center(
+                                              child: Text(
+                                                entry.key.isNotEmpty ? entry.key[0].toUpperCase() : '?',
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.w900,
+                                                  color: AppColors.statusRed,
+                                                  fontSize: 14,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Text(
+                                              entry.key,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                color: AppColors.primaryNavy,
+                                                fontSize: 13,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                          Text(
+                                            _formatRp(entry.value),
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w900,
+                                              color: AppColors.statusRed,
+                                              fontSize: 13,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    )),
+                                    const SizedBox(height: 8),
+                                  ],
+                                ),
+                                crossFadeState: isExpanded
+                                    ? CrossFadeState.showSecond
+                                    : CrossFadeState.showFirst,
+                                duration: const Duration(milliseconds: 300),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // PROFIT INFO 🤑
+                        Container(
+                          padding: const EdgeInsets.all(18),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF198754), Color(0xFF20C997)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF198754).withOpacity(0.3),
+                                blurRadius: 12,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              const Text("😁🤑", style: TextStyle(fontSize: 36)),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      "Jika kamu lunasi, kamu akan mendapat keuntungan:",
+                                      style: TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    FittedBox(
+                                      child: Text(
+                                        _formatRp(totalProfit),
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 26,
+                                          fontWeight: FontWeight.w900,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 24),
+
+                        // TOMBOL AKSI
+                        Row(
+                          children: [
+                            // BATAL
+                            Expanded(
+                              child: SizedBox(
+                                height: 52,
+                                child: OutlinedButton(
+                                  onPressed: isProcessing ? null : () => Navigator.pop(ctx),
+                                  style: OutlinedButton.styleFrom(
+                                    side: const BorderSide(color: AppColors.textGrey),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                  ),
+                                  child: const Text(
+                                    "BATAL",
+                                    style: TextStyle(
+                                      color: AppColors.textGrey,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            // LUNASI SEMUA
+                            Expanded(
+                              flex: 2,
+                              child: SizedBox(
+                                height: 52,
+                                child: ElevatedButton.icon(
+                                  onPressed: isProcessing
+                                      ? null
+                                      : () async {
+                                          setSheetState(() => isProcessing = true);
+
+                                          try {
+                                            await _controller.payAllDebts(allDebts, selectedDate);
+
+                                            if (mounted) {
+                                              Navigator.pop(ctx);
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                SnackBar(
+                                                  content: Row(
+                                                    children: [
+                                                      const Text("🎉", style: TextStyle(fontSize: 20)),
+                                                      const SizedBox(width: 8),
+                                                      Expanded(
+                                                        child: Text(
+                                                          "Semua hutang berhasil dilunasi! Profit: ${_formatRp(totalProfit)}",
+                                                          style: const TextStyle(
+                                                            color: Colors.white,
+                                                            fontWeight: FontWeight.bold,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  backgroundColor: AppColors.statusGreen,
+                                                  duration: const Duration(seconds: 4),
+                                                ),
+                                              );
+                                              _fetchDebts(); // Refresh
+                                            }
+                                          } catch (e) {
+                                            setSheetState(() => isProcessing = false);
+                                            if (mounted) {
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                SnackBar(
+                                                  content: Text("Gagal melunasi: $e"),
+                                                  backgroundColor: AppColors.statusRed,
+                                                ),
+                                              );
+                                            }
+                                          }
+                                        },
+                                  icon: isProcessing
+                                      ? const SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.white,
+                                          ),
+                                        )
+                                      : const Icon(Icons.check_circle, color: Colors.white),
+                                  label: Text(
+                                    isProcessing ? "MEMPROSES..." : "LUNASI SEMUA",
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 15,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFFE74C3C),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                    elevation: 4,
+                                    shadowColor: const Color(0xFFE74C3C).withOpacity(0.4),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 30),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 
   @override
@@ -384,6 +957,94 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen> {
           ),
         ],
       ),
+
+      // 🔥 TOMBOL SUPER "LUNASI SEMUA HUTANG" 🔥
+      bottomNavigationBar: (!_isLoading && _groups.isNotEmpty)
+          ? AnimatedBuilder(
+              animation: _glowAnimation,
+              builder: (context, child) {
+                double glowValue = _glowAnimation.value;
+                return Container(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                  decoration: BoxDecoration(
+                    color: AppColors.pureWhite,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.08),
+                        blurRadius: 10,
+                        offset: const Offset(0, -3),
+                      ),
+                    ],
+                  ),
+                  child: SafeArea(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFFF39C12).withOpacity(0.25 + (glowValue * 0.25)),
+                            blurRadius: 12 + (glowValue * 8),
+                            spreadRadius: glowValue * 2,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: SizedBox(
+                        width: double.infinity,
+                        height: 58,
+                        child: ElevatedButton(
+                          onPressed: _showPayAllDebtsDialog,
+                          style: ElevatedButton.styleFrom(
+                            padding: EdgeInsets.zero,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            elevation: 0,
+                            backgroundColor: Colors.transparent,
+                          ),
+                          child: Ink(
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [
+                                  Color(0xFFF39C12), // Emas
+                                  Color(0xFFE67E22), // Emas tua
+                                  Color(0xFFE74C3C), // Merah
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Container(
+                              alignment: Alignment.center,
+                              child: const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.bolt, color: Colors.white, size: 26),
+                                  SizedBox(width: 10),
+                                  Text(
+                                    "LUNASI SEMUA HUTANG",
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 17,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: 1.2,
+                                    ),
+                                  ),
+                                  SizedBox(width: 6),
+                                  Text("🤑", style: TextStyle(fontSize: 22)),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            )
+          : null,
     );
   }
 }

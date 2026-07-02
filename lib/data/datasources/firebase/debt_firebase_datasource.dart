@@ -123,4 +123,50 @@ class DebtFirebaseDataSource {
 
     return result;
   }
+
+  // 🔥 LUNASI SEMUA HUTANG SEKALIGUS (BATCH ATOMIC) 🔥
+  Future<void> payAllDebts(List<Map<String, dynamic>> allDebts, DateTime paymentDate) async {
+    WriteBatch batch = _db.batch();
+    String currentCashier = SessionManager().userName ?? 'Tidak Diketahui';
+    String payDateStr = paymentDate.toIso8601String();
+
+    for (var debt in allDebts) {
+      int transId = debt['id'] as int;
+      int totalPrice = (debt['total_price'] as num?)?.toInt() ?? 0;
+      int totalDicicil = (debt['total_dicicil'] as num?)?.toInt() ?? 0;
+      int sisaHutang = totalPrice - totalDicicil;
+
+      if (sisaHutang <= 0) continue; // Sudah lunas, skip
+
+      // 1. Buat payment record untuk sisa hutang
+      int paymentId = DateTime.now().millisecondsSinceEpoch + transId; // Unique per transaksi
+      batch.set(_col('debt_payments').doc(paymentId.toString()), {
+        'id': paymentId,
+        'transaction_id': transId,
+        'amount_paid': sisaHutang,
+        'note': 'Lunasi Semua Hutang (Batch)',
+        'payment_date': payDateStr,
+        'cashier_name': currentCashier,
+      });
+
+      // 2. Update status transaksi jadi Lunas
+      batch.update(_col('transactions').doc(transId.toString()), {
+        'payment_status': 'Lunas',
+      });
+
+      // 3. Update modal_cair di produk (sama seperti flow payDebt)
+      List<dynamic> items = debt['items'] ?? [];
+      for (var item in items) {
+        double cap = (item['capital_price'] as num?)?.toDouble() ?? 0;
+        double qty = (item['quantity'] as num?)?.toDouble() ?? 0;
+        if (item['product_id'] != null) {
+          batch.set(_col('products').doc(item['product_id'].toString()), {
+            'modal_cair': FieldValue.increment(cap * qty),
+          }, SetOptions(merge: true));
+        }
+      }
+    }
+
+    await batch.commit();
+  }
 }
