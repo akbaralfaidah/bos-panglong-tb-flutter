@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'dart:ui' as ui;
 import 'dart:typed_data';
@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 import '../models/product.dart';
 import '../helpers/printer_helper.dart';
 import '../theme/app_colors.dart';
+import '../helpers/app_notification.dart';
 
 class ProductBarcodeScreen extends StatefulWidget {
   final Product product;
@@ -94,24 +95,11 @@ class _ProductBarcodeScreenState extends State<ProductBarcodeScreen> {
       }
 
       if (mounted && Platform.isAndroid) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              "Perintah Cetak Dikirim ke Printer!",
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            backgroundColor: AppColors.statusGreen,
-          ),
-        );
+        AppNotification.show(context, message: "Perintah Cetak Dikirim ke Printer!", type: AppNotificationType.success);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Gagal Cetak: $e"),
-            backgroundColor: AppColors.statusRed,
-          ),
-        );
+        AppNotification.show(context, message: "Gagal Cetak: $e", type: AppNotificationType.error);
       }
     } finally {
       if (mounted) setState(() => _isPrinting = false);

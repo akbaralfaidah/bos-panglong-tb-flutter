@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart'; 
@@ -9,6 +9,7 @@ import '../controllers/product_controller.dart';
 import '../controllers/profit_history_controller.dart'; 
 import '../theme/app_colors.dart';
 import 'new_product_receipt_screen.dart';
+import '../helpers/app_notification.dart';
 
 class CurrencyInputFormatter extends TextInputFormatter {
   @override
@@ -661,7 +662,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
     
     if (_mainTabController.index == 1) {
       if (_selectedBangunanUnit == null && _selectedBangunanGrosirUnit == null) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Pilih minimal 1 Satuan (Eceran atau Grosir)!"), backgroundColor: AppColors.statusRed));
+        AppNotification.show(context, message: "Pilih minimal 1 Satuan (Eceran atau Grosir)!", type: AppNotificationType.error);
         return;
       }
     }
@@ -791,7 +792,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
             if (mounted) Navigator.pop(context, true);
           }
         } else {
-          if (mounted) { Navigator.pop(context, true); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Barang berhasil didaftarkan (Stok Kosong)"), backgroundColor: AppColors.statusGreen)); }
+          if (mounted) AppNotification.show(context, message: "Barang berhasil didaftarkan (Stok Kosong)", type: AppNotificationType.success);
         }
       } else {
         await _controller.updateProduct(product);
@@ -806,11 +807,11 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
               }, SetOptions(merge: true));
            }
         }
-        if (mounted) { Navigator.pop(context, true); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Berhasil diubah!"), backgroundColor: AppColors.statusGreen)); }
+        if (mounted) AppNotification.show(context, message: "Berhasil diubah!", type: AppNotificationType.success);
       }
 
     } catch (e) { 
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal: $e"), backgroundColor: AppColors.statusRed)); 
+      AppNotification.show(context, message: "Gagal: $e", type: AppNotificationType.error);
     }
   }
 

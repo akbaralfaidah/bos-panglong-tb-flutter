@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import '../controllers/auth_controller.dart';
 import 'login_screen.dart'; // Layar login harian lu
+import '../helpers/app_notification.dart';
+
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -19,9 +21,15 @@ class _AuthScreenState extends State<AuthScreen> {
   bool _isLoginMode = true;
 
   void _showSnack(String msg, Color color) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(msg), backgroundColor: color));
+    AppNotificationType type = AppNotificationType.info;
+    if (color == AppColors.statusGreen || color == Colors.green) {
+      type = AppNotificationType.success;
+    } else if (color == AppColors.statusRed || color == Colors.red) {
+      type = AppNotificationType.error;
+    } else if (color == AppColors.menuAmberIcon || color == Colors.orange) {
+      type = AppNotificationType.warning;
+    }
+    AppNotification.show(context, message: msg, type: type);
   }
 
   void _navigateNext() {

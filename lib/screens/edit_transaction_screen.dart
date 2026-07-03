@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../models/product.dart';
@@ -6,6 +6,7 @@ import '../controllers/edit_transaction_controller.dart';
 import '../theme/app_colors.dart';
 import '../helpers/search_helper.dart';
 import '../helpers/session_manager.dart';
+import '../helpers/app_notification.dart';
 
 class EditTransactionScreen extends StatefulWidget {
   final Map<String, dynamic> transactionData;
@@ -747,7 +748,7 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
 
   Future<void> _saveChanges() async {
     if (_cartItems.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Keranjang tidak boleh kosong!")));
+      AppNotification.show(context, message: "Keranjang tidak boleh kosong!", type: AppNotificationType.info);
       return;
     }
 
@@ -770,12 +771,12 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
       );
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Transaksi berhasil diperbarui!"), backgroundColor: AppColors.statusGreen));
+        AppNotification.show(context, message: "Transaksi berhasil diperbarui!", type: AppNotificationType.success);
         Navigator.pop(context, true); 
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal menyimpan: $e"), backgroundColor: AppColors.statusRed));
+        AppNotification.show(context, message: "Gagal menyimpan: $e", type: AppNotificationType.error);
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);

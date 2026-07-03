@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'dart:convert';
@@ -13,6 +13,7 @@ import 'product_barcode_screen.dart';
 import '../theme/app_colors.dart';
 import '../helpers/search_helper.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../helpers/app_notification.dart';
 
 class StockCartItem {
   final Product product;
@@ -2014,12 +2015,7 @@ class _ProductListScreenState extends State<ProductListScreen>
               if (mounted) {
                 Navigator.pop(ctx);
                 _loadProducts();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text("Produk berhasil diarsipkan!"),
-                    backgroundColor: AppColors.statusGreen,
-                  ),
-                );
+                AppNotification.show(context, message: "Produk berhasil diarsipkan!", type: AppNotificationType.success);
               }
             },
             child: const Text(

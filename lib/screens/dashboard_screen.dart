@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'dart:io';
@@ -20,6 +20,7 @@ import 'stock_history_screen.dart';
 import 'cash_flow_screen.dart';
 import 'customer_screen.dart';
 import 'capital_management_screen.dart';
+import '../helpers/app_notification.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -557,14 +558,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                             if (_isOwner)
                               _nav(const ReportScreen());
                             else
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    "Akses Ditolak: Hanya Bos yang bisa buka!",
-                                  ),
-                                  backgroundColor: AppColors.statusRed,
-                                ),
-                              );
+                              AppNotification.show(context, message: "Akses Ditolak: Hanya Bos yang bisa buka!", type: AppNotificationType.error);
                           },
                         ),
                       ),
@@ -591,12 +585,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                             if (_isOwner)
                               _nav(const CustomerScreen());
                             else
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text("Akses Ditolak"),
-                                  backgroundColor: AppColors.statusRed,
-                                ),
-                              );
+                              AppNotification.show(context, message: "Akses Ditolak", type: AppNotificationType.error);
                           },
                         ),
                       ),
@@ -610,12 +599,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                             if (_isOwner)
                               _nav(const CapitalManagementScreen());
                             else
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text("Akses Ditolak"),
-                                  backgroundColor: AppColors.statusRed,
-                                ),
-                              );
+                              AppNotification.show(context, message: "Akses Ditolak", type: AppNotificationType.error);
                           },
                         ),
                       ),

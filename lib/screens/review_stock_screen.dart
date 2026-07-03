@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart'; 
@@ -6,6 +6,7 @@ import '../controllers/bulk_stock_controller.dart';
 import '../theme/app_colors.dart';
 import 'product_list_screen.dart'; 
 import 'stock_receipt_screen.dart'; 
+import '../helpers/app_notification.dart';
 
 class ReviewStockScreen extends StatefulWidget {
   final List<StockCartItem> cartItems;
@@ -33,7 +34,7 @@ class _ReviewStockScreenState extends State<ReviewStockScreen> {
 
   Future<void> _processSaveStock() async {
     if (_items.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Daftar stok kosong!"), backgroundColor: AppColors.statusRed));
+      AppNotification.show(context, message: "Daftar stok kosong!", type: AppNotificationType.error);
       return;
     }
 
@@ -56,7 +57,7 @@ class _ReviewStockScreenState extends State<ReviewStockScreen> {
         ));
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal menyimpan stok: $e", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)), backgroundColor: AppColors.statusRed));
+      if (mounted) AppNotification.show(context, message: "Gagal menyimpan stok: $e", type: AppNotificationType.error);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

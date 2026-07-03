@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'dart:ui' as ui;
 import 'package:path_provider/path_provider.dart';
@@ -18,6 +18,7 @@ import '../theme/app_colors.dart';
 import '../data/datasources/firebase/core_firebase_datasource.dart';
 import '../helpers/session_manager.dart';
 import '../controllers/product_controller.dart';
+import '../helpers/app_notification.dart';
 
 class NewProductReceiptScreen extends StatefulWidget {
   final String productName;
@@ -221,15 +222,7 @@ class _NewProductReceiptScreenState extends State<NewProductReceiptScreen>
 
       if (isOffline) {
         setState(() => _isUploading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              "Internet terputus! Upload foto wajib online.",
-              style: TextStyle(color: Colors.white),
-            ),
-            backgroundColor: AppColors.statusRed,
-          ),
-        );
+        AppNotification.show(context, message: "Internet terputus! Upload foto wajib online.", type: AppNotificationType.error);
         return;
       }
 
@@ -256,23 +249,10 @@ class _NewProductReceiptScreenState extends State<NewProductReceiptScreen>
       setState(() => _receiptProofUrl = downloadUrl);
 
       if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              "Foto nota distributor berhasil disimpan!",
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            backgroundColor: AppColors.statusGreen,
-          ),
-        );
+        AppNotification.show(context, message: "Foto nota distributor berhasil disimpan!", type: AppNotificationType.success);
     } catch (e) {
       if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Gagal upload: $e"),
-            backgroundColor: AppColors.statusRed,
-          ),
-        );
+        AppNotification.show(context, message: "Gagal upload: $e", type: AppNotificationType.error);
     } finally {
       if (mounted) setState(() => _isUploading = false);
     }
@@ -354,21 +334,11 @@ class _NewProductReceiptScreenState extends State<NewProductReceiptScreen>
                           await Gal.putImage(file.path);
                           
                           if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text("Gambar berhasil disimpan ke Galeri!"),
-                                backgroundColor: AppColors.statusGreen,
-                              ),
-                            );
+                            AppNotification.show(context, message: "Gambar berhasil disimpan ke Galeri!", type: AppNotificationType.success);
                           }
                         } catch (e) {
                           if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text("Gagal menyimpan: $e"),
-                                backgroundColor: AppColors.statusRed,
-                              ),
-                            );
+                            AppNotification.show(context, message: "Gagal menyimpan: $e", type: AppNotificationType.error);
                           }
                         }
                       },
@@ -415,12 +385,7 @@ class _NewProductReceiptScreenState extends State<NewProductReceiptScreen>
                           
                         } catch (e) {
                           if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text("Gagal membagikan: $e"),
-                                backgroundColor: AppColors.statusRed,
-                              ),
-                            );
+                            AppNotification.show(context, message: "Gagal membagikan: $e", type: AppNotificationType.error);
                           }
                         }
                       },
@@ -501,26 +466,12 @@ class _NewProductReceiptScreenState extends State<NewProductReceiptScreen>
     try {
       await _productController.voidStockReceipt(_exactTransactionDate);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              "Stok awal berhasil di-void! Stok gudang telah dikurangi.",
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            backgroundColor: AppColors.statusGreen,
-          ),
-        );
+        AppNotification.show(context, message: "Stok awal berhasil di-void! Stok gudang telah dikurangi.", type: AppNotificationType.success);
         Navigator.pop(context, true);
       }
     } catch (e) {
       if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.toString().replaceAll("Exception: ", "")),
-            backgroundColor: AppColors.statusRed,
-            duration: const Duration(seconds: 4),
-          ),
-        );
+        AppNotification.show(context, message: "...", type: AppNotificationType.error);
     } finally {
       if (mounted) setState(() => _isVoiding = false);
     }

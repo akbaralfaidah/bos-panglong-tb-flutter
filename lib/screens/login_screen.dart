@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:io';
 import 'package:local_auth/local_auth.dart';
@@ -12,6 +12,7 @@ import '../data/datasources/firebase/employee_firebase_datasource.dart';
 import '../helpers/session_manager.dart';
 import 'dashboard_screen.dart';
 import '../theme/app_colors.dart';
+import '../helpers/app_notification.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -151,15 +152,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 isAuthorized = true;
                 Navigator.pop(ctx);
               } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      "PIN SALAH!",
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    backgroundColor: AppColors.statusRed,
-                  ),
-                );
+                AppNotification.show(context, message: "PIN SALAH!", type: AppNotificationType.error);
               }
             },
             child: const Text("MASUK", style: TextStyle(color: Colors.white)),
@@ -385,14 +378,7 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } catch (e) {
       print("Error Google Login: $e");
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            "Gagal Login: $e\n(Pastikan ada internet untuk login pertama kali)",
-          ),
-          backgroundColor: AppColors.statusRed,
-        ),
-      );
+      AppNotification.show(context, message: "Gagal Login: $e\n(Pastikan ada internet untuk login pertama kali)", type: AppNotificationType.error);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -466,12 +452,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     isSuccess = true;
                     Navigator.pop(ctx);
                   } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text("PIN Salah! Aktivasi Ditolak."),
-                        backgroundColor: AppColors.statusRed,
-                      ),
-                    );
+                    AppNotification.show(context, message: "PIN Salah! Aktivasi Ditolak.", type: AppNotificationType.error);
                   }
                 },
                 child: const Text(
@@ -500,9 +481,7 @@ class _LoginScreenState extends State<LoginScreen> {
       
       await prefs.setBool('is_biometric_linked_to_boss', true);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Biometrik berhasil dihubungkan ke akun Pemilik!"), backgroundColor: AppColors.statusGreen)
-        );
+        AppNotification.show(context, message: "Biometrik berhasil dihubungkan ke akun Pemilik!", type: AppNotificationType.success);
       }
     }
 
@@ -525,15 +504,7 @@ class _LoginScreenState extends State<LoginScreen> {
       _processOwnerLogin();
     } else {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              "Autentikasi dibatalkan.",
-              style: TextStyle(color: Colors.white),
-            ),
-            backgroundColor: AppColors.statusRed,
-          ),
-        );
+        AppNotification.show(context, message: "Autentikasi dibatalkan.", type: AppNotificationType.error);
       }
     }
   }

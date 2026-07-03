@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../controllers/cash_flow_controller.dart';
 import '../theme/app_colors.dart';
@@ -8,6 +8,7 @@ import 'product_list_screen.dart';
 import 'transaction_detail_screen.dart';
 import 'new_product_receipt_screen.dart';
 import 'stock_receipt_screen.dart';
+import '../helpers/app_notification.dart';
 
 class CashFlowScreen extends StatefulWidget {
   const CashFlowScreen({super.key});
@@ -215,15 +216,7 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
           ),
         );
     } else if (item.category == 'GAS') {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            "Biaya Bensin Manual tidak memiliki Nota Cetak.",
-            style: TextStyle(color: Colors.white),
-          ),
-          backgroundColor: AppColors.menuAmberIcon,
-        ),
-      );
+      AppNotification.show(context, message: "Biaya Bensin Manual tidak memiliki Nota Cetak.", type: AppNotificationType.warning);
     }
   }
 

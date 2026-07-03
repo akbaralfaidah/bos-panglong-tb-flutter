@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../helpers/session_manager.dart'; 
@@ -6,6 +6,7 @@ import '../controllers/checkout_controller.dart';
 import 'cashier_screen.dart'; 
 import '../theme/app_colors.dart'; 
 import 'transaction_detail_screen.dart'; // Layar Nota / Detail Transaksi
+import '../helpers/app_notification.dart';
 
 class CheckoutScreen extends StatefulWidget {
   final List<CartItem> cartItems;
@@ -117,7 +118,7 @@ void _processPayment() async {
   }
 
   void _showSnack(String msg, Color color) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)), backgroundColor: color));
+    AppNotification.show(context, message: "...", type: AppNotificationType.info);
   }
 
   String _formatRp(dynamic number) => NumberFormat.currency(locale: 'id', symbol: 'Rp ', decimalDigits: 0).format(number);

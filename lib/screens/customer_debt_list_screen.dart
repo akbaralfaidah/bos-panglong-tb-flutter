@@ -1,9 +1,10 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../controllers/transaction_detail_controller.dart';
 import '../theme/app_colors.dart';
 import 'transaction_detail_screen.dart';
+import '../helpers/app_notification.dart';
 
 /// Layar daftar transaksi hutang untuk 1 pelanggan tertentu.
 /// Ditampilkan ketika pelanggan punya lebih dari 1 nota hutang.
@@ -305,18 +306,7 @@ class _CustomerDebtListScreenState extends State<CustomerDebtListScreen> {
 
               if (mounted) {
                 Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      "Cicilan Berhasil Ditambah!",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    backgroundColor: AppColors.statusGreen,
-                  ),
-                );
+                AppNotification.show(context, message: "Cicilan Berhasil Ditambah!", type: AppNotificationType.success);
 
                 // Update data lokal
                 int idx = _transactions.indexWhere((t) => t['id'] == transId);

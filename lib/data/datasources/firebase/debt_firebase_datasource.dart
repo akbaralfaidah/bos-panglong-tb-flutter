@@ -169,4 +169,76 @@ class DebtFirebaseDataSource {
 
     await batch.commit();
   }
+
+  // =====================================================
+  // 🏘️ DEBT GROUPS — CRUD Firestore `debt_groups`
+  // =====================================================
+
+  /// Buat grup hutang baru
+  Future<String> createDebtGroup(String groupName, List<String> customerNames) async {
+    final docRef = _col('debt_groups').doc();
+    await docRef.set({
+      'id': docRef.id,
+      'group_name': groupName.trim(),
+      'customer_names': customerNames,
+      'created_at': DateTime.now().toIso8601String(),
+    });
+    return docRef.id;
+  }
+
+  /// Update nama & anggota grup
+  Future<void> updateDebtGroup(String groupId, String groupName, List<String> customerNames) async {
+    await _col('debt_groups').doc(groupId).update({
+      'group_name': groupName.trim(),
+      'customer_names': customerNames,
+    });
+  }
+
+  /// Hapus grup
+  Future<void> deleteDebtGroup(String groupId) async {
+    await _col('debt_groups').doc(groupId).delete();
+  }
+
+  /// Ambil semua grup dari Firestore
+  Future<List<Map<String, dynamic>>> getAllDebtGroups() async {
+    final docs = await _safeQuery(_col('debt_groups').orderBy('created_at'));
+    return docs.map((d) {
+      final data = d.data() as Map<String, dynamic>;
+      // Pastikan id selalu ada
+      data['id'] = d.id;
+      return data;
+    }).toList();
+  }
+
+  /// Ambil semua customer_name yang sudah masuk ke grup manapun
+  Future<Set<String>> getGroupedCustomerNames() async {
+    final groups = await getAllDebtGroups();
+    Set<String> names = {};
+    for (var g in groups) {
+      List<dynamic> members = g['customer_names'] ?? [];
+      for (var m in members) {
+        names.add(m.toString());
+      }
+    }
+    return names;
+  }
+
+  /// Lunasi semua hutang untuk customer-customer tertentu (untuk fitur lunasi per grup)
+  Future<void> payAllDebtsForCustomers(List<String> customerNames, DateTime paymentDate) async {
+    final allDebts = await getActiveDebtsWithDetails();
+    Set<String> nameSet = customerNames.toSet();
+
+    // Filter hanya transaksi milik customer dalam list
+    List<Map<String, dynamic>> filteredDebts = allDebts.where((debt) {
+      String rawName = debt['customer_name'] ?? 'Pelanggan Umum';
+      String customerKey = rawName.split(' - ').first.split('\n').first.trim();
+      if (customerKey.isEmpty) customerKey = 'Pelanggan Umum';
+      return nameSet.contains(customerKey);
+    }).toList();
+
+    if (filteredDebts.isEmpty) return;
+
+    // Gunakan logic yang sama seperti payAllDebts
+    await payAllDebts(filteredDebts, paymentDate);
+  }
 }

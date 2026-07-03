@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart'; 
@@ -9,6 +9,7 @@ import '../models/product.dart';
 import '../controllers/review_transaction_controller.dart';
 import '../helpers/session_manager.dart'; 
 import '../helpers/search_helper.dart';
+import '../helpers/app_notification.dart';
 
 class ReviewTransactionScreen extends StatefulWidget {
   final List<Map<String, dynamic>> cartItems;
@@ -208,7 +209,7 @@ class _ReviewTransactionScreenState extends State<ReviewTransactionScreen> {
     }
 
     if (ungroupedIndices.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Semua barang sudah tergabung atau tidak ada barang yang mendukung gabung kubik."), backgroundColor: AppColors.statusRed));
+      AppNotification.show(context, message: "Semua barang sudah tergabung atau tidak ada barang yang mendukung gabung kubik.", type: AppNotificationType.error);
       return;
     }
 
@@ -306,7 +307,7 @@ class _ReviewTransactionScreenState extends State<ReviewTransactionScreen> {
                     _calculateSubtotal();
                   });
                   Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Paket Berhasil Dibuat!", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)), backgroundColor: AppColors.statusGreen));
+                  AppNotification.show(context, message: "Paket Berhasil Dibuat!", type: AppNotificationType.success);
                 },
                 child: const Text("GABUNG YANG DIPILIH", style: TextStyle(color: AppColors.accentGold)),
               )
@@ -715,7 +716,7 @@ class _ReviewTransactionScreenState extends State<ReviewTransactionScreen> {
 
   Future<void> _processTransaction() async {
     if (_editableCart.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Keranjang kosong!"), backgroundColor: AppColors.statusRed));
+      AppNotification.show(context, message: "Keranjang kosong!", type: AppNotificationType.error);
       return;
     }
     
@@ -785,7 +786,7 @@ class _ReviewTransactionScreenState extends State<ReviewTransactionScreen> {
       }
 
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal menyimpan: $e"), backgroundColor: AppColors.statusRed));
+      AppNotification.show(context, message: "Gagal menyimpan: $e", type: AppNotificationType.error);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -1067,7 +1068,7 @@ class _ReviewTransactionScreenState extends State<ReviewTransactionScreen> {
                                                                 _isManualTotalEdited = false;
                                                                 _calculateSubtotal();
                                                               });
-                                                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Barang dilepas dari Paket", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)), backgroundColor: Colors.blue));
+                                                              AppNotification.show(context, message: "Barang dilepas dari Paket", type: AppNotificationType.info);
                                                             },
                                                             child: Container(
                                                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),

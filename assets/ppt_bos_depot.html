@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bos Depot Apps — Portfolio Presentation</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy: #0A2647;
+    --navy-light: #144272;
+    --navy-lighter: #205295;
+    --gold: #F39C12;
+    --white: #FFFFFF;
+    --bg: #F4F7F6;
+    --text-dark: #1E293B;
+    --text-grey: #64748B;
+    --green: #198754;
+    --red: #DC3545;
+    --teal-bg: #E0F2F1;
+    --teal: #00796B;
+    --blue-bg: #E3F2FD;
+    --blue: #1565C0;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+  
+  body {
+    font-family: 'Poppins', sans-serif;
+    background: #111;
+    overflow: hidden;
+  }
+
+  .slide-container {
+    width: 100vw;
+    height: 100vh;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .slide {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transform: translateX(60px);
+    transition: opacity 0.6s ease, transform 0.6s ease;
+    pointer-events: none;
+    padding: 60px;
+  }
+
+  .slide.active {
+    opacity: 1;
+    transform: translateX(0);
+    pointer-events: auto;
+  }
+
+  /* ============ SLIDE BACKGROUNDS ============ */
+  .bg-white { background: var(--white); }
+  .bg-navy { background: linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%); }
+  .bg-gradient { background: linear-gradient(135deg, var(--white) 0%, #EBF4FF 100%); }
+
+  /* ============ TYPOGRAPHY ============ */
+  .slide-number {
+    position: absolute;
+    bottom: 30px;
+    right: 40px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-grey);
+    letter-spacing: 1px;
+  }
+  .bg-navy .slide-number { color: rgba(255,255,255,0.4); }
+
+  .tag {
+    display: inline-block;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+  .tag-navy { background: var(--navy); color: var(--gold); }
+  .tag-gold { background: rgba(243,156,18,0.15); color: #D4850A; }
+  .tag-white { background: rgba(255,255,255,0.15); color: var(--white); border: 1px solid rgba(255,255,255,0.2); }
+  .tag-teal { background: var(--teal-bg); color: var(--teal); }
+
+  h1 { font-size: 52px; font-weight: 900; line-height: 1.1; letter-spacing: -1px; }
+  h2 { font-size: 40px; font-weight: 800; line-height: 1.15; letter-spacing: -0.5px; }
+  h3 { font-size: 28px; font-weight: 700; line-height: 1.3; }
+  .subtitle { font-size: 18px; color: var(--text-grey); line-height: 1.6; max-width: 600px; margin-top: 16px; }
+  .bg-navy h1, .bg-navy h2, .bg-navy h3 { color: var(--white); }
+  .bg-navy .subtitle { color: rgba(255,255,255,0.7); }
+  .text-navy { color: var(--navy); }
+  .text-gold { color: var(--gold); }
+
+  /* ============ LAYOUTS ============ */
+  .split {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    gap: 60px;
+    align-items: center;
+  }
+  .split-left, .split-right {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .full-center {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+  }
+
+  /* ============ MOCKUP IMAGES ============ */
+  .mockup-img {
+    height: 520px;
+    object-fit: contain;
+    filter: drop-shadow(0 25px 50px rgba(10,38,71,0.25));
+    border-radius: 0;
+  }
+  .mockup-row {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+    justify-content: center;
+  }
+  .mockup-row .mockup-img {
+    height: 440px;
+  }
+  .mockup-triple {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    justify-content: center;
+  }
+  .mockup-triple .mockup-img {
+    height: 400px;
+  }
+  .mockup-quad {
+    display: flex;
+    gap: 12px;
+    align-items: flex-end;
+    justify-content: center;
+  }
+  .mockup-quad .mockup-img {
+    height: 360px;
+  }
+
+  /* ============ FEATURE CARDS ============ */
+  .features-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 24px;
+    width: 100%;
+  }
+  .feature-card {
+    background: var(--white);
+    border: 1px solid #E2E8F0;
+    border-radius: 16px;
+    padding: 20px;
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .feature-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(10,38,71,0.08);
+  }
+  .feature-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+  .fi-teal { background: var(--teal-bg); }
+  .fi-amber { background: #FFF8E1; }
+  .fi-blue { background: var(--blue-bg); }
+  .fi-indigo { background: #E8EAF6; }
+  .fi-green { background: #E8F5E9; }
+  .fi-pink { background: #FCE4EC; }
+  .feature-card h4 {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-dark);
+    margin-bottom: 4px;
+  }
+  .feature-card p {
+    font-size: 12px;
+    color: var(--text-grey);
+    line-height: 1.5;
+  }
+
+  /* ============ STATS ============ */
+  .stats-row {
+    display: flex;
+    gap: 30px;
+    margin-top: 32px;
+  }
+  .stat-card {
+    text-align: center;
+    padding: 24px 32px;
+    border-radius: 16px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.12);
+    flex: 1;
+  }
+  .stat-card .stat-number {
+    font-size: 36px;
+    font-weight: 900;
+    color: var(--gold);
+  }
+  .stat-card .stat-label {
+    font-size: 13px;
+    color: rgba(255,255,255,0.6);
+    margin-top: 6px;
+    font-weight: 500;
+  }
+
+  /* ============ TECH STACK ============ */
+  .tech-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 20px;
+  }
+  .tech-pill {
+    padding: 10px 18px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 600;
+    background: var(--white);
+    border: 1px solid #E2E8F0;
+    color: var(--text-dark);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .tech-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+  .dot-blue { background: #0078D4; }
+  .dot-orange { background: #FF6F00; }
+  .dot-green { background: var(--green); }
+  .dot-red { background: #EA4335; }
+  .dot-purple { background: #7C3AED; }
+  .dot-teal { background: var(--teal); }
+
+  /* ============ TIMELINE ============ */
+  .impact-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 24px;
+    width: 100%;
+  }
+  .impact-card {
+    background: var(--white);
+    border-radius: 16px;
+    padding: 24px;
+    border: 1px solid #E2E8F0;
+    text-align: center;
+  }
+  .impact-card .impact-emoji { font-size: 32px; margin-bottom: 10px; }
+  .impact-card h4 { font-size: 15px; font-weight: 700; color: var(--navy); margin-bottom: 6px; }
+  .impact-card p { font-size: 12px; color: var(--text-grey); line-height: 1.5; }
+
+  /* ============ NAVIGATION ============ */
+  .nav-controls {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    z-index: 100;
+    background: rgba(255,255,255,0.95);
+    backdrop-filter: blur(20px);
+    padding: 10px 20px;
+    border-radius: 40px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+  }
+  .nav-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: none;
+    background: var(--navy);
+    color: white;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+  }
+  .nav-btn:hover { background: var(--navy-lighter); transform: scale(1.05); }
+  .nav-btn:disabled { opacity: 0.3; cursor: default; transform: none; }
+  .nav-dots { display: flex; gap: 6px; }
+  .nav-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #CBD5E1;
+    cursor: pointer;
+    transition: all 0.3s;
+  }
+  .nav-dot.active {
+    background: var(--navy);
+    width: 24px;
+    border-radius: 4px;
+  }
+
+  /* ============ WATERMARK ============ */
+  .watermark {
+    position: absolute;
+    bottom: 30px;
+    left: 40px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-grey);
+    opacity: 0.6;
+  }
+  .bg-navy .watermark { color: rgba(255,255,255,0.3); }
+  .watermark-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--gold);
+  }
+
+  /* ============ DECORATIONS ============ */
+  .circle-deco {
+    position: absolute;
+    border-radius: 50%;
+    opacity: 0.04;
+    background: var(--navy);
+  }
+  .bg-navy .circle-deco { background: white; opacity: 0.03; }
+
+  /* ============ BULLET LIST ============ */
+  .bullet-list {
+    list-style: none;
+    margin-top: 20px;
+  }
+  .bullet-list li {
+    padding: 10px 0;
+    font-size: 15px;
+    color: var(--text-dark);
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    line-height: 1.5;
+  }
+  .bullet-list .bullet {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--gold);
+    flex-shrink: 0;
+    margin-top: 7px;
+  }
+
+  /* ============ RESPONSIVE ============ */
+  @media (max-width: 1200px) {
+    h1 { font-size: 40px; }
+    h2 { font-size: 32px; }
+    .slide { padding: 40px; }
+    .mockup-img { height: 420px; }
+    .mockup-row .mockup-img { height: 360px; }
+    .mockup-triple .mockup-img { height: 320px; }
+    .mockup-quad .mockup-img { height: 280px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="slide-container">
+
+  <!-- ==================== SLIDE 1: COVER ==================== -->
+  <div class="slide bg-navy active" id="slide-1">
+    <div class="circle-deco" style="width:500px;height:500px;top:-200px;right:-150px;"></div>
+    <div class="circle-deco" style="width:300px;height:300px;bottom:-100px;left:-50px;"></div>
+    <div class="split">
+      <div class="split-left">
+        <span class="tag tag-white">PORTFOLIO PROJECT</span>
+        <h1>Bos Depot<br><span class="text-gold">Apps</span></h1>
+        <p class="subtitle">Sistem Kasir Pintar & Manajemen Gudang untuk Industri Bahan Bangunan — dibangun dengan Flutter & Firebase.</p>
+        <div style="display:flex;align-items:center;gap:12px;margin-top:32px;">
+          <div style="width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;">
+            <span style="font-size:20px;">👨‍💻</span>
+          </div>
+          <div>
+            <div style="font-size:14px;font-weight:700;color:white;">Akbar Alfaidah</div>
+            <div style="font-size:12px;color:rgba(255,255,255,0.5);">Mobile Developer — Flutter</div>
+          </div>
+        </div>
+      </div>
+      <div class="split-right" style="align-items:center;">
+        <div class="mockup-row">
+          <img src="images/1.png" class="mockup-img" style="height:500px;" alt="Login Screen">
+          <img src="images/2.png" class="mockup-img" style="height:500px;" alt="Dashboard">
+        </div>
+      </div>
+    </div>
+    <div class="slide-number">01 / 12</div>
+    <div class="watermark"><div class="watermark-dot"></div>Bos Depot Apps</div>
+  </div>
+
+  <!-- ==================== SLIDE 2: PROBLEM ==================== -->
+  <div class="slide bg-gradient" id="slide-2">
+    <div class="circle-deco" style="width:400px;height:400px;top:-150px;left:-100px;"></div>
+    <div class="split">
+      <div class="split-left">
+        <span class="tag tag-navy">LATAR BELAKANG</span>
+        <h2 class="text-navy">Masalah yang<br>Ingin Dipecahkan</h2>
+        <p class="subtitle">Usaha panglong kayu & toko bangunan di Indonesia masih dikelola secara tradisional.</p>
+        <ul class="bullet-list">
+          <li><div class="bullet" style="background:var(--red);"></div>Pencatatan manual dengan buku tulis — rawan hilang & salah hitung</li>
+          <li><div class="bullet" style="background:var(--red);"></div>Tidak ada laporan keuangan terstruktur — sulit evaluasi bisnis</li>
+          <li><div class="bullet" style="background:var(--red);"></div>Nota tulis tangan — tidak profesional & tidak terdokumentasi</li>
+          <li><div class="bullet" style="background:var(--red);"></div>Tidak ada kontrol stok real-time — sering kehabisan tanpa sadar</li>
+        </ul>
+      </div>
+      <div class="split-right" style="align-items:center;">
+        <div style="background:var(--navy);border-radius:24px;padding:40px;width:100%;max-width:420px;">
+          <div style="font-size:13px;font-weight:700;color:var(--gold);letter-spacing:1px;margin-bottom:20px;">DAMPAK MASALAH</div>
+          <div style="display:flex;flex-direction:column;gap:16px;">
+            <div style="display:flex;align-items:center;gap:14px;">
+              <div style="font-size:28px;">📉</div>
+              <div>
+                <div style="font-size:15px;font-weight:700;color:white;">Kerugian Tak Terdeteksi</div>
+                <div style="font-size:12px;color:rgba(255,255,255,0.5);">Tidak tahu mana produk rugi / untung</div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:14px;">
+              <div style="font-size:28px;">⏰</div>
+              <div>
+                <div style="font-size:15px;font-weight:700;color:white;">Proses Lambat</div>
+                <div style="font-size:12px;color:rgba(255,255,255,0.5);">Hitung manual per transaksi > 5 menit</div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:14px;">
+              <div style="font-size:28px;">💸</div>
+              <div>
+                <div style="font-size:15px;font-weight:700;color:white;">Piutang Hilang</div>
+                <div style="font-size:12px;color:rgba(255,255,255,0.5);">Lupa catat hutang pelanggan</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-number">02 / 12</div>
+    <div class="watermark"><div class="watermark-dot"></div>Bos Depot Apps</div>
+  </div>
+
+  <!-- ==================== SLIDE 3: SOLUTION ==================== -->
+  <div class="slide bg-white" id="slide-3">
+    <div class="split">
+      <div class="split-left">
+        <span class="tag tag-gold">SOLUSI</span>
+        <h2 class="text-navy">Satu Aplikasi<br>untuk Semua</h2>
+        <p class="subtitle">Bos Depot Apps mengintegrasikan seluruh operasional toko bangunan dalam satu genggaman.</p>
+        <div class="features-grid" style="margin-top:28px;">
+          <div class="feature-card">
+            <div class="feature-icon fi-teal">🧾</div>
+            <div>
+              <h4>Smart POS</h4>
+              <p>Kasir digital dengan negosiasi harga otomatis & alert keuntungan/kerugian</p>
+            </div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon fi-amber">📦</div>
+            <div>
+              <h4>Gudang Digital</h4>
+              <p>Stok otomatis terpotong saat transaksi, barcode scanner built-in</p>
+            </div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon fi-blue">📊</div>
+            <div>
+              <h4>Analitik Bisnis</h4>
+              <p>Dashboard profit real-time, grafik tren, top produk terlaris</p>
+            </div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon fi-indigo">🖨️</div>
+            <div>
+              <h4>Cetak Nota</h4>
+              <p>Thermal printer 80mm via Bluetooth + share ke WhatsApp</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="split-right" style="align-items:center;">
+        <img src="images/2.png" class="mockup-img" style="height:560px;" alt="Dashboard">
+      </div>
+    </div>
+    <div class="slide-number">03 / 12</div>
+    <div class="watermark"><div class="watermark-dot"></div>Bos Depot Apps</div>
+  </div>
+
+  <!-- ==================== SLIDE 4: KASIR ==================== -->
+  <div class="slide bg-gradient" id="slide-4">
+    <div class="split">
+      <div class="split-left" style="align-items:center;">
+        <div class="mockup-row">
+          <img src="images/7.png" class="mockup-img" style="height:500px;" alt="Kasir">
+        </div>
+      </div>
+      <div class="split-right">
+        <span class="tag tag-teal">FITUR UTAMA #1</span>
+        <h2 class="text-navy">Kasir Pintar<br>dengan Negosiasi</h2>
+        <p class="subtitle">Sistem kasir yang memahami dinamika harga di toko bangunan — dimana tawar-menawar adalah hal biasa.</p>
+        <ul class="bullet-list">
+          <li><div class="bullet"></div><strong>Negosiasi Real-time</strong> — Ubah harga per item, sistem langsung tampilkan estimasi untung/rugi</li>
+          <li><div class="bullet"></div><strong>Multi-Pembayaran</strong> — Tunai, Transfer, QRIS, dan sistem Hutang</li>
+          <li><div class="bullet"></div><strong>Dual Pricing</strong> — Harga eceran (Pcs) dan grosir (Dus, Kodi, Kubik)</li>
+          <li><div class="bullet"></div><strong>Auto-Stok</strong> — Stok gudang otomatis berkurang saat checkout</li>
+        </ul>
+      </div>
+    </div>
+    <div class="slide-number">04 / 12</div>
+    <div class="watermark"><div class="watermark-dot"></div>Bos Depot Apps</div>
+  </div>
+
+  <!-- ==================== SLIDE 5: GUDANG ==================== -->
+  <div class="slide bg-white" id="slide-5">
+    <div class="split">
+      <div class="split-left">
+        <span class="tag tag-gold">FITUR UTAMA #2</span>
+        <h2 class="text-navy">Manajemen Gudang<br>Terintegrasi</h2>
+        <p class="subtitle">Kelola ratusan produk kayu & bangunan dengan sistem yang dirancang khusus untuk industri ini.</p>
+        <ul class="bullet-list">
+          <li><div class="bullet"></div><strong>Kayu & Bangunan</strong> — Form input terpisah: kayu (kelas, dimensi, kubik) & bangunan (Pcs, Kg, Dus)</li>
+          <li><div class="bullet"></div><strong>Barcode System</strong> — Generate, cetak label, dan scan barcode untuk percepat input kasir</li>
+          <li><div class="bullet"></div><strong>Smart Search</strong> — Pencarian fuzzy yang toleran terhadap typo</li>
+          <li><div class="bullet"></div><strong>Drag & Drop</strong> — Atur urutan produk sesuai prioritas toko</li>
+        </ul>
+      </div>
+      <div class="split-right" style="align-items:center;">
+        <div class="mockup-row">
+          <img src="images/12.png" class="mockup-img" style="height:440px;" alt="Form Kayu">
+          <img src="images/9.png" class="mockup-img" style="height:440px;" alt="Form Bangunan">
+        </div>
+      </div>
+    </div>
+    <div class="slide-number">05 / 12</div>
+    <div class="watermark"><div class="watermark-dot"></div>Bos Depot Apps</div>
+  </div>
+
+  <!-- ==================== SLIDE 6: LAPORAN & ANALITIK ==================== -->
+  <div class="slide bg-navy" id="slide-6">
+    <div class="circle-deco" style="width:500px;height:500px;bottom:-200px;right:-100px;"></div>
+    <div class="split">
+      <div class="split-left" style="align-items:center;">
+        <div class="mockup-row">
+          <img src="images/6.png" class="mockup-img" style="height:460px;" alt="Laporan Ringkasan">
+          <img src="images/8.png" class="mockup-img" style="height:460px;" alt="Rekap Pendapatan">
+        </div>
+      </div>
+      <div class="split-right">
+        <span class="tag tag-white">FITUR UTAMA #3</span>
+        <h2>Laporan &<br>Analitik <span class="text-gold">Bisnis</span></h2>
+        <p class="subtitle">Pemilik toko bisa memantau kesehatan bisnis tanpa perlu buka laptop.</p>
+        <ul class="bullet-list" style="color:white;">
+          <li><div class="bullet"></div><span style="color:rgba(255,255,255,0.85);"><strong style="color:white;">Top 5 Produk</strong> — Analisa produk terlaris dengan pie chart interaktif</span></li>
+          <li><div class="bullet"></div><span style="color:rgba(255,255,255,0.85);"><strong style="color:white;">Rekap Pendapatan</strong> — Breakdown omset, modal, bensin, dan profit bersih</span></li>
+          <li><div class="bullet"></div><span style="color:rgba(255,255,255,0.85);"><strong style="color:white;">Export CSV</strong> — Download laporan ke Excel dalam satu ketukan</span></li>
+          <li><div class="bullet"></div><span style="color:rgba(255,255,255,0.85);"><strong style="color:white;">Visualisasi Alokasi</strong> — Donut chart pembagian omset secara visual</span></li>
+        </ul>
+      </div>
+    </div>
+    <div class="slide-number">06 / 12</div>
+    <div class="watermark"><div class="watermark-dot"></div>Bos Depot Apps</div>
+  </div>
+
+  <!-- ==================== SLIDE 7: NOTA & RIWAYAT ==================== -->
+  <div class="slide bg-white" id="slide-7">
+    <div class="split">
+      <div class="split-left">
+        <span class="tag tag-navy">FITUR UTAMA #4</span>
+        <h2 class="text-navy">Nota Digital &<br>Cetak Thermal</h2>
+        <p class="subtitle">Nota profesional yang bisa dicetak langsung ke printer thermal 80mm atau dibagikan via WhatsApp.</p>
+        <div class="features-grid">
+          <div class="feature-card">
+            <div class="feature-icon fi-teal">🖨️</div>
+            <div>
+              <h4>Cetak Bluetooth</h4>
+              <p>Support printer Android & iOS via Bluetooth</p>
+            </div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon fi-green">📲</div>
+            <div>
+              <h4>Share WhatsApp</h4>
+              <p>Kirim nota langsung ke pelanggan via WA</p>
+            </div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon fi-blue">🔄</div>
+            <div>
+              <h4>Cetak Ulang</h4>
+              <p>Akses riwayat & cetak ulang nota kapan saja</p>
+            </div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon fi-amber">📸</div>
+            <div>
+              <h4>Bukti Pembayaran</h4>
+              <p>Upload foto bukti transfer/pembayaran</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="split-right" style="align-items:center;">
+        <div class="mockup-row">
+          <img src="images/14.png" class="mockup-img" style="height:440px;" alt="Nota Digital">
+          <img src="images/15.png" class="mockup-img" style="height:440px;" alt="Bukti Pembayaran">
+        </div>
+      </div>
+    </div>
+    <div class="slide-number">07 / 12</div>
+    <div class="watermark"><div class="watermark-dot"></div>Bos Depot Apps</div>
+  </div>
+
+  <!-- ==================== SLIDE 8: ARUS KAS & PIUTANG ==================== -->
+  <div class="slide bg-gradient" id="slide-8">
+    <div class="split">
+      <div class="split-left" style="align-items:center;">
+        <div class="mockup-triple">
+          <img src="images/3.png" class="mockup-img" style="height:400px;" alt="Profit">
+          <img src="images/13.png" class="mockup-img" style="height:400px;" alt="Arus Kas">
+          <img src="images/5.png" class="mockup-img" style="height:400px;" alt="Piutang">
+        </div>
+      </div>
+      <div class="split-right">
+        <span class="tag tag-teal">FITUR UTAMA #5</span>
+        <h2 class="text-navy">Arus Kas &<br>Buku Piutang</h2>
+        <p class="subtitle">Pantau setiap rupiah yang masuk dan keluar secara real-time.</p>
+        <ul class="bullet-list">
+          <li><div class="bullet"></div><strong>Profit Tracker</strong> — Riwayat pemasukan vs pengeluaran + sisa profit bersih</li>
+          <li><div class="bullet"></div><strong>Cash Flow</strong> — Timeline setiap transaksi: stok masuk, penjualan, bensin</li>
+          <li><div class="bullet"></div><strong>Buku Piutang</strong> — Track hutang per pelanggan + potensi profit dari piutang</li>
+          <li><div class="bullet"></div><strong>Filter Waktu</strong> — Harian, kemarin, 7 hari, bulanan, atau semua waktu</li>
+        </ul>
+      </div>
+    </div>
+    <div class="slide-number">08 / 12</div>
+    <div class="watermark"><div class="watermark-dot"></div>Bos Depot Apps</div>
+  </div>
+
+  <!-- ==================== SLIDE 9: KEAMANAN ==================== -->
+  <div class="slide bg-white" id="slide-9">
+    <div class="split">
+      <div class="split-left">
+        <span class="tag tag-navy">KEAMANAN</span>
+        <h2 class="text-navy">Multi-Layer<br>Security <span class="text-gold">System</span></h2>
+        <p class="subtitle">6 lapisan keamanan melindungi data bisnis dari akses tidak sah.</p>
+        <div class="features-grid">
+          <div class="feature-card">
+            <div class="feature-icon fi-blue">🔐</div>
+            <div>
+              <h4>Firebase Auth</h4>
+              <p>Login Email & Google OAuth 2.0</p>
+            </div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon fi-amber">🔑</div>
+            <div>
+              <h4>PIN Keamanan</h4>
+              <p>PIN 6 digit khusus pemilik toko</p>
+            </div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon fi-green">👆</div>
+            <div>
+              <h4>Biometrik</h4>
+              <p>Sidik jari & Face ID</p>
+            </div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon fi-pink">⏱️</div>
+            <div>
+              <h4>Auto-Logout</h4>
+              <p>Sesi pemilik expired 10 menit</p>
+            </div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon fi-indigo">🛡️</div>
+            <div>
+              <h4>Enkripsi Sesi</h4>
+              <p>Secure storage terenkripsi</p>
+            </div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon fi-teal">👥</div>
+            <div>
+              <h4>Role-Based</h4>
+              <p>Akses berbeda: Owner vs Karyawan</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="split-right" style="align-items:center;">
+        <img src="images/1.png" class="mockup-img" style="height:520px;" alt="Login">
+      </div>
+    </div>
+    <div class="slide-number">09 / 12</div>
+    <div class="watermark"><div class="watermark-dot"></div>Bos Depot Apps</div>
+  </div>
+
+  <!-- ==================== SLIDE 10: TECH STACK ==================== -->
+  <div class="slide bg-navy" id="slide-10">
+    <div class="circle-deco" style="width:400px;height:400px;top:-150px;left:-100px;"></div>
+    <div class="full-center">
+      <span class="tag tag-white">TEKNOLOGI</span>
+      <h2>Tech Stack yang<br>Digunakan</h2>
+      <p class="subtitle" style="text-align:center;">Dibangun dengan teknologi modern untuk performa, skalabilitas, dan pengalaman pengguna terbaik.</p>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:32px;justify-content:center;max-width:800px;">
+        <div class="tech-pill"><div class="tech-dot dot-blue"></div>Flutter & Dart</div>
+        <div class="tech-pill"><div class="tech-dot dot-orange"></div>Firebase Firestore</div>
+        <div class="tech-pill"><div class="tech-dot dot-red"></div>Firebase Auth</div>
+        <div class="tech-pill"><div class="tech-dot dot-green"></div>SQLite (Offline)</div>
+        <div class="tech-pill"><div class="tech-dot dot-purple"></div>GetX</div>
+        <div class="tech-pill"><div class="tech-dot dot-teal"></div>ESC/POS Printing</div>
+        <div class="tech-pill"><div class="tech-dot dot-blue"></div>Google Sign-In</div>
+        <div class="tech-pill"><div class="tech-dot dot-orange"></div>FL Chart</div>
+        <div class="tech-pill"><div class="tech-dot dot-green"></div>Bluetooth Thermal</div>
+        <div class="tech-pill"><div class="tech-dot dot-red"></div>Biometric Auth</div>
+        <div class="tech-pill"><div class="tech-dot dot-purple"></div>CSV Export</div>
+        <div class="tech-pill"><div class="tech-dot dot-teal"></div>Barcode Scanner</div>
+      </div>
+      <div class="stats-row" style="margin-top:40px;">
+        <div class="stat-card">
+          <div class="stat-number">33</div>
+          <div class="stat-label">Halaman UI</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number">22</div>
+          <div class="stat-label">Controller</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number">24</div>
+          <div class="stat-label">Data Source</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number">30+</div>
+          <div class="stat-label">Dependencies</div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-number">10 / 12</div>
+    <div class="watermark"><div class="watermark-dot"></div>Bos Depot Apps</div>
+  </div>
+
+  <!-- ==================== SLIDE 11: DAMPAK ==================== -->
+  <div class="slide bg-gradient" id="slide-11">
+    <div class="full-center">
+      <span class="tag tag-navy">DAMPAK & HASIL</span>
+      <h2 class="text-navy">Dampak Nyata untuk<br>Bisnis <span class="text-gold">Klien</span></h2>
+      <p class="subtitle" style="text-align:center;">Aplikasi ini sudah berjalan dan digunakan oleh klien toko bangunan secara aktif setiap hari.</p>
+      <div class="impact-grid" style="max-width:800px;margin-top:32px;">
+        <div class="impact-card">
+          <div class="impact-emoji">💰</div>
+          <h4>Rp 188 Juta+</h4>
+          <p>Total omset yang berhasil dikelola melalui sistem aplikasi</p>
+        </div>
+        <div class="impact-card">
+          <div class="impact-emoji">🧾</div>
+          <h4>214+ Nota Terproses</h4>
+          <p>Transaksi tercatat rapi dengan invoice otomatis</p>
+        </div>
+        <div class="impact-card">
+          <div class="impact-emoji">📋</div>
+          <h4>Rp 170 Juta Piutang</h4>
+          <p>Tercatat dan terlacak — tidak ada lagi hutang yang terlupakan</p>
+        </div>
+        <div class="impact-card">
+          <div class="impact-emoji">⚡</div>
+          <h4>10x Lebih Cepat</h4>
+          <p>Proses transaksi dari 5 menit menjadi 30 detik per nota</p>
+        </div>
+        <div class="impact-card">
+          <div class="impact-emoji">📱</div>
+          <h4>Cross-Platform</h4>
+          <p>Berjalan di Android & iOS dengan satu codebase Flutter</p>
+        </div>
+        <div class="impact-card">
+          <div class="impact-emoji">☁️</div>
+          <h4>Cloud-Synced</h4>
+          <p>Data aman di cloud Firebase + bisa diakses offline</p>
+        </div>
+      </div>
+    </div>
+    <div class="slide-number">11 / 12</div>
+    <div class="watermark"><div class="watermark-dot"></div>Bos Depot Apps</div>
+  </div>
+
+  <!-- ==================== SLIDE 12: CLOSING ==================== -->
+  <div class="slide bg-navy" id="slide-12">
+    <div class="circle-deco" style="width:600px;height:600px;top:-250px;right:-200px;"></div>
+    <div class="circle-deco" style="width:350px;height:350px;bottom:-150px;left:-100px;"></div>
+    <div class="full-center">
+      <div style="display:flex;gap:16px;margin-bottom:40px;justify-content:center;">
+        <img src="images/4.png" class="mockup-img" style="height:280px;" alt="">
+        <img src="images/2.png" class="mockup-img" style="height:320px;" alt="">
+        <img src="images/7.png" class="mockup-img" style="height:280px;" alt="">
+      </div>
+      <span class="tag tag-white">TERIMA KASIH</span>
+      <h1 style="font-size:48px;">Mari Berkolaborasi<br><span class="text-gold">Bersama</span></h1>
+      <p class="subtitle" style="text-align:center;max-width:500px;">Saya siap membantu mewujudkan ide aplikasi Anda menjadi produk digital yang berdampak nyata.</p>
+      <div style="display:flex;gap:16px;margin-top:36px;">
+        <div style="padding:14px 28px;border-radius:14px;background:var(--gold);color:var(--navy);font-weight:700;font-size:15px;">
+          💼 Hubungi Saya di LinkedIn
+        </div>
+      </div>
+      <div style="margin-top:32px;font-size:13px;color:rgba(255,255,255,0.4);font-weight:500;">
+        Akbar Alfaidah — Mobile Developer • Flutter & Firebase Specialist
+      </div>
+    </div>
+    <div class="slide-number">12 / 12</div>
+    <div class="watermark"><div class="watermark-dot"></div>Bos Depot Apps</div>
+  </div>
+
+</div>
+
+<!-- NAVIGATION -->
+<div class="nav-controls">
+  <button class="nav-btn" id="prevBtn" onclick="changeSlide(-1)">←</button>
+  <div class="nav-dots" id="navDots"></div>
+  <button class="nav-btn" id="nextBtn" onclick="changeSlide(1)">→</button>
+</div>
+
+<script>
+  let currentSlide = 0;
+  const totalSlides = 12;
+  
+  // Create dots
+  const dotsContainer = document.getElementById('navDots');
+  for (let i = 0; i < totalSlides; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'nav-dot' + (i === 0 ? ' active' : '');
+    dot.onclick = () => goToSlide(i);
+    dotsContainer.appendChild(dot);
+  }
+  
+  function updateSlide() {
+    document.querySelectorAll('.slide').forEach((slide, i) => {
+      slide.classList.toggle('active', i === currentSlide);
+    });
+    document.querySelectorAll('.nav-dot').forEach((dot, i) => {
+      dot.classList.toggle('active', i === currentSlide);
+    });
+    document.getElementById('prevBtn').disabled = currentSlide === 0;
+    document.getElementById('nextBtn').disabled = currentSlide === totalSlides - 1;
+  }
+  
+  function changeSlide(direction) {
+    currentSlide = Math.max(0, Math.min(totalSlides - 1, currentSlide + direction));
+    updateSlide();
+  }
+  
+  function goToSlide(index) {
+    currentSlide = index;
+    updateSlide();
+  }
+  
+  // Keyboard navigation
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); changeSlide(1); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); changeSlide(-1); }
+  });
+  
+  // Touch/swipe navigation
+  let touchStartX = 0;
+  document.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; });
+  document.addEventListener('touchend', (e) => {
+    const diff = touchStartX - e.changedTouches[0].clientX;
+    if (Math.abs(diff) > 50) changeSlide(diff > 0 ? 1 : -1);
+  });
+</script>
+
+</body>
+</html>

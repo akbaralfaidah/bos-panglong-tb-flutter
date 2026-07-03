@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:fl_chart/fl_chart.dart';
 import '../controllers/report_controller.dart';
 import '../theme/app_colors.dart';
+import '../helpers/app_notification.dart';
 
 class ReportScreen extends StatefulWidget {
   final int initialIndex;
@@ -194,12 +195,7 @@ class _ReportScreenState extends State<ReportScreen>
 
   Future<void> _exportToCsv() async {
     if (_exportData.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Tidak ada data untuk diexport!"),
-          backgroundColor: Colors.red,
-        ),
-      );
+      AppNotification.show(context, message: "Tidak ada data untuk diexport!", type: AppNotificationType.error);
       return;
     }
     setState(() => _isLoading = true);
@@ -214,9 +210,7 @@ class _ReportScreenState extends State<ReportScreen>
       if (file != null && mounted)
         Share.shareXFiles([XFile(file.path)], text: 'Laporan Keuangan');
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Gagal Export: $e")));
+      AppNotification.show(context, message: "Gagal Export: $e", type: AppNotificationType.error);
     } finally {
       setState(() => _isLoading = false);
     }

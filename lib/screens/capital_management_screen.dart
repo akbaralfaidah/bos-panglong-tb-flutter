@@ -7,6 +7,8 @@ import '../controllers/capital_management_controller.dart';
 import '../helpers/search_helper.dart';
 import 'capital_history_screen.dart';
 
+import '../helpers/app_notification.dart';
+
 class CapitalManagementScreen extends StatefulWidget {
   const CapitalManagementScreen({super.key});
 
@@ -118,13 +120,13 @@ class _CapitalManagementScreenState extends State<CapitalManagementScreen> {
 
       if (mounted) {
         Navigator.pop(context); 
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Semua Modal Cair berhasil di-reset ke Rp 0!"), backgroundColor: AppColors.statusGreen));
+        AppNotification.show(context, message: "Semua Modal Cair berhasil di-reset ke Rp 0!", type: AppNotificationType.success);
         _fetchData(); 
       }
     } catch (e) {
       if (mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal reset: $e"), backgroundColor: AppColors.statusRed));
+        AppNotification.show(context, message: "Gagal reset: $e", type: AppNotificationType.error);
       }
     }
   }

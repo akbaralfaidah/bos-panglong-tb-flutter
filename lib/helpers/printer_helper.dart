@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:intl/intl.dart';
 
+import '../helpers/app_notification.dart';
 import 'package:blue_thermal_printer/blue_thermal_printer.dart' as btp;
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart' as pbt;
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
@@ -506,6 +507,10 @@ class PrinterHelper {
   }
 
   void _showSnack(BuildContext context, String msg, Color color) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: color, duration: const Duration(seconds: 3)));
+    AppNotificationType type = AppNotificationType.info;
+    if (color == Colors.green) type = AppNotificationType.success;
+    if (color == Colors.red) type = AppNotificationType.error;
+    if (color == Colors.orange) type = AppNotificationType.warning;
+    AppNotification.show(context, message: msg, type: type);
   }
 }

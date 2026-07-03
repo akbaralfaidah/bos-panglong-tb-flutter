@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../theme/app_colors.dart';
 import '../controllers/stock_history_controller.dart';
@@ -6,6 +6,7 @@ import '../helpers/search_helper.dart';
 import '../models/product.dart';
 import '../controllers/product_controller.dart';
 import '../data/datasources/firebase/product_firebase_datasource.dart';
+import '../helpers/app_notification.dart';
 
 class EditStockHistoryScreen extends StatefulWidget {
   final String exactDate;
@@ -36,9 +37,7 @@ class _EditStockHistoryScreenState extends State<EditStockHistoryScreen> {
       if (mounted) setState(() => _items = logs);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Gagal memuat: $e"), backgroundColor: AppColors.statusRed)
-        );
+        AppNotification.show(context, message: "Gagal memuat: $e", type: AppNotificationType.error);
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -71,16 +70,12 @@ class _EditStockHistoryScreenState extends State<EditStockHistoryScreen> {
     try {
       await _controller.deleteStockItem(item['id'] as int);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Berhasil dihapus!"), backgroundColor: AppColors.statusGreen)
-        );
+        AppNotification.show(context, message: "Berhasil dihapus!", type: AppNotificationType.success);
       }
       await _loadData();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString()), backgroundColor: AppColors.statusRed)
-        );
+        AppNotification.show(context, message: "...", type: AppNotificationType.error);
         setState(() => _isLoading = false);
       }
     }
@@ -133,16 +128,12 @@ class _EditStockHistoryScreenState extends State<EditStockHistoryScreen> {
     try {
       await _controller.updateStockItemQuantity(item['id'] as int, newQty, newPrice);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Berhasil diedit!"), backgroundColor: AppColors.statusGreen)
-        );
+        AppNotification.show(context, message: "Berhasil diedit!", type: AppNotificationType.success);
       }
       await _loadData();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString()), backgroundColor: AppColors.statusRed)
-        );
+        AppNotification.show(context, message: "...", type: AppNotificationType.error);
         setState(() => _isLoading = false);
       }
     }

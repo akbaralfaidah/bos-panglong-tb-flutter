@@ -4,6 +4,9 @@ import '../controllers/debt_controller.dart';
 import '../theme/app_colors.dart';
 import 'transaction_detail_screen.dart';
 import 'customer_debt_list_screen.dart';
+import '../helpers/app_notification.dart';
+import 'debt_group_dialog.dart';
+import 'debt_group_detail_screen.dart';
 
 class DebtHistoryScreen extends StatefulWidget {
   const DebtHistoryScreen({super.key});
@@ -17,9 +20,10 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen>
   final DebtController _controller = DebtController();
 
   bool _isLoading = true;
-  List<Map<String, dynamic>> _groups = [];
-  int _totalSisaPiutang = 0;
-  int _totalPotentialProfit = 0;
+  List<Map<String, dynamic>> _groups = []; // pelanggan ungrouped
+  List<Map<String, dynamic>> _groupSummaries = []; // grup-grup
+  int _totalSisaPiutang = 0; // total semua (grup + ungrouped)
+  int _totalPotentialProfit = 0; // total semua
 
   // Animasi glow untuk tombol super
   late AnimationController _glowController;
@@ -50,13 +54,24 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen>
   Future<void> _fetchDebts() async {
     setState(() => _isLoading = true);
 
-    final data = await _controller.getGroupedDebtSummary();
+    // Ambil data paralel: grup summaries + ungrouped customers + total semua
+    final results = await Future.wait([
+      _controller.getGroupSummaries(),
+      _controller.getUngroupedDebtSummary(),
+      _controller.getGroupedDebtSummary(), // untuk total keseluruhan
+    ]);
+
+    final groupSummaries = results[0] as List<Map<String, dynamic>>;
+    final ungroupedData = results[1] as Map<String, dynamic>;
+    final allData = results[2] as Map<String, dynamic>;
 
     if (mounted) {
       setState(() {
-        _groups = data['groups'];
-        _totalSisaPiutang = data['total_sisa'];
-        _totalPotentialProfit = data['total_potential_profit'] ?? 0;
+        _groupSummaries = groupSummaries;
+        _groups = ungroupedData['groups'];
+        // Total keseluruhan (semua pelanggan baik grouped maupun tidak)
+        _totalSisaPiutang = allData['total_sisa'];
+        _totalPotentialProfit = allData['total_potential_profit'] ?? 0;
         _isLoading = false;
       });
     }
@@ -78,6 +93,20 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen>
   }
 
   // =====================================================
+  // 🏘️ BUAT GRUP BARU
+  // =====================================================
+  void _showCreateGroupDialog() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => DebtGroupDialog(
+        onSaved: () => _fetchDebts(),
+      ),
+    );
+  }
+
+  // =====================================================
   // 🔥 POPUP KONFIRMASI LUNASI SEMUA HUTANG 🔥
   // =====================================================
   void _showPayAllDebtsDialog() async {
@@ -95,12 +124,7 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen>
     Navigator.pop(context); // Tutup loading
 
     if (allDebts.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Tidak ada hutang aktif!", style: TextStyle(fontWeight: FontWeight.bold)),
-          backgroundColor: AppColors.statusGreen,
-        ),
-      );
+      AppNotification.show(context, message: "Tidak ada hutang aktif!", type: AppNotificationType.success);
       return;
     }
 
@@ -549,38 +573,13 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen>
 
                                             if (mounted) {
                                               Navigator.pop(ctx);
-                                              ScaffoldMessenger.of(context).showSnackBar(
-                                                SnackBar(
-                                                  content: Row(
-                                                    children: [
-                                                      const Text("🎉", style: TextStyle(fontSize: 20)),
-                                                      const SizedBox(width: 8),
-                                                      Expanded(
-                                                        child: Text(
-                                                          "Semua hutang berhasil dilunasi! Profit: ${_formatRp(totalProfit)}",
-                                                          style: const TextStyle(
-                                                            color: Colors.white,
-                                                            fontWeight: FontWeight.bold,
-                                                          ),
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                  backgroundColor: AppColors.statusGreen,
-                                                  duration: const Duration(seconds: 4),
-                                                ),
-                                              );
+                                              AppNotification.show(context, message: "🎉", type: AppNotificationType.success);
                                               _fetchDebts(); // Refresh
                                             }
                                           } catch (e) {
                                             setSheetState(() => isProcessing = false);
                                             if (mounted) {
-                                              ScaffoldMessenger.of(context).showSnackBar(
-                                                SnackBar(
-                                                  content: Text("Gagal melunasi: $e"),
-                                                  backgroundColor: AppColors.statusRed,
-                                                ),
-                                              );
+                                              AppNotification.show(context, message: "Gagal melunasi: $e", type: AppNotificationType.error);
                                             }
                                           }
                                         },
@@ -744,7 +743,7 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen>
             ),
           ),
 
-          // 2. DAFTAR PELANGGAN YANG NGUTANG (GROUPED)
+          // 2. DAFTAR GRUP + PELANGGAN YANG NGUTANG
           Expanded(
             child: _isLoading
                 ? const Center(
@@ -752,7 +751,7 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen>
                       color: AppColors.primaryNavy,
                     ),
                   )
-                : _groups.isEmpty
+                : (_groups.isEmpty && _groupSummaries.isEmpty)
                 ? const Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -773,19 +772,216 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen>
                       ],
                     ),
                   )
-                : ListView.builder(
+                : ListView(
                     padding: const EdgeInsets.all(16),
-                    itemCount: _groups.length,
-                    itemBuilder: (ctx, i) {
-                      final group = _groups[i];
-                      String customerName = group['customer_name'];
-                      int sisaHutang = group['sisa_hutang'] as int;
-                      int totalHutang = group['total_hutang'] as int;
-                      int totalDicicil = group['total_dicicil'] as int;
-                      int transCount = group['transaction_count'] as int;
-                      int potProfit = (group['potential_profit'] as num?)?.toInt() ?? 0;
-                      List<Map<String, dynamic>> transactions =
-                          group['transactions'] as List<Map<String, dynamic>>;
+                    children: [
+                      // ====== KARTU-KARTU GRUP ======
+                      if (_groupSummaries.isNotEmpty) ...[
+                        ..._groupSummaries.map((gs) {
+                          String groupName = gs['group_name'] ?? 'Grup';
+                          int sisaHutang = (gs['sisa_hutang'] as num?)?.toInt() ?? 0;
+                          int potProfit = (gs['potential_profit'] as num?)?.toInt() ?? 0;
+                          int customerCount = (gs['customer_count'] as num?)?.toInt() ?? 0;
+                          int notaCount = (gs['nota_count'] as num?)?.toInt() ?? 0;
+                          List<dynamic> customerNames = gs['customer_names'] ?? [];
+
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(18),
+                                onTap: () async {
+                                  final result = await Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => DebtGroupDetailScreen(
+                                        groupId: gs['id'],
+                                        groupName: groupName,
+                                        customerNames: customerNames.map((e) => e.toString()).toList(),
+                                      ),
+                                    ),
+                                  );
+                                  _fetchDebts(); // Refresh setelah kembali
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.all(18),
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: [
+                                        AppColors.primaryNavy.withOpacity(0.08),
+                                        AppColors.primaryNavy.withOpacity(0.03),
+                                      ],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                    ),
+                                    borderRadius: BorderRadius.circular(18),
+                                    border: Border.all(
+                                      color: AppColors.primaryNavy.withOpacity(0.15),
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.all(10),
+                                            decoration: BoxDecoration(
+                                              gradient: const LinearGradient(
+                                                colors: [Color(0xFF0A2647), Color(0xFF205295)],
+                                              ),
+                                              borderRadius: BorderRadius.circular(12),
+                                            ),
+                                            child: const Icon(Icons.home_work, color: Colors.white, size: 22),
+                                          ),
+                                          const SizedBox(width: 14),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  groupName,
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.w900,
+                                                    color: AppColors.primaryNavy,
+                                                    fontSize: 17,
+                                                  ),
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Row(
+                                                  children: [
+                                                    Container(
+                                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                      decoration: BoxDecoration(
+                                                        color: AppColors.menuIndigoBg,
+                                                        borderRadius: BorderRadius.circular(4),
+                                                      ),
+                                                      child: Text(
+                                                        "$customerCount Orang",
+                                                        style: const TextStyle(
+                                                          color: AppColors.menuIndigoIcon,
+                                                          fontWeight: FontWeight.bold,
+                                                          fontSize: 10,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 6),
+                                                    Container(
+                                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                      decoration: BoxDecoration(
+                                                        color: AppColors.statusRed.withOpacity(0.1),
+                                                        borderRadius: BorderRadius.circular(4),
+                                                      ),
+                                                      child: Text(
+                                                        "$notaCount Nota",
+                                                        style: const TextStyle(
+                                                          color: AppColors.statusRed,
+                                                          fontWeight: FontWeight.bold,
+                                                          fontSize: 10,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.textGrey),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 14),
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              const Text(
+                                                "Sisa Hutang",
+                                                style: TextStyle(color: AppColors.textGrey, fontSize: 11, fontWeight: FontWeight.bold),
+                                              ),
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                _formatRp(sisaHutang),
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.w900,
+                                                  color: AppColors.statusRed,
+                                                  fontSize: 16,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                            decoration: BoxDecoration(
+                                              color: AppColors.statusGreen.withOpacity(0.1),
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                const Icon(Icons.trending_up, size: 14, color: AppColors.statusGreen),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  _formatRp(potProfit),
+                                                  style: const TextStyle(
+                                                    color: AppColors.statusGreen,
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 12,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        }),
+                        // Divider antara grup dan ungrouped
+                        if (_groups.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            child: Row(
+                              children: [
+                                Expanded(child: Divider(color: Colors.grey.shade300)),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                                  child: Text(
+                                    "Pelanggan Tanpa Grup",
+                                    style: TextStyle(
+                                      color: Colors.grey.shade500,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                                Expanded(child: Divider(color: Colors.grey.shade300)),
+                              ],
+                            ),
+                          ),
+                      ],
+
+                      // ====== PELANGGAN TANPA GRUP ======
+                      ..._groups.asMap().entries.map((entry) {
+                        final group = entry.value;
+                        String customerName = group['customer_name'];
+                        int sisaHutang = group['sisa_hutang'] as int;
+                        int totalHutang = group['total_hutang'] as int;
+                        int totalDicicil = group['total_dicicil'] as int;
+                        int transCount = group['transaction_count'] as int;
+                        int potProfit = (group['potential_profit'] as num?)?.toInt() ?? 0;
+                        List<Map<String, dynamic>> transactions =
+                            group['transactions'] as List<Map<String, dynamic>>;
+
 
                       return Card(
                         color: AppColors.pureWhite,
@@ -952,14 +1148,26 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen>
                           ),
                         ),
                       );
-                    },
-                  ),
+                    }),
+                  ],
+                ),
           ),
         ],
       ),
 
+      // FAB BUAT GRUP
+      floatingActionButton: (!_isLoading && (_groups.isNotEmpty || _groupSummaries.isNotEmpty))
+          ? FloatingActionButton.extended(
+              onPressed: _showCreateGroupDialog,
+              backgroundColor: AppColors.primaryNavy,
+              icon: const Icon(Icons.group_add, color: Colors.white),
+              label: const Text("Buat Grup", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              elevation: 6,
+            )
+          : null,
+
       // 🔥 TOMBOL SUPER "LUNASI SEMUA HUTANG" 🔥
-      bottomNavigationBar: (!_isLoading && _groups.isNotEmpty)
+      bottomNavigationBar: (!_isLoading && (_groups.isNotEmpty || _groupSummaries.isNotEmpty))
           ? AnimatedBuilder(
               animation: _glowAnimation,
               builder: (context, child) {
@@ -982,7 +1190,7 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen>
                         borderRadius: BorderRadius.circular(16),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFFF39C12).withOpacity(0.25 + (glowValue * 0.25)),
+                            color: AppColors.primaryNavy.withOpacity(0.2 + (glowValue * 0.2)),
                             blurRadius: 12 + (glowValue * 8),
                             spreadRadius: glowValue * 2,
                             offset: const Offset(0, 4),
@@ -1006,9 +1214,9 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen>
                             decoration: BoxDecoration(
                               gradient: const LinearGradient(
                                 colors: [
-                                  Color(0xFFF39C12), // Emas
-                                  Color(0xFFE67E22), // Emas tua
-                                  Color(0xFFE74C3C), // Merah
+                                  Color(0xFF0A2647), // primaryNavy
+                                  Color(0xFF144272), // secondaryNavy
+                                  Color(0xFF205295), // accent blue
                                 ],
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,

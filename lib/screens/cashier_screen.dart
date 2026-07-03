@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:barcode_scan2/barcode_scan2.dart';
@@ -10,6 +10,7 @@ import 'review_transaction_screen.dart';
 import '../theme/app_colors.dart';
 import '../helpers/session_manager.dart';
 import '../helpers/search_helper.dart';
+import '../helpers/app_notification.dart';
 
 class CartItem {
   final Product product;
@@ -185,43 +186,16 @@ class _CashierScreenState extends State<CashierScreen>
           double displayStock = double.parse((foundProduct.stock - stockInCart).toStringAsFixed(2));
 
           if (displayStock <= 0) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  "Stok sisa di rak habis! (Sudah masuk keranjang)",
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                backgroundColor: AppColors.statusRed,
-              ),
-            );
+            AppNotification.show(context, message: "Stok sisa di rak habis! (Sudah masuk keranjang)", type: AppNotificationType.error);
           } else {
             _showQuickAddDialog(foundProduct, foundProduct.name, displayStock);
           }
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                "Produk dengan Barcode tersebut tidak ditemukan!",
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-              backgroundColor: AppColors.statusRed,
-            ),
-          );
+          AppNotification.show(context, message: "Produk dengan Barcode tersebut tidak ditemukan!", type: AppNotificationType.error);
         }
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Error Kamera/Barcode: $e"),
-          backgroundColor: AppColors.statusRed,
-        ),
-      );
+      AppNotification.show(context, message: "Error Kamera/Barcode: $e", type: AppNotificationType.error);
     }
   }
 

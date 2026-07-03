@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
@@ -14,6 +14,7 @@ import '../theme/app_colors.dart';
 import 'login_screen.dart';
 import 'employee_management_screen.dart';
 import '../data/datasources/firebase/core_firebase_datasource.dart';
+import '../helpers/app_notification.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -89,12 +90,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
     if (mounted) {
       setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Identitas Toko Berhasil Disimpan di Cloud!"),
-          backgroundColor: AppColors.statusGreen,
-        ),
-      );
+      AppNotification.show(context, message: "Identitas Toko Berhasil Disimpan di Cloud!", type: AppNotificationType.success);
     }
   }
 
@@ -148,14 +144,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                 setState(() => _isLoading = false);
                 if (success) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        "Nama berhasil diperbarui secara permanen!",
-                      ),
-                      backgroundColor: AppColors.statusGreen,
-                    ),
-                  );
+                  AppNotification.show(context, message: "Nama berhasil diperbarui secara permanen!", type: AppNotificationType.success);
                   // 🔥 FIX UI: Paksa render ulang layar biar nama baru langsung muncul!
                   setState(() {});
                 }
@@ -285,12 +274,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         _ownerPin = newPinCtrl.text;
                       });
                       Navigator.pop(dialogCtx);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("PIN Berhasil Diganti di Cloud!"),
-                          backgroundColor: AppColors.statusGreen,
-                        ),
-                      );
+                      AppNotification.show(context, message: "PIN Berhasil Diganti di Cloud!", type: AppNotificationType.success);
                     }
                   },
                   child: const Text(
@@ -496,15 +480,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     if (pinCtrl.text == _ownerPin) {
                       setDialogState(() => isPinValid = true);
                     } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            "PIN SALAH!",
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          backgroundColor: AppColors.statusRed,
-                        ),
-                      );
+                      AppNotification.show(context, message: "PIN SALAH!", type: AppNotificationType.error);
                     }
                   },
                   child: const Text(
@@ -611,38 +587,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               if (!mounted) return;
 
                               Navigator.pop(dialogCtx);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    "🔥 PABRIK RESET BERHASIL! Aplikasi bersih kembali seperti baru.",
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  backgroundColor: AppColors.statusGreen,
-                                  duration: Duration(seconds: 4),
-                                ),
-                              );
+                              AppNotification.show(context, message: "🔥 PABRIK RESET BERHASIL! Aplikasi bersih kembali seperti baru.", type: AppNotificationType.success, duration: Duration(seconds: 4));
                             } catch (e) {
                               setDialogState(() => isResetting = false);
 
                               if (!mounted) return;
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text("Gagal reset: $e"),
-                                  backgroundColor: AppColors.statusRed,
-                                ),
-                              );
+                              AppNotification.show(context, message: "Gagal reset: $e", type: AppNotificationType.error);
                             }
                           } else {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  "Kata konfirmasi tidak cocok atau huruf kecil!",
-                                ),
-                                backgroundColor: AppColors.statusRed,
-                              ),
-                            );
+                            AppNotification.show(context, message: "Kata konfirmasi tidak cocok atau huruf kecil!", type: AppNotificationType.error);
                           }
                         },
                         child: const Text(

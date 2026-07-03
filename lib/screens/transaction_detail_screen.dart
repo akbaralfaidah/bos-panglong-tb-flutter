@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'dart:io';
@@ -17,6 +17,7 @@ import '../controllers/transaction_detail_controller.dart';
 import '../theme/app_colors.dart';
 import '../helpers/session_manager.dart';
 import 'edit_transaction_screen.dart';
+import '../helpers/app_notification.dart';
 
 class TransactionDetailScreen extends StatefulWidget {
   final Map<String, dynamic> transaction;
@@ -253,19 +254,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
             _isLoading = false;
           });
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  "Internet Putus! Foto tersimpan aman di lokal HP. Upload ulang ke Cloud saat online.",
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                backgroundColor: AppColors.menuAmberIcon,
-                duration: Duration(seconds: 6),
-              ),
-            );
+            AppNotification.show(context, message: "Internet Putus! Foto tersimpan aman di lokal HP. Upload ulang ke Cloud saat online.", type: AppNotificationType.warning, duration: Duration(seconds: 6));
           }
           return;
         }
@@ -307,40 +296,16 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
             });
 
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    source == ImageSource.camera
-                        ? "Foto dari Kamera sukses diupload ke Database!"
-                        : "Gambar dari Galeri sukses diupload ke Database!",
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  backgroundColor: AppColors.statusGreen,
-                ),
-              );
+              AppNotification.show(context, message: "...", type: AppNotificationType.success);
             }
           } else {
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    "GAGAL SIMPAN! ID $_transId ga ketemu di database.",
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  backgroundColor: AppColors.statusRed,
-                  duration: const Duration(seconds: 5),
-                ),
-              );
+              AppNotification.show(context, message: "GAGAL SIMPAN! ID $_transId ga ketemu di database.", type: AppNotificationType.error);
             }
           }
         } catch (fsErr) {
           if (mounted)
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text("Error Storage: $fsErr"),
-                backgroundColor: AppColors.statusRed,
-              ),
-            );
+            AppNotification.show(context, message: "Error Storage: $fsErr", type: AppNotificationType.error);
         } finally {
           setState(() => _isLoading = false);
         }
@@ -348,12 +313,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Gagal memproses gambar: $e"),
-            backgroundColor: AppColors.statusRed,
-          ),
-        );
+        AppNotification.show(context, message: "Gagal memproses gambar: $e", type: AppNotificationType.error);
       }
     }
   }
@@ -438,20 +398,10 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
         await Gal.putImage(_paymentProofPath!);
       }
       if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Berhasil diunduh ke Galeri HP!"),
-            backgroundColor: AppColors.statusGreen,
-          ),
-        );
+        AppNotification.show(context, message: "Berhasil diunduh ke Galeri HP!", type: AppNotificationType.success);
     } catch (e) {
       if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Gagal mengunduh: $e"),
-            backgroundColor: AppColors.statusRed,
-          ),
-        );
+        AppNotification.show(context, message: "Gagal mengunduh: $e", type: AppNotificationType.error);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -475,12 +425,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
       ], text: 'Bukti Pembayaran INV-$_transId Toko $_storeName');
     } catch (e) {
       if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Gagal membagikan: $e"),
-            backgroundColor: AppColors.statusRed,
-          ),
-        );
+        AppNotification.show(context, message: "Gagal membagikan: $e", type: AppNotificationType.error);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -738,18 +683,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
               await _controller.payDebt(_transId, amount, noteCtrl.text);
               if (mounted) {
                 Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      "Cicilan Berhasil Ditambah!",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    backgroundColor: AppColors.statusGreen,
-                  ),
-                );
+                AppNotification.show(context, message: "Cicilan Berhasil Ditambah!", type: AppNotificationType.success);
                 if (amount >= sisaHutang) {
                   setState(() => _status = "Lunas");
                   widget.transaction['payment_status'] = "Lunas";
@@ -836,25 +770,12 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
     try {
       await _controller.voidTransaction(_transId, _items);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              "Transaksi berhasil di-hapus/batalkan! Stok telah dikembalikan.",
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            backgroundColor: AppColors.statusGreen,
-          ),
-        );
+        AppNotification.show(context, message: "Transaksi berhasil di-hapus/batalkan! Stok telah dikembalikan.", type: AppNotificationType.success);
         Navigator.pop(context, true);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Gagal membatalkan: $e"),
-            backgroundColor: AppColors.statusRed,
-          ),
-        );
+        AppNotification.show(context, message: "Gagal membatalkan: $e", type: AppNotificationType.error);
       }
     } finally {
       if (mounted) setState(() => _isVoiding = false);
@@ -892,12 +813,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
         XFile(file.path),
       ], text: 'Struk Belanja $_storeName (INV-$_transId)');
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Gagal Share: $e"),
-          backgroundColor: AppColors.statusRed,
-        ),
-      );
+      AppNotification.show(context, message: "Gagal Share: $e", type: AppNotificationType.error);
     }
   }
 
@@ -907,12 +823,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
 
       if (Platform.isIOS) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Memproses Cetak Teks & Logo..."),
-              backgroundColor: AppColors.primaryNavy,
-            ),
-          );
+          AppNotification.show(context, message: "Memproses Cetak Teks & Logo...", type: AppNotificationType.info);
         }
 
         await printer.printReceiptTextIOS(
@@ -940,12 +851,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
       }
     } catch (e) {
       if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Gagal Cetak: $e"),
-            backgroundColor: AppColors.statusRed,
-          ),
-        );
+        AppNotification.show(context, message: "Gagal Cetak: $e", type: AppNotificationType.error);
     }
   }
 

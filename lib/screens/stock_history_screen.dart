@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/services.dart';
 import 'dart:typed_data';
@@ -17,6 +17,7 @@ import '../models/product.dart';
 import 'product_list_screen.dart';
 import 'new_product_receipt_screen.dart';
 import 'stock_receipt_screen.dart';
+import '../helpers/app_notification.dart';
 
 class StockHistoryScreen extends StatefulWidget {
   const StockHistoryScreen({super.key});
@@ -142,12 +143,7 @@ class _StockHistoryScreenState extends State<StockHistoryScreen>
       }
     } catch (e) {
       if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Error filter: $e"),
-            backgroundColor: AppColors.statusRed,
-          ),
-        );
+        AppNotification.show(context, message: "Error filter: $e", type: AppNotificationType.error);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -683,15 +679,7 @@ class _StockHistoryScreenState extends State<StockHistoryScreen>
                           InkWell(
                             onTap: () async {
                               if (isAuditLog) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      "Ini adalah log otomatis, bukan transaksi.",
-                                      style: TextStyle(fontWeight: FontWeight.bold),
-                                    ),
-                                    backgroundColor: AppColors.menuAmberIcon,
-                                  ),
-                                );
+                                AppNotification.show(context, message: "Ini adalah log otomatis, bukan transaksi.", type: AppNotificationType.warning);
                                 return;
                               }
                               double rawInputQty =
