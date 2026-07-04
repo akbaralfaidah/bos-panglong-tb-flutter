@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart'; 
@@ -47,9 +47,12 @@ class _ReviewTransactionScreenState extends State<ReviewTransactionScreen> {
   final TextEditingController _addressController = TextEditingController();
   final TextEditingController _bensinController = TextEditingController();
   final TextEditingController _finalTotalController = TextEditingController();
+  final TextEditingController _cutProfitController = TextEditingController();
   
+  int _cutProfit = 0;
   String _paymentStatus = 'Lunas'; 
   String _paymentMethod = 'Tunai'; 
+
 
   @override
   void initState() {
@@ -734,7 +737,9 @@ class _ReviewTransactionScreenState extends State<ReviewTransactionScreen> {
         paymentMethod: _paymentMethod,
         paymentStatus: _paymentStatus,
         transactionDate: _transactionDate, 
+        cutProfit: _cutProfit,
       );
+
 
       if (_paymentStatus.toLowerCase() == 'lunas') {
         try {
@@ -1310,6 +1315,29 @@ class _ReviewTransactionScreenState extends State<ReviewTransactionScreen> {
                       },
                     ),
                     const SizedBox(height: 25),
+                    const Text("Potong Profit (Opsional)", style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryNavy, fontSize: 16)),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: _cutProfitController,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly, CurrencyInputFormatter()],
+                      decoration: InputDecoration(
+                        labelText: "Masukkan Nominal Potong Profit",
+                        prefixText: "Rp ",
+                        prefixIcon: const Icon(Icons.money_off, color: AppColors.statusRed),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                        filled: true,
+                        fillColor: AppColors.pureWhite,
+                      ),
+                      onChanged: (val) {
+                        setState(() {
+                          _cutProfit = int.tryParse(val.replaceAll('.', '')) ?? 0;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 25),
+
+
                     const Text("Metode Pembayaran", style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryNavy, fontSize: 16)),
                     const SizedBox(height: 10),
                     Row(

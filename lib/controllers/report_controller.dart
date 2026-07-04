@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import '../data/datasources/firebase/report_firebase_datasource.dart';
 import '../data/datasources/firebase/debt_firebase_datasource.dart'; 
 import '../data/datasources/firebase/transaction_firebase_datasource.dart';
+import '../data/datasources/firebase/core_firebase_datasource.dart';
 
 class ReportController {
   final ReportFirebaseDataSource _reportDS = ReportFirebaseDataSource();
@@ -43,6 +44,10 @@ class ReportController {
 
   Future<List<Map<String, dynamic>>> getCustomerCRM() async {
     return await _reportDS.getCustomerCRMData();
+  }
+
+  Future<void> deleteCustomer(String name) async {
+    await CoreFirebaseDataSource().deleteCustomer(name);
   }
 
   Future<List<Map<String, dynamic>>> getTransactionsByCustomer(String customerName) async {

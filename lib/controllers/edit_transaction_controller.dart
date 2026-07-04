@@ -27,6 +27,7 @@ class EditTransactionController {
     required String paymentStatus,
     required String transactionDate,
     required int queueNumber,
+    int cutProfit = 0,
   }) async {
     List<Map<String, dynamic>> embeddedNewItems = [];
     for (var item in cartItems) {
@@ -69,6 +70,7 @@ class EditTransactionController {
       'total_price': totalPrice, 
       'operational_cost': operationalCost, 
       'discount': discount,
+      'cut_profit': cutProfit,
       'customer_name': customerName, 
       'customer_phone': customerPhone, 
       'customer_address': customerAddress,
@@ -80,4 +82,5 @@ class EditTransactionController {
 
     await _transDS.updateTransaction(transId, oldItems, embeddedNewItems, updatedTransData);
   }
+
 }

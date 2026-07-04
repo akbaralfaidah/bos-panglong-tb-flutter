@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart'; 
@@ -792,7 +792,10 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
             if (mounted) Navigator.pop(context, true);
           }
         } else {
-          if (mounted) AppNotification.show(context, message: "Barang berhasil didaftarkan (Stok Kosong)", type: AppNotificationType.success);
+          if (mounted) {
+            AppNotification.show(context, message: "Barang berhasil didaftarkan (Stok Kosong)", type: AppNotificationType.success);
+            Navigator.pop(context, true);
+          }
         }
       } else {
         await _controller.updateProduct(product);
@@ -807,8 +810,12 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
               }, SetOptions(merge: true));
            }
         }
-        if (mounted) AppNotification.show(context, message: "Berhasil diubah!", type: AppNotificationType.success);
+        if (mounted) {
+          AppNotification.show(context, message: "Berhasil diubah!", type: AppNotificationType.success);
+          Navigator.pop(context, true);
+        }
       }
+
 
     } catch (e) { 
       AppNotification.show(context, message: "Gagal: $e", type: AppNotificationType.error);

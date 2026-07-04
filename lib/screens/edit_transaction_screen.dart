@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../models/product.dart';
@@ -42,6 +42,12 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
   late String _transactionDate;
   late int _queueNumber;
 
+  late int _cutProfit;
+  late TextEditingController _nameCtrl;
+  late TextEditingController _phoneCtrl;
+  late TextEditingController _addressCtrl;
+  late TextEditingController _cutProfitCtrl;
+
   @override
   void initState() {
     super.initState();
@@ -55,10 +61,26 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
     _paymentStatus = widget.transactionData['payment_status'] ?? 'Belum Lunas';
     _transactionDate = widget.transactionData['transaction_date'];
     _queueNumber = widget.transactionData['queue_number'] ?? 1;
+    _cutProfit = widget.transactionData['cut_profit'] ?? 0;
+
+    _nameCtrl = TextEditingController(text: _customerName);
+    _phoneCtrl = TextEditingController(text: _customerPhone);
+    _addressCtrl = TextEditingController(text: _customerAddress);
+    _cutProfitCtrl = TextEditingController(text: NumberFormat('#,###', 'id_ID').format(_cutProfit));
 
     _loadOriginalItems();
     _loadProducts();
   }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _phoneCtrl.dispose();
+    _addressCtrl.dispose();
+    _cutProfitCtrl.dispose();
+    super.dispose();
+  }
+
 
   void _loadOriginalItems() {
     List<dynamic> rawItems = widget.transactionData['items'] ?? [];
@@ -746,10 +768,63 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
     );
   }
 
+  int get _getCartModalTotal {
+    return _cartItems.fold(0, (sum, item) {
+      int capTotal = 0;
+      if (item.containsKey('capital_total') && item['capital_total'] != null) {
+        capTotal = (item['capital_total'] as num).toInt();
+      } else {
+        double reqQty = (item['request_qty'] as num?)?.toDouble() ?? 1.0;
+        int capP = (item['capital_price'] as num?)?.toInt() ?? 0;
+        capTotal = (reqQty * capP).round();
+      }
+      return sum + capTotal;
+    });
+  }
+
   Future<void> _saveChanges() async {
     if (_cartItems.isEmpty) {
       AppNotification.show(context, message: "Keranjang tidak boleh kosong!", type: AppNotificationType.info);
       return;
+    }
+
+    // Hitung margin bersih untuk dialog warning
+    int totalModal = _getCartModalTotal;
+    int untungBersih = _finalTotal - totalModal - _cutProfit;
+
+    if (untungBersih < 0) {
+      // Tampilkan dialog peringatan rugi / minus margin
+      bool? confirm = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: AppColors.pureWhite,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+          title: const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: AppColors.statusRed, size: 28),
+              SizedBox(width: 10),
+              Text("Peringatan Rugi!", style: TextStyle(color: AppColors.statusRed, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: Text(
+            "Potongan profit membuat transaksi ini terdeteksi RUGI sebesar ${_formatRp(untungBersih)} dari harga modal.\n\nYakin ingin menyimpan perubahan?",
+            style: const TextStyle(color: AppColors.textDark, fontSize: 15),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text("Batal", style: TextStyle(color: AppColors.textGrey, fontWeight: FontWeight.bold)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.statusRed, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text("Tetap Simpan", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      );
+
+      if (confirm != true) return;
     }
 
     setState(() => _isSaving = true);
@@ -768,6 +843,7 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
         paymentStatus: _paymentStatus, 
         transactionDate: _transactionDate,
         queueNumber: _queueNumber,
+        cutProfit: _cutProfit,
       );
 
       if (mounted) {
@@ -783,6 +859,20 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
     }
   }
 
+
+  InputDecoration _inputStyle(String label, IconData icon, {String? prefix}) {
+    return InputDecoration(
+      labelText: label,
+      prefixText: prefix,
+      prefixIcon: Icon(icon, color: AppColors.textGrey),
+      filled: true, fillColor: AppColors.pureWhite,
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
+      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
+      focusedBorder: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12)), borderSide: BorderSide(color: AppColors.primaryNavy, width: 2)),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -795,49 +885,100 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
       body: Column(
         children: [
           Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.all(10),
-              itemCount: _cartItems.length,
-              itemBuilder: (context, index) {
-                final item = _cartItems[index];
-                double qty = (item['request_qty'] as num?)?.toDouble() ?? 1.0;
-                int agreedTotal = item['agreed_total'] ?? 0;
-                
-                String qtyStr = qty == qty.toInt() ? qty.toInt().toString() : qty.toString();
-                
-                return Card(
-                  elevation: 2,
-                  color: AppColors.pureWhite,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  margin: const EdgeInsets.symmetric(vertical: 6),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-                    child: ListTile(
-                      title: Text(item['product_name'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text("Qty: $qtyStr ${item['unit_type'] ?? ''} | Subtotal: ${_formatRp(agreedTotal)}"),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.edit, color: AppColors.menuAmberIcon),
-                            onPressed: () => _editQtyDialog(index),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.delete, color: AppColors.statusRed),
-                            onPressed: () {
-                              setState(() {
-                                _cartItems.removeAt(index);
-                              });
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                // --- KARTU IDENTITAS PELANGGAN ---
+                const Text("Identitas Pelanggan", style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryNavy, fontSize: 16)),
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.pureWhite,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.grey.shade200),
                   ),
-                );
-              },
+                  child: Column(
+                    children: [
+                      TextField(
+                        controller: _nameCtrl,
+                        decoration: _inputStyle("Nama Pelanggan", Icons.person),
+                        onChanged: (v) => _customerName = v,
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _phoneCtrl,
+                        keyboardType: TextInputType.phone,
+                        decoration: _inputStyle("No. HP / WA", Icons.phone),
+                        onChanged: (v) => _customerPhone = v,
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _addressCtrl,
+                        decoration: _inputStyle("Alamat Pengiriman", Icons.location_on),
+                        onChanged: (v) => _customerAddress = v,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 25),
+
+                // --- HEADER DAFTAR BARANG ---
+                const Text("Daftar Barang Belanjaan", style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryNavy, fontSize: 16)),
+                const SizedBox(height: 10),
+
+                // --- ITEM LIST ---
+                if (_cartItems.isEmpty)
+                  Container(
+                    padding: const EdgeInsets.all(30),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(color: AppColors.pureWhite, borderRadius: BorderRadius.circular(16)),
+                    child: const Text("Keranjang belanja kosong", style: TextStyle(color: AppColors.textGrey)),
+                  )
+                else
+                  ..._cartItems.asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final item = entry.value;
+                    double qty = (item['request_qty'] as num?)?.toDouble() ?? 1.0;
+                    int agreedTotal = item['agreed_total'] ?? 0;
+                    
+                    String qtyStr = qty == qty.toInt() ? qty.toInt().toString() : qty.toString();
+                    
+                    return Card(
+                      elevation: 2,
+                      color: AppColors.pureWhite,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      margin: const EdgeInsets.only(bottom: 12),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                        child: ListTile(
+                          title: Text(item['product_name'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold)),
+                          subtitle: Text("Qty: $qtyStr ${item['unit_type'] ?? ''} | Subtotal: ${_formatRp(agreedTotal)}"),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.edit, color: AppColors.menuAmberIcon),
+                                onPressed: () => _editQtyDialog(index),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.delete, color: AppColors.statusRed),
+                                onPressed: () {
+                                  setState(() {
+                                    _cartItems.removeAt(index);
+                                  });
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+              ],
             ),
           ),
+
           Container(
             padding: const EdgeInsets.all(16),
             decoration: const BoxDecoration(
@@ -851,35 +992,66 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text("Subtotal Barang", style: TextStyle(fontSize: 16)),
-                    Text(_formatRp(_cartTotal), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    const Text("Subtotal Barang", style: TextStyle(fontSize: 15)),
+                    Text(_formatRp(_cartTotal), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
                   ],
                 ),
                 if (_discount > 0)
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text("Diskon", style: TextStyle(fontSize: 16)),
-                      Text("- ${_formatRp(_discount)}", style: const TextStyle(fontSize: 16, color: AppColors.statusRed)),
+                      const Text("Diskon", style: TextStyle(fontSize: 15)),
+                      Text("- ${_formatRp(_discount)}", style: const TextStyle(fontSize: 15, color: AppColors.statusRed)),
                     ],
                   ),
                 if (_operationalCost > 0)
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text("Ongkir / Operasional", style: TextStyle(fontSize: 16)),
-                      Text("+ ${_formatRp(_operationalCost)}", style: const TextStyle(fontSize: 16)),
+                      const Text("Ongkir / Operasional", style: TextStyle(fontSize: 15)),
+                      Text("+ ${_formatRp(_operationalCost)}", style: const TextStyle(fontSize: 15)),
                     ],
                   ),
+                if (_cutProfit > 0)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text("Potong Profit", style: TextStyle(fontSize: 15, color: AppColors.statusRed)),
+                      Text("- ${_formatRp(_cutProfit)}", style: const TextStyle(fontSize: 15, color: AppColors.statusRed, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                const SizedBox(height: 10),
+                
+                // --- INPUT FIELD POTONG PROFIT ---
+                TextField(
+                  controller: _cutProfitCtrl,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly, CurrencyInputFormatter()],
+                  decoration: InputDecoration(
+                    labelText: "Potong Profit (Hanya Mengurangi Laba Bersih)",
+                    prefixText: "Rp ",
+                    prefixIcon: const Icon(Icons.money_off, color: AppColors.statusRed, size: 20),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                    filled: true,
+                    fillColor: AppColors.backgroundWhite,
+                  ),
+                  onChanged: (val) {
+                    setState(() {
+                      _cutProfit = int.tryParse(val.replaceAll('.', '')) ?? 0;
+                    });
+                  },
+                ),
+
                 const Divider(thickness: 1, height: 20),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text("Total Transaksi", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                    Text(_formatRp(_finalTotal), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.primaryNavy)),
+                    const Text("Total Transaksi", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    Text(_formatRp(_finalTotal), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.primaryNavy)),
                   ],
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 15),
                 Row(
                   children: [
                     Expanded(
@@ -887,7 +1059,7 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
                         icon: const Icon(Icons.add, color: AppColors.primaryNavy),
                         label: const Text("Tambah Barang", style: TextStyle(color: AppColors.primaryNavy, fontWeight: FontWeight.bold)),
                         style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 15),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
                           side: const BorderSide(color: AppColors.primaryNavy, width: 2),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
@@ -901,7 +1073,7 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
                         label: Text(_isSaving ? "MENYIMPAN..." : "SIMPAN PERUBAHAN", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.statusGreen,
-                          padding: const EdgeInsets.symmetric(vertical: 15),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                         onPressed: _isSaving ? null : _saveChanges,
@@ -912,6 +1084,7 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
               ],
             ),
           )
+
         ],
       ),
     );

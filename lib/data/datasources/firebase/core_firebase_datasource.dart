@@ -32,6 +32,11 @@ class CoreFirebaseDataSource {
     return docs.map((doc) => (doc.data() as Map<String, dynamic>)['name'] as String).toList(); 
   }
 
+  Future<void> deleteCustomer(String name) async {
+    await _col('customers').doc(name).delete();
+  }
+
+
   Future<void> saveSetting(String k, String v) async {
     // 🔥 SUDAH DITAMBAHKAN AWAIT AGAR PIN BENAR-BENAR TERSIMPAN DI CLOUD
     await _col('settings').doc('store_info').set({k: v}, SetOptions(merge: true));

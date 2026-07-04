@@ -65,7 +65,8 @@ class DebtFirebaseDataSource {
         }
         trxProfit += (agreed - capital);
       }
-      transData['potential_profit'] = (trxProfit + op - disc).round();
+      double cutProfit = (transData['cut_profit'] as num?)?.toDouble() ?? 0;
+      transData['potential_profit'] = (trxProfit + op - disc - cutProfit).round();
 
       activeDebts.add(transData);
     }

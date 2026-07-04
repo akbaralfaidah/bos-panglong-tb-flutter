@@ -5,6 +5,7 @@ import '../controllers/report_controller.dart';
 import '../theme/app_colors.dart';
 import '../helpers/search_helper.dart';
 import 'transaction_detail_screen.dart';
+import '../helpers/app_notification.dart';
 
 class CustomerScreen extends StatefulWidget {
   const CustomerScreen({super.key});
@@ -37,6 +38,50 @@ class _CustomerScreenState extends State<CustomerScreen> {
         _isLoading = false;
       });
     }
+  }
+
+  void _deleteCustomerConfirm(String name) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.pureWhite,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text("Hapus Pelanggan?", style: TextStyle(color: AppColors.primaryNavy, fontWeight: FontWeight.bold)),
+        content: Text(
+          "Apakah Anda yakin ingin menghapus pelanggan \"$name\" dari Buku Pelanggan?\n\nHapus pelanggan ini TIDAK akan menghapus riwayat transaksinya.",
+          style: const TextStyle(color: AppColors.textGrey, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Batal", style: TextStyle(color: AppColors.textGrey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.statusRed,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              setState(() => _isLoading = true);
+              try {
+                await _controller.deleteCustomer(name);
+                if (mounted) {
+                  AppNotification.show(context, message: "Pelanggan \"$name\" berhasil dihapus!", type: AppNotificationType.success);
+                  _loadCrmData();
+                }
+              } catch (e) {
+                if (mounted) {
+                  setState(() => _isLoading = false);
+                  AppNotification.show(context, message: "Gagal menghapus: $e", type: AppNotificationType.error);
+                }
+              }
+            },
+            child: const Text("HAPUS", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
   }
 
   void _filterCustomers(String query) {
@@ -191,7 +236,11 @@ class _CustomerScreenState extends State<CustomerScreen> {
                                       if (c['phone'].toString().isNotEmpty) ...[
                                         IconButton(icon: const Icon(Icons.phone, color: Colors.green), onPressed: () => _launchUrl('CALL', c['phone'])),
                                         IconButton(icon: const Icon(Icons.chat, color: Colors.teal), onPressed: () => _launchUrl('WA', c['phone'])),
-                                      ]
+                                      ],
+                                      IconButton(
+                                        icon: const Icon(Icons.delete, color: AppColors.statusRed),
+                                        onPressed: () => _deleteCustomerConfirm(c['name']),
+                                      ),
                                     ],
                                   ),
                                   const Divider(height: 25),

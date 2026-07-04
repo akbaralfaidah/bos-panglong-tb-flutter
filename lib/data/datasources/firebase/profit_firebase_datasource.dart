@@ -79,8 +79,9 @@ class ProfitFirebaseDataSource {
           }
         }
         
-        totalProfit += (trxProfit - disc);
-        double finalLabaTrx = trxProfit + op - disc;
+        double cutProfit = (t['cut_profit'] as num?)?.toDouble() ?? 0;
+        totalProfit += (trxProfit - disc - cutProfit);
+        double finalLabaTrx = trxProfit + op - disc - cutProfit;
 
         historyList.add({
           'id': t['id'],
@@ -92,6 +93,7 @@ class ProfitFirebaseDataSource {
           'subtitle': 'Pelanggan: ${t['customer_name'] ?? 'Umum'}',
           'cashier_name': t['cashier_name'] ?? 'Kasir',
         });
+
       }
     }
 
