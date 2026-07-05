@@ -15,6 +15,7 @@ Aplikasi ini mengintegrasikan **manajemen gudang, kasir pintar dengan negosiasi 
 - Tambah & kurangi stok
 - Catat harga modal & harga jual
 - Histori perubahan stok
+- Fitur **Bagi Ongkir**: Distribusi ongkos kirim ke harga modal secara proporsional berdasarkan berat
 
 ---
 
