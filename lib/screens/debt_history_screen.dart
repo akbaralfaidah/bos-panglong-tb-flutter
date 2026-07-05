@@ -54,28 +54,20 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen>
   Future<void> _fetchDebts() async {
     setState(() => _isLoading = true);
 
-    // Ambil data paralel: grup summaries + ungrouped customers + total semua
-    final results = await Future.wait([
-      _controller.getGroupSummaries(),
-      _controller.getUngroupedDebtSummary(),
-      _controller.getGroupedDebtSummary(), // untuk total keseluruhan
-    ]);
-
-    final groupSummaries = results[0] as List<Map<String, dynamic>>;
-    final ungroupedData = results[1] as Map<String, dynamic>;
-    final allData = results[2] as Map<String, dynamic>;
+    // 🔥 OPTIMASI: 1 panggilan saja, bukan 3 panggilan terpisah
+    final allData = await _controller.fetchAllDebtData();
 
     if (mounted) {
       setState(() {
-        _groupSummaries = groupSummaries;
-        _groups = ungroupedData['groups'];
-        // Total keseluruhan (semua pelanggan baik grouped maupun tidak)
+        _groupSummaries = allData['group_summaries'];
+        _groups = allData['ungrouped_customers'];
         _totalSisaPiutang = allData['total_sisa'];
         _totalPotentialProfit = allData['total_potential_profit'] ?? 0;
         _isLoading = false;
       });
     }
   }
+
 
   String _formatRp(int number) => NumberFormat.currency(
     locale: 'id',

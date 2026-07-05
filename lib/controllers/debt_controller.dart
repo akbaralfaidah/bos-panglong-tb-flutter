@@ -53,6 +53,128 @@ class DebtController {
     };
   }
 
+  // 🔥 OPTIMASI: Ambil SEMUA data hutang untuk DebtHistoryScreen dalam 1x fetch
+  // Menggantikan 3 panggilan terpisah (getGroupSummaries + getUngroupedDebtSummary + getGroupedDebtSummary)
+  Future<Map<String, dynamic>> fetchAllDebtData() async {
+    // Ambil data dasar secara paralel (hanya 2 query Firestore total)
+    final results = await Future.wait([
+      _debtDS.getActiveDebtsWithDetails(), // 1x saja, bukan 3-4x
+      _debtDS.getAllDebtGroups(),
+    ]);
+
+    final allDebts = results[0];
+    final groups = results[1];
+
+    // === Hitung grouped per customer ===
+    Map<String, Map<String, dynamic>> customerGrouped = {};
+    for (var debt in allDebts) {
+      String rawName = debt['customer_name'] ?? 'Pelanggan Umum';
+      String customerKey = rawName.split(' - ').first.split('\n').first.trim();
+      if (customerKey.isEmpty) customerKey = 'Pelanggan Umum';
+
+      if (!customerGrouped.containsKey(customerKey)) {
+        customerGrouped[customerKey] = {
+          'customer_name': customerKey,
+          'full_customer_name': rawName,
+          'total_hutang': 0,
+          'total_dicicil': 0,
+          'sisa_hutang': 0,
+          'potential_profit': 0,
+          'transactions': <Map<String, dynamic>>[],
+          'transaction_count': 0,
+          'latest_transaction_date': debt['transaction_date'],
+        };
+      }
+
+      int totalPrice = (debt['total_price'] as num?)?.toInt() ?? 0;
+      int dicicil = (debt['total_dicicil'] as num?)?.toInt() ?? 0;
+      int profit = (debt['potential_profit'] as num?)?.toInt() ?? 0;
+
+      customerGrouped[customerKey]!['total_hutang'] += totalPrice;
+      customerGrouped[customerKey]!['total_dicicil'] += dicicil;
+      customerGrouped[customerKey]!['sisa_hutang'] += (totalPrice - dicicil);
+      customerGrouped[customerKey]!['potential_profit'] += profit;
+      (customerGrouped[customerKey]!['transactions'] as List<Map<String, dynamic>>).add(debt);
+      customerGrouped[customerKey]!['transaction_count'] += 1;
+    }
+
+    List<Map<String, dynamic>> allCustomerGroups = customerGrouped.values.toList();
+    allCustomerGroups.sort((a, b) => (b['latest_transaction_date'] as String).compareTo(a['latest_transaction_date'] as String));
+
+    // === Hitung grouped customer names ===
+    Set<String> groupedNames = {};
+    for (var g in groups) {
+      List<dynamic> members = g['customer_names'] ?? [];
+      for (var m in members) {
+        groupedNames.add(m.toString());
+      }
+    }
+
+    // === Hitung group summaries ===
+    List<Map<String, dynamic>> groupSummaries = [];
+    for (var group in groups) {
+      List<dynamic> memberNames = group['customer_names'] ?? [];
+      Set<String> memberSet = memberNames.map((e) => e.toString()).toSet();
+
+      int totalHutang = 0;
+      int totalDicicil = 0;
+      int totalProfit = 0;
+      int notaCount = 0;
+      Set<String> uniqueCustomers = {};
+
+      for (var debt in allDebts) {
+        String rawName = debt['customer_name'] ?? 'Pelanggan Umum';
+        String customerKey = rawName.split(' - ').first.split('\n').first.trim();
+        if (customerKey.isEmpty) customerKey = 'Pelanggan Umum';
+
+        if (memberSet.contains(customerKey)) {
+          int tp = (debt['total_price'] as num?)?.toInt() ?? 0;
+          int dc = (debt['total_dicicil'] as num?)?.toInt() ?? 0;
+          int profit = (debt['potential_profit'] as num?)?.toInt() ?? 0;
+          totalHutang += tp;
+          totalDicicil += dc;
+          totalProfit += profit;
+          notaCount++;
+          uniqueCustomers.add(customerKey);
+        }
+      }
+
+      groupSummaries.add({
+        'id': group['id'],
+        'group_name': group['group_name'],
+        'customer_names': memberNames,
+        'total_hutang': totalHutang,
+        'total_dicicil': totalDicicil,
+        'sisa_hutang': totalHutang - totalDicicil,
+        'potential_profit': totalProfit,
+        'nota_count': notaCount,
+        'customer_count': uniqueCustomers.length,
+      });
+    }
+
+    // === Ungrouped customers ===
+    List<Map<String, dynamic>> ungroupedCustomers = allCustomerGroups.where((g) {
+      String name = g['customer_name'] ?? '';
+      return !groupedNames.contains(name);
+    }).toList();
+
+    // === Total keseluruhan ===
+    int totalSisaPiutang = 0;
+    int totalPotentialProfit = 0;
+    for (var g in allCustomerGroups) {
+      totalSisaPiutang += (g['sisa_hutang'] as int);
+      totalPotentialProfit += (g['potential_profit'] as int);
+    }
+
+    return {
+      'group_summaries': groupSummaries,
+      'ungrouped_customers': ungroupedCustomers,
+      'total_sisa': totalSisaPiutang,
+      'total_potential_profit': totalPotentialProfit,
+    };
+  }
+
+
   // 🔥 AMBIL SEMUA HUTANG AKTIF (FLAT, BUKAN GROUPED) 🔥
   Future<List<Map<String, dynamic>>> getAllActiveDebts() async {
     final result = await _debtDS.getActiveDebtsWithDetails();

@@ -28,22 +28,29 @@ class DebtFirebaseDataSource {
   }
 
   Future<List<Map<String, dynamic>>> getActiveDebtsWithDetails() async {
-    final tDocs = await _safeQuery(
-      _col('transactions').where('payment_status', isNotEqualTo: 'Lunas'),
-    );
+    // 🔥 OPTIMASI: Ambil transaksi dan pembayaran secara PARALEL (2 query saja, bukan N+1)
+    final results = await Future.wait([
+      _safeQuery(_col('transactions').where('payment_status', isNotEqualTo: 'Lunas')),
+      _safeQuery(_col('debt_payments')),
+    ]);
+
+    final tDocs = results[0];
+    final allPaymentDocs = results[1];
+
+    // Buat map: transaction_id -> total_dicicil (hitung sekali di memori)
+    Map<int, int> paymentMap = {};
+    for (var payDoc in allPaymentDocs) {
+      var pData = payDoc.data() as Map<String, dynamic>;
+      int transId = (pData['transaction_id'] as num).toInt();
+      int amount = (pData['amount_paid'] as num).toInt();
+      paymentMap[transId] = (paymentMap[transId] ?? 0) + amount;
+    }
+
     List<Map<String, dynamic>> activeDebts = [];
     for (var doc in tDocs) {
       Map<String, dynamic> transData = doc.data() as Map<String, dynamic>;
       int transId = transData['id'] as int;
-      final pDocs = await _safeQuery(
-        _col('debt_payments').where('transaction_id', isEqualTo: transId),
-      );
-      int totalDicicil = 0;
-      for (var payDoc in pDocs) {
-        var pData = payDoc.data() as Map<String, dynamic>;
-        totalDicicil += (pData['amount_paid'] as num).toInt();
-      }
-      transData['total_dicicil'] = totalDicicil;
+      transData['total_dicicil'] = paymentMap[transId] ?? 0;
       
       // Hitung potensi profit untuk nota ini
       double op = (transData['operational_cost'] as num?)?.toDouble() ?? 0;

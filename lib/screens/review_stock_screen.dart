@@ -412,6 +412,7 @@ class _ReviewStockScreenState extends State<ReviewStockScreen> {
                                     _hppFinalResult = Map.from(calcHppFinal);
                                   });
 
+                                  FocusScope.of(context).unfocus();
                                   Navigator.pop(ctx);
                                   AppNotification.show(context, message: "Ongkir berhasil diterapkan ke harga modal!", type: AppNotificationType.success);
                                 },
@@ -659,6 +660,7 @@ class _ReviewStockScreenState extends State<ReviewStockScreen> {
                 fillColor: AppColors.pureWhite,
               ),
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+              textInputAction: TextInputAction.done,
             ),
             const SizedBox(height: 10),
             SizedBox(
