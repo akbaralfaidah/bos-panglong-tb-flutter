@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'dart:convert';
@@ -89,7 +89,7 @@ class _ProductListScreenState extends State<ProductListScreen>
   String _sortByKayu = "Default";
   String _sortByBangunan = "Default";
 
-  final List<String> _listKategoriKayu = [
+  List<String> _listKategoriKayu = [
     "Semua",
     "Kayu Mal / Papan Cor",
     "Kayu Dam / Dam-daman",
@@ -100,7 +100,7 @@ class _ProductListScreenState extends State<ProductListScreen>
     "Kayu Tunjang / Dolken",
     "Lain-lain",
   ];
-  final List<String> _listKategoriBangunan = [
+  List<String> _listKategoriBangunan = [
     "Semua",
     "Semen & Pasir",
     "Triplek & GRC",
@@ -131,7 +131,25 @@ class _ProductListScreenState extends State<ProductListScreen>
       if (!_tabController.indexIsChanging) setState(() {});
     });
     _loadProducts();
-    _syncStockCart(); 
+    _syncStockCart();
+    _loadCustomCategories();
+  }
+
+  // 🔥 LOAD KATEGORI CUSTOM DARI SHARED PREFERENCES 🔥
+  Future<void> _loadCustomCategories() async {
+    final prefs = await SharedPreferences.getInstance();
+    final customKayu = prefs.getStringList('custom_cat_kayu') ?? [];
+    final customBgn = prefs.getStringList('custom_cat_bgn') ?? [];
+    if (mounted) {
+      setState(() {
+        for (var cat in customKayu) {
+          if (!_listKategoriKayu.contains(cat)) _listKategoriKayu.add(cat);
+        }
+        for (var cat in customBgn) {
+          if (!_listKategoriBangunan.contains(cat)) _listKategoriBangunan.add(cat);
+        }
+      });
+    }
   }
 
   @override
