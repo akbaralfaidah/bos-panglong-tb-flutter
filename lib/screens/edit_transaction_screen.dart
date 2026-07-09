@@ -47,6 +47,10 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
   late TextEditingController _phoneCtrl;
   late TextEditingController _addressCtrl;
   late TextEditingController _cutProfitCtrl;
+  late TextEditingController _ongkirCtrl;
+
+  // Simpan status asli untuk deteksi perubahan Lunas <-> Hutang
+  late String _originalPaymentStatus;
 
   @override
   void initState() {
@@ -66,7 +70,9 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
     _nameCtrl = TextEditingController(text: _customerName);
     _phoneCtrl = TextEditingController(text: _customerPhone);
     _addressCtrl = TextEditingController(text: _customerAddress);
-    _cutProfitCtrl = TextEditingController(text: NumberFormat('#,###', 'id_ID').format(_cutProfit));
+    _cutProfitCtrl = TextEditingController(text: _cutProfit > 0 ? NumberFormat('#,###', 'id_ID').format(_cutProfit) : '');
+    _ongkirCtrl = TextEditingController(text: _operationalCost > 0 ? NumberFormat('#,###', 'id_ID').format(_operationalCost) : '');
+    _originalPaymentStatus = _paymentStatus;
 
     _loadOriginalItems();
     _loadProducts();
@@ -78,6 +84,7 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
     _phoneCtrl.dispose();
     _addressCtrl.dispose();
     _cutProfitCtrl.dispose();
+    _ongkirCtrl.dispose();
     super.dispose();
   }
 
@@ -873,6 +880,31 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
     );
   }
 
+  // 🔥 TOMBOL METODE PEMBAYARAN (SAMA DENGAN REVIEW SCREEN) 🔥
+  Widget _paymentMethodButton(String title, IconData icon) {
+    bool isSelected = _paymentMethod == title;
+    return Expanded(
+      child: InkWell(
+        onTap: () => setState(() => _paymentMethod = title),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: isSelected ? AppColors.menuTealBg : AppColors.backgroundWhite,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: isSelected ? AppColors.menuTealIcon : Colors.grey.shade300),
+          ),
+          child: Column(
+            children: [
+              Icon(icon, color: isSelected ? AppColors.menuTealIcon : AppColors.textGrey, size: 24),
+              const SizedBox(height: 5),
+              Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: isSelected ? AppColors.menuTealIcon : AppColors.textGrey)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -979,16 +1011,19 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
             ),
           ),
 
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: const BoxDecoration(
-              color: AppColors.pureWhite,
-              boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, -5))],
-              borderRadius: BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20)),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
+          ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.6),
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: const BoxDecoration(
+                color: AppColors.pureWhite,
+                boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, -5))],
+                borderRadius: BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20)),
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -1044,6 +1079,124 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
                 ),
 
                 const Divider(thickness: 1, height: 20),
+
+                // --- INPUT ONGKIR ---
+                const Text("Ongkos Kirim / Bensin", style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryNavy, fontSize: 14)),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _ongkirCtrl,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly, CurrencyInputFormatter()],
+                  decoration: InputDecoration(
+                    labelText: "Masukkan Nominal Ongkos",
+                    prefixText: "Rp ",
+                    prefixIcon: const Icon(Icons.local_gas_station, color: AppColors.menuAmberIcon, size: 20),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                    filled: true,
+                    fillColor: AppColors.backgroundWhite,
+                  ),
+                  onChanged: (val) {
+                    setState(() {
+                      _operationalCost = int.tryParse(val.replaceAll('.', '')) ?? 0;
+                    });
+                  },
+                ),
+                const SizedBox(height: 15),
+
+                // --- METODE PEMBAYARAN ---
+                const Text("Metode Pembayaran", style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryNavy, fontSize: 14)),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    _paymentMethodButton('Tunai', Icons.payments),
+                    const SizedBox(width: 10),
+                    _paymentMethodButton('Transfer', Icons.account_balance),
+                    const SizedBox(width: 10),
+                    _paymentMethodButton('QRIS', Icons.qr_code_2),
+                  ],
+                ),
+                const SizedBox(height: 15),
+
+                // --- STATUS LUNAS / HUTANG ---
+                const Text("Status Pembayaran", style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryNavy, fontSize: 14)),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: InkWell(
+                        onTap: () {
+                          if (_paymentStatus != 'Lunas') {
+                            setState(() => _paymentStatus = 'Lunas');
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          decoration: BoxDecoration(
+                            color: _paymentStatus == 'Lunas' ? AppColors.statusGreen : AppColors.backgroundWhite,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: _paymentStatus == 'Lunas' ? AppColors.statusGreen : Colors.grey),
+                          ),
+                          child: Center(child: Text("LUNAS", style: TextStyle(fontWeight: FontWeight.bold, color: _paymentStatus == 'Lunas' ? Colors.white : Colors.grey))),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 13),
+                    Expanded(
+                      child: InkWell(
+                        onTap: () async {
+                          if (_paymentStatus != 'Belum Lunas') {
+                            // Warning jika sebelumnya Lunas
+                            if (_originalPaymentStatus == 'Lunas') {
+                              bool? confirm = await showDialog<bool>(
+                                context: context,
+                                builder: (ctx) => AlertDialog(
+                                  backgroundColor: AppColors.pureWhite,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                                  title: const Row(
+                                    children: [
+                                      Icon(Icons.warning_amber_rounded, color: AppColors.statusRed, size: 28),
+                                      SizedBox(width: 10),
+                                      Expanded(child: Text("Ubah ke Hutang?", style: TextStyle(color: AppColors.statusRed, fontWeight: FontWeight.bold))),
+                                    ],
+                                  ),
+                                  content: const Text(
+                                    "Mengubah status ke Hutang akan mengembalikan omset & profit dari transaksi ini, dan menghapus riwayat cicilan.\n\nLanjutkan?",
+                                    style: TextStyle(color: AppColors.textDark, fontSize: 14),
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(ctx, false),
+                                      child: const Text("Batal", style: TextStyle(color: AppColors.textGrey)),
+                                    ),
+                                    ElevatedButton(
+                                      style: ElevatedButton.styleFrom(backgroundColor: AppColors.statusRed, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+                                      onPressed: () => Navigator.pop(ctx, true),
+                                      child: const Text("Ya, Ubah ke Hutang", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (confirm != true) return;
+                            }
+                            setState(() => _paymentStatus = 'Belum Lunas');
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          decoration: BoxDecoration(
+                            color: _paymentStatus == 'Belum Lunas' ? AppColors.statusRed : AppColors.backgroundWhite,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: _paymentStatus == 'Belum Lunas' ? AppColors.statusRed : Colors.grey),
+                          ),
+                          child: Center(child: Text("HUTANG", style: TextStyle(fontWeight: FontWeight.bold, color: _paymentStatus == 'Belum Lunas' ? Colors.white : Colors.grey))),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 15),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -1082,6 +1235,8 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
                   ],
                 ),
               ],
+                ),
+              ),
             ),
           )
 

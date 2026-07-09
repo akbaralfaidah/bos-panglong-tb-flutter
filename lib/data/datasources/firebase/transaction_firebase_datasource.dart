@@ -171,7 +171,15 @@ class TransactionFirebaseDataSource {
       }
     }
 
-    // 3. UPDATE TRANSACTION DOC
+    // 3. JIKA STATUS BERUBAH DARI LUNAS → HUTANG: HAPUS SEMUA DEBT PAYMENTS
+    if (wasLunas && !isNowLunas) {
+      final pDocs = await _safeQuery(_col('debt_payments').where('transaction_id', isEqualTo: transId));
+      for (var p in pDocs) {
+        batch.delete(p.reference);
+      }
+    }
+
+    // 4. UPDATE TRANSACTION DOC
     batch.update(_col('transactions').doc(transId.toString()), updatedTransData);
 
     await batch.commit();
