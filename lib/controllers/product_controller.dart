@@ -41,4 +41,9 @@ class ProductController {
   Future<void> voidStockReceipt(String exactDate) async {
     await _productDS.voidStockReceipt(exactDate);
   }
+
+  // 🔥 HAPUS STOK: RESET STOCK KE 0 🔥
+  Future<void> resetStockBatch(List<int> productIds) async {
+    await _productDS.resetStockBatch(productIds);
+  }
 }

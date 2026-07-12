@@ -362,6 +362,294 @@ class _ProductListScreenState extends State<ProductListScreen>
     return 0;
   }
 
+  // 🔥 HAPUS STOK: BOTTOM SHEET PILIHAN MODE 🔥
+  void _showDeleteStockSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.pureWhite,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40, height: 4,
+                  margin: const EdgeInsets.only(bottom: 15),
+                  decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(10)),
+                ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 20),
+                  child: Row(
+                    children: [
+                      Icon(Icons.delete_sweep, color: AppColors.statusRed, size: 28),
+                      SizedBox(width: 10),
+                      Text("Hapus Stok", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.primaryNavy)),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 5),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 20),
+                  child: Text("Pilih mode penghapusan stok. Harga modal & jual tidak akan berubah.",
+                      style: TextStyle(color: AppColors.textGrey, fontSize: 13)),
+                ),
+                const SizedBox(height: 10),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.delete_forever, color: AppColors.statusRed),
+                  title: const Text("Hapus Semua Stok", style: TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: Text("${_allProducts.length} produk akan di-reset ke 0", style: const TextStyle(fontSize: 12)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _confirmAndDeleteStock(_allProducts, "Semua Stok");
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.park, color: Colors.brown),
+                  title: const Text("Hapus Stok Kayu & Reng", style: TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: Text("${_allProducts.where((p) => p.type == 'KAYU' || p.type == 'RENG' || p.type == 'BULAT').length} produk", style: const TextStyle(fontSize: 12)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    final targets = _allProducts.where((p) => p.type == 'KAYU' || p.type == 'RENG' || p.type == 'BULAT').toList();
+                    _confirmAndDeleteStock(targets, "Stok Kayu & Reng");
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.construction, color: AppColors.menuAmberIcon),
+                  title: const Text("Hapus Stok Bangunan", style: TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: Text("${_allProducts.where((p) => p.type == 'BANGUNAN').length} produk", style: const TextStyle(fontSize: 12)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    final targets = _allProducts.where((p) => p.type == 'BANGUNAN').toList();
+                    _confirmAndDeleteStock(targets, "Stok Bangunan");
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.checklist, color: AppColors.menuTealIcon),
+                  title: const Text("Pilih Barang Tertentu", style: TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: const Text("Pilih produk mana saja yang stoknya di-reset", style: TextStyle(fontSize: 12)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _showSelectProductsDialog(false);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.deselect, color: AppColors.primaryNavy),
+                  title: const Text("Hapus Semua Kecuali", style: TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: const Text("Pilih produk yang TIDAK di-reset, sisanya di-reset", style: TextStyle(fontSize: 12)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _showSelectProductsDialog(true);
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // 🔥 DIALOG MULTI-SELECT PRODUK 🔥
+  void _showSelectProductsDialog(bool isInverted) {
+    Set<int> selectedIds = {};
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            List<Product> kayuProducts = _allProducts.where((p) => p.type == 'KAYU' || p.type == 'RENG' || p.type == 'BULAT').toList();
+            List<Product> bangunanProducts = _allProducts.where((p) => p.type == 'BANGUNAN').toList();
+
+            Widget buildProductList(List<Product> products) {
+              if (products.isEmpty) {
+                return const Center(child: Text("Tidak ada produk", style: TextStyle(color: AppColors.textGrey)));
+              }
+              return ListView.builder(
+                itemCount: products.length,
+                itemBuilder: (_, i) {
+                  final p = products[i];
+                  bool isChecked = selectedIds.contains(p.id);
+                  return CheckboxListTile(
+                    value: isChecked,
+                    activeColor: AppColors.primaryNavy,
+                    title: Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                    subtitle: Text("Stok: ${p.stockDisplay} | ${p.category ?? p.type}", style: const TextStyle(fontSize: 12)),
+                    onChanged: (val) {
+                      setDialogState(() {
+                        if (val == true) {
+                          selectedIds.add(p.id!);
+                        } else {
+                          selectedIds.remove(p.id!);
+                        }
+                      });
+                    },
+                  );
+                },
+              );
+            }
+
+            String buttonLabel = isInverted
+                ? "Hapus Semua Kecuali (${selectedIds.length}) Terpilih"
+                : "Hapus Stok (${selectedIds.length}) Terpilih";
+
+            return Dialog(
+              backgroundColor: AppColors.pureWhite,
+              insetPadding: const EdgeInsets.all(16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              child: SizedBox(
+                height: MediaQuery.of(context).size.height * 0.75,
+                child: DefaultTabController(
+                  length: 2,
+                  child: Column(
+                    children: [
+                      // Header
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+                        child: Row(
+                          children: [
+                            Icon(isInverted ? Icons.deselect : Icons.checklist, color: AppColors.primaryNavy, size: 24),
+                            const SizedBox(width: 10),
+                            Text(
+                              isInverted ? "Pilih yang TIDAK Dihapus" : "Pilih Barang",
+                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.primaryNavy),
+                            ),
+                            const Spacer(),
+                            IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
+                          ],
+                        ),
+                      ),
+                      // Tabs
+                      const TabBar(
+                        labelColor: AppColors.primaryNavy,
+                        unselectedLabelColor: AppColors.textGrey,
+                        indicatorColor: AppColors.accentGold,
+                        tabs: [
+                          Tab(text: "KAYU & RENG"),
+                          Tab(text: "BANGUNAN"),
+                        ],
+                      ),
+                      // List
+                      Expanded(
+                        child: TabBarView(
+                          children: [
+                            buildProductList(kayuProducts),
+                            buildProductList(bangunanProducts),
+                          ],
+                        ),
+                      ),
+                      // Bottom button
+                      Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.statusRed,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            icon: const Icon(Icons.delete_sweep, color: Colors.white),
+                            label: Text(buttonLabel, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                            onPressed: selectedIds.isEmpty ? null : () {
+                              Navigator.pop(ctx);
+                              List<Product> targets;
+                              if (isInverted) {
+                                targets = _allProducts.where((p) => !selectedIds.contains(p.id)).toList();
+                              } else {
+                                targets = _allProducts.where((p) => selectedIds.contains(p.id)).toList();
+                              }
+                              String label = isInverted ? "Semua Kecuali ${selectedIds.length} Produk" : "${selectedIds.length} Produk Terpilih";
+                              _confirmAndDeleteStock(targets, label);
+                            },
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // 🔥 KONFIRMASI & EKSEKUSI HAPUS STOK 🔥
+  Future<void> _confirmAndDeleteStock(List<Product> targets, String label) async {
+    if (targets.isEmpty) {
+      AppNotification.show(context, message: "Tidak ada produk yang dipilih", type: AppNotificationType.info);
+      return;
+    }
+
+    // Filter hanya yang stoknya > 0
+    final withStock = targets.where((p) => p.stock > 0).toList();
+
+    bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.pureWhite,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: AppColors.statusRed, size: 28),
+            SizedBox(width: 10),
+            Expanded(child: Text("Konfirmasi Hapus Stok", style: TextStyle(color: AppColors.statusRed, fontWeight: FontWeight.bold, fontSize: 17))),
+          ],
+        ),
+        content: Text(
+          "Anda akan menghapus stok dari:\n\n"
+          "• $label\n"
+          "• ${withStock.length} produk memiliki stok\n"
+          "• ${targets.length - withStock.length} produk stoknya sudah 0\n\n"
+          "Harga modal & jual TIDAK akan berubah.\nAksi ini tidak dapat dibatalkan!",
+          style: const TextStyle(color: AppColors.textDark, fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text("Batal", style: TextStyle(color: AppColors.textGrey, fontWeight: FontWeight.bold)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.statusRed, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text("Ya, Hapus Stok", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    // Loading
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator(color: AppColors.primaryNavy)),
+    );
+
+    try {
+      List<int> ids = targets.where((p) => p.id != null).map((p) => p.id!).toList();
+      await _controller.resetStockBatch(ids);
+      if (mounted) Navigator.pop(context); // tutup loading
+      await _loadProducts();
+      if (mounted) {
+        AppNotification.show(context, message: "Stok berhasil dihapus untuk $label!", type: AppNotificationType.success);
+      }
+    } catch (e) {
+      if (mounted) Navigator.pop(context); // tutup loading
+      if (mounted) {
+        AppNotification.show(context, message: "Gagal menghapus stok: $e", type: AppNotificationType.error);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     int totalModalExpense = _stockCart.fold(
@@ -396,6 +684,12 @@ class _ProductListScreenState extends State<ProductListScreen>
         foregroundColor: AppColors.primaryNavy,
         elevation: 0,
         actions: [
+          if (_isOwner)
+            IconButton(
+              icon: const Icon(Icons.delete_sweep, color: AppColors.statusRed),
+              tooltip: "Hapus Stok",
+              onPressed: _showDeleteStockSheet,
+            ),
           IconButton(
             icon: Icon(_isSearching ? Icons.close : Icons.search),
             onPressed: () {

@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import '../../../models/product.dart';
@@ -331,5 +332,17 @@ class ProductFirebaseDataSource {
     });
     
     await batch.commit();
+  }
+
+  // 🔥 HAPUS STOK: RESET STOCK KE 0 TANPA UBAH HARGA 🔥
+  Future<void> resetStockBatch(List<int> productIds) async {
+    for (int i = 0; i < productIds.length; i += 500) {
+      WriteBatch batch = _db.batch();
+      final chunk = productIds.sublist(i, min(i + 500, productIds.length));
+      for (var id in chunk) {
+        batch.update(_col('products').doc(id.toString()), {'stock': 0});
+      }
+      await batch.commit();
+    }
   }
 }
