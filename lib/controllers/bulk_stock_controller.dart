@@ -57,39 +57,18 @@ class BulkStockController {
       int finalBuyPriceUnit = baseProduct.buyPriceUnit;
       int finalBuyPriceCubic = baseProduct.buyPriceCubic;
 
-      // 🔥 3. HITUNG RATA-RATA HARGA MODAL GABUNGAN 🔥
-      if (oldStock > 0 && totalAddedStockForProduct > 0) { 
-        int oldBuyPriceUnit = finalBuyPriceUnit;
-        try {
-          final oldDoc = await FirebaseFirestore.instance
-              .collection('stores')
-              .doc(storeId)
-              .collection('products')
-              .doc(pid.toString())
-              .get();
-          if (oldDoc.exists && oldDoc.data() != null) {
-            oldBuyPriceUnit = (oldDoc.data()!['buy_price_unit'] as num?)?.toInt() ?? finalBuyPriceUnit;
-            oldStock = (oldDoc.data()!['stock'] as num?)?.toDouble() ?? oldStock;
-          }
-        } catch (_) {}
-
-        double newStock = oldStock + totalAddedStockForProduct;
-        double oldTotalValueUnit = oldStock * oldBuyPriceUnit;
-        double newTotalValueUnit = totalExpenseForProduct.toDouble(); 
-
-        double rawAvgUnit = (oldTotalValueUnit + newTotalValueUnit) / newStock;
-        finalBuyPriceUnit = rawAvgUnit.round();
+      // 🔥 3. MODAL LANGSUNG REPLACE DENGAN HARGA BELI BARU 🔥
+      // Tidak lagi rata-rata tertimbang. Modal baru = harga beli baru per satuan.
+      if (totalAddedStockForProduct > 0 && totalExpenseForProduct > 0) {
+        double rawUnit = totalExpenseForProduct / totalAddedStockForProduct;
+        // Bulatkan ke kelipatan 5 terdekat
+        finalBuyPriceUnit = ((rawUnit.round() + 2) ~/ 5) * 5;
 
         if (baseProduct.buyPriceUnit > 0 && baseProduct.buyPriceCubic > 0) {
           double ratio = baseProduct.buyPriceCubic / baseProduct.buyPriceUnit;
-          finalBuyPriceCubic = (rawAvgUnit * ratio).round();
+          int rawCubic = (finalBuyPriceUnit * ratio).round();
+          finalBuyPriceCubic = ((rawCubic + 2) ~/ 5) * 5;
         }
-      } else if (oldStock <= 0 && totalAddedStockForProduct > 0) {
-         finalBuyPriceUnit = (totalExpenseForProduct / totalAddedStockForProduct).round();
-         if (baseProduct.buyPriceUnit > 0 && baseProduct.buyPriceCubic > 0) {
-            double ratio = baseProduct.buyPriceCubic / baseProduct.buyPriceUnit;
-            finalBuyPriceCubic = (finalBuyPriceUnit * ratio).round();
-         }
       }
 
       // 🔥 4. UPDATE DATABASE CUMA 1 KALI PER PRODUK DENGAN TOTAL GABUNGAN 🔥

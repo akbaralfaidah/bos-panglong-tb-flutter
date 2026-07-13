@@ -82,8 +82,8 @@ class _CashierScreenState extends State<CashierScreen>
 
   String _selectedKayuCategory = "Semua";
   String _selectedBangunanCategory = "Semua";
-  String _sortByKayu = "Default";
-  String _sortByBangunan = "Default";
+  String _sortByKayu = "A-Z";
+  String _sortByBangunan = "A-Z";
 
   List<String> _listKategoriKayu = [
     "Semua",
@@ -112,10 +112,10 @@ class _CashierScreenState extends State<CashierScreen>
   ];
 
   final List<String> _listSortOptions = [
-    "Default",
     "A-Z",
-    "Z-A",
     "Baru Ditambahkan",
+    "Sering Dibeli",
+    "Stok Kosong",
   ];
 
   bool get _isOwner => SessionManager().isOwner;
@@ -225,32 +225,47 @@ class _CashierScreenState extends State<CashierScreen>
     });
   }
 
+  // 🔥 NATURAL COMPARE: SUPPORT PECAHAN (1/2, 3/4, 1 1/2) 🔥
   int _naturalCompare(String a, String b) {
-    final regExp = RegExp(r'(\d+)|(\D+)');
-    var matchesA = regExp
-        .allMatches(a.toLowerCase())
-        .map((m) => m.group(0)!)
-        .toList();
-    var matchesB = regExp
-        .allMatches(b.toLowerCase())
-        .map((m) => m.group(0)!)
-        .toList();
+    List<Object> parseTokens(String s) {
+      List<Object> tokens = [];
+      final regExp = RegExp(r'(\d+\s+\d+/\d+)|(\d+/\d+)|(\d+)|(\D+)');
+      for (var m in regExp.allMatches(s.toLowerCase())) {
+        String part = m.group(0)!;
+        if (m.group(1) != null) {
+          var parts = part.split(RegExp(r'\s+'));
+          int whole = int.parse(parts[0]);
+          var frac = parts[1].split('/');
+          tokens.add(whole + int.parse(frac[0]) / int.parse(frac[1]));
+        } else if (m.group(2) != null) {
+          var frac = part.split('/');
+          tokens.add(int.parse(frac[0]) / int.parse(frac[1]));
+        } else if (m.group(3) != null) {
+          tokens.add(double.parse(part));
+        } else {
+          tokens.add(part);
+        }
+      }
+      return tokens;
+    }
 
-    for (int i = 0; i < matchesA.length && i < matchesB.length; i++) {
-      String partA = matchesA[i];
-      String partB = matchesB[i];
-      int? numA = int.tryParse(partA);
-      int? numB = int.tryParse(partB);
+    var tokensA = parseTokens(a);
+    var tokensB = parseTokens(b);
 
-      if (numA != null && numB != null) {
-        int cmp = numA.compareTo(numB); // Bandingkan sebagai angka murni
+    for (int i = 0; i < tokensA.length && i < tokensB.length; i++) {
+      var tA = tokensA[i];
+      var tB = tokensB[i];
+      if (tA is double && tB is double) {
+        int cmp = tA.compareTo(tB);
+        if (cmp != 0) return cmp;
+      } else if (tA is String && tB is String) {
+        int cmp = tA.compareTo(tB);
         if (cmp != 0) return cmp;
       } else {
-        int cmp = partA.compareTo(partB); // Bandingkan sebagai teks
-        if (cmp != 0) return cmp;
+        return tA is double ? -1 : 1;
       }
     }
-    return matchesA.length.compareTo(matchesB.length);
+    return tokensA.length.compareTo(tokensB.length);
   }
 
   void _sortList(List<Product> list, String sortBy) {
@@ -265,33 +280,27 @@ class _CashierScreenState extends State<CashierScreen>
         int scoreB = scoreB1 > scoreB2 ? scoreB1 : scoreB2;
 
         if (scoreA != scoreB) return scoreB.compareTo(scoreA);
-
-        if (sortBy == "A-Z") return _naturalCompare(a.name, b.name);
-        if (sortBy == "Z-A") return _naturalCompare(b.name, a.name);
-        if (sortBy == "Baru Ditambahkan") return (b.id ?? 0).compareTo(a.id ?? 0);
-        if (sortBy == "Sering Dibeli") return a.orderIndex.compareTo(b.orderIndex);
-
-        int cmp = a.orderIndex.compareTo(b.orderIndex);
-        if (cmp == 0) return _naturalCompare(a.name, b.name);
-        return cmp;
+        return _naturalCompare(a.name, b.name);
       });
       return;
     }
 
-    if (sortBy == "A-Z") {
-      list.sort((a, b) => _naturalCompare(a.name, b.name));
-    } else if (sortBy == "Z-A") {
-      list.sort((a, b) => _naturalCompare(b.name, a.name));
-    } else if (sortBy == "Baru Ditambahkan") {
+    if (sortBy == "Baru Ditambahkan") {
       list.sort((a, b) => (b.id ?? 0).compareTo(a.id ?? 0));
     } else if (sortBy == "Sering Dibeli") {
-      list.sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
-    } else {
       list.sort((a, b) {
         int cmp = a.orderIndex.compareTo(b.orderIndex);
         if (cmp == 0) return _naturalCompare(a.name, b.name);
         return cmp;
       });
+    } else if (sortBy == "Stok Kosong") {
+      list.sort((a, b) {
+        if (a.stock <= 0 && b.stock > 0) return -1;
+        if (a.stock > 0 && b.stock <= 0) return 1;
+        return _naturalCompare(a.name, b.name);
+      });
+    } else {
+      list.sort((a, b) => _naturalCompare(a.name, b.name));
     }
   }
 
@@ -1236,7 +1245,7 @@ class _CashierScreenState extends State<CashierScreen>
         (isTabKayu
             ? _selectedKayuCategory == "Semua"
             : _selectedBangunanCategory == "Semua") &&
-        (isTabKayu ? _sortByKayu == "Default" : _sortByBangunan == "Default");
+        (isTabKayu ? _sortByKayu == "A-Z" : _sortByBangunan == "A-Z");
 
     Widget listContent;
     if (canDrag) {

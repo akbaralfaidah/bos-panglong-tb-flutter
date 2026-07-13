@@ -189,6 +189,8 @@ class ProductFirebaseDataSource {
           int modal = expense > 0
               ? (expense / add).round()
               : (old['buy_price_unit'] as int);
+          // Bulatkan ke kelipatan 5 terdekat
+          modal = ((modal + 2) ~/ 5) * 5;
           addStockLog(
             id,
             old['type'] as String,
@@ -197,8 +199,24 @@ class ProductFirebaseDataSource {
             "Tambah Cepat",
             totalExpense: expense > 0 ? expense : null,
           );
+
+          // 🔥 UPDATE MODAL LANGSUNG (REPLACE, BUKAN RATA-RATA) 🔥
+          Map<String, dynamic> updateData = {'stock': newStock};
+          if (expense > 0) {
+            updateData['buy_price_unit'] = modal;
+            // Update buy_price_cubic proporsional
+            int oldBuyUnit = (old['buy_price_unit'] as num?)?.toInt() ?? 0;
+            int oldBuyCubic = (old['buy_price_cubic'] as num?)?.toInt() ?? 0;
+            if (oldBuyUnit > 0 && oldBuyCubic > 0) {
+              double ratio = oldBuyCubic / oldBuyUnit;
+              int rawCubic = (modal * ratio).round();
+              updateData['buy_price_cubic'] = ((rawCubic + 2) ~/ 5) * 5;
+            }
+          }
+          _col('products').doc(id.toString()).update(updateData);
+        } else {
+          _col('products').doc(id.toString()).update({'stock': newStock});
         }
-        _col('products').doc(id.toString()).update({'stock': newStock});
       }
     } catch (_) {}
   }
