@@ -6,6 +6,13 @@ import '../../../helpers/session_manager.dart';
 
 class ProductFirebaseDataSource {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
+
+  // 🔥 COUNTER UNTUK MENGHINDARI ID COLLISION SAAT RAPID WRITES 🔥
+  static int _logCounter = 0;
+  int _uniqueLogId() {
+    _logCounter++;
+    return DateTime.now().millisecondsSinceEpoch * 1000 + (_logCounter % 1000);
+  }
   CollectionReference _col(String path) => _db
       .collection('stores')
       .doc(SessionManager().uid ?? 'UNKNOWN_STORE')
@@ -147,10 +154,10 @@ class ProductFirebaseDataSource {
 
         if (changes.isNotEmpty) {
           String auditNote = "EDIT INFO | " + changes.join(', ');
-          int logId = DateTime.now().millisecondsSinceEpoch;
+          int logId = _uniqueLogId();
           String dateNow = DateTime.now().toIso8601String();
 
-          _col('stock_logs').doc(logId.toString()).set({
+          await _col('stock_logs').doc(logId.toString()).set({
             'id': logId,
             'product_id': p.id,
             'type': p.type,
@@ -233,11 +240,11 @@ class ProductFirebaseDataSource {
     String? inputUnit,
     String? exactDate,
   }) async {
-    int logId = DateTime.now().millisecondsSinceEpoch;
+    int logId = _uniqueLogId();
     String dateNow =
         exactDate ?? DateTime.now().toIso8601String(); // PAKAI TANGGAL KALENDER
 
-    _col('stock_logs').doc(logId.toString()).set({
+    await _col('stock_logs').doc(logId.toString()).set({
       'id': logId,
       'product_id': pid,
       'type': type,
