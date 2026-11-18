@@ -588,7 +588,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               if (!mounted) return;
 
                               Navigator.pop(dialogCtx);
-                              AppNotification.show(context, message: "🔥 PABRIK RESET BERHASIL! Aplikasi bersih kembali seperti baru.", type: AppNotificationType.success, duration: Duration(seconds: 4));
+                              AppNotification.show(context, message: "RESET PABRIK BERHASIL! Aplikasi bersih kembali seperti baru.", type: AppNotificationType.success, duration: Duration(seconds: 4));
                             } catch (e) {
                               setDialogState(() => isResetting = false);
 

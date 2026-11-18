@@ -33,17 +33,23 @@ class TransactionHistoryFirebaseDataSource {
       _col('transactions').where('transaction_date', isGreaterThanOrEqualTo: start).where('transaction_date', isLessThanOrEqualTo: end)
     );
         
-    List<Map<String, dynamic>> results = snapshot.docs.map((doc) => doc.data() as Map<String, dynamic>).toList();
+    List<Map<String, dynamic>> results = snapshot.docs
+        .map((doc) => doc.data() as Map<String, dynamic>)
+        .toList();
 
     if (statusCondition == 'LUNAS') {
-      results = results.where((doc) => doc['payment_status'] == 'Lunas').toList();
+      results = results
+          .where((doc) => doc['payment_status'] == 'Lunas' && doc['is_legacy_titipan'] != true)
+          .toList();
     } else if (statusCondition == 'TITIPAN') {
       results = results.where((doc) {
         String dStatus = doc['delivery_status']?.toString() ?? 'Selesai';
         return dStatus != 'Selesai';
       }).toList();
     } else {
-      results = results.where((doc) => doc['payment_status'] != 'Lunas').toList();
+      results = results
+          .where((doc) => doc['payment_status'] != 'Lunas' && doc['is_legacy_titipan'] != true)
+          .toList();
     }
 
     results.sort((a, b) => (b['transaction_date'] as String).compareTo(a['transaction_date'] as String));
@@ -53,6 +59,7 @@ class TransactionHistoryFirebaseDataSource {
     double globalBensin = 0; // 🔥 VARIABEL BARU BUAT BENSIN
 
     for (var t in results) {
+      if (t['is_legacy_titipan'] == true) continue;
       List<dynamic> items = t['items'] ?? [];
       double trxOmsetKayu = 0;
       double trxOmsetBangunan = 0;
@@ -115,7 +122,10 @@ class TransactionHistoryFirebaseDataSource {
       _col('transactions').where('transaction_date', isGreaterThanOrEqualTo: start).where('transaction_date', isLessThanOrEqualTo: end)
     );
         
-    List<Map<String, dynamic>> results = snapshot.docs.map((doc) => doc.data() as Map<String, dynamic>).toList();
+    List<Map<String, dynamic>> results = snapshot.docs
+        .map((doc) => doc.data() as Map<String, dynamic>)
+        .where((doc) => doc['is_legacy_titipan'] != true)
+        .toList();
 
     results.sort((a, b) => (b['transaction_date'] as String).compareTo(a['transaction_date'] as String));
 

@@ -32,6 +32,7 @@ dependencies:
 
   # UI, Format & Analitik
   cupertino_icons: ^1.0.8
+  lucide_icons_flutter: ^4.0.3
   google_fonts: ^6.2.1
   intl: ^0.19.0
   local_auth: ^3.0.1

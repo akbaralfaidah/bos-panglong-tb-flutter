@@ -89,5 +89,49 @@ void main() {
       expect(p.reservedStockDisplay, equals('0.75'));
       expect(p.physicalStockDisplay, equals('2'));
     });
+
+    test('Titipan Lama Mode A (deductFromStock: true) memindahkan Siap Jual ke Titipan, Fisik tetap', () {
+      const double initialStock = 50.0;
+      const double initialReserved = 0.0;
+      const double legacyQty = 20.0;
+
+      // Mode A: stok di aplikasi BELUM dikurangi barang titipan ini
+      final afterModeA = Product(
+        id: 20,
+        name: 'Semen Padang',
+        type: 'BANGUNAN',
+        dimensions: 'Sak',
+        stock: initialStock - legacyQty,
+        reservedStock: initialReserved + legacyQty,
+        buyPriceUnit: 50000,
+        sellPriceUnit: 60000,
+      );
+
+      expect(afterModeA.stock, equals(30.0));
+      expect(afterModeA.reservedStock, equals(20.0));
+      expect(afterModeA.physicalStock, equals(50.0));
+    });
+
+    test('Titipan Lama Mode B (deductFromStock: false) menambah Titipan tanpa memotong Siap Jual', () {
+      const double initialStock = 30.0;
+      const double initialReserved = 0.0;
+      const double legacyQty = 20.0;
+
+      // Mode B: stok siap jual SUDAH dikurangi sebelumnya, hanya tambah catatan titipan
+      final afterModeB = Product(
+        id: 21,
+        name: 'Semen Padang',
+        type: 'BANGUNAN',
+        dimensions: 'Sak',
+        stock: initialStock,
+        reservedStock: initialReserved + legacyQty,
+        buyPriceUnit: 50000,
+        sellPriceUnit: 60000,
+      );
+
+      expect(afterModeB.stock, equals(30.0));
+      expect(afterModeB.reservedStock, equals(20.0));
+      expect(afterModeB.physicalStock, equals(50.0));
+    });
   });
 }

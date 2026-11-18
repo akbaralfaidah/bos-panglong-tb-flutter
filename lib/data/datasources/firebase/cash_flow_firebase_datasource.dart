@@ -34,7 +34,10 @@ class CashFlowFirebaseDataSource {
 
   Future<List<Map<String, dynamic>>> getAllTransactions() async {
     final docs = await _safeQuery(_col('transactions'));
-    return docs.map((doc) => doc.data() as Map<String, dynamic>).toList(); 
+    return docs
+        .map((doc) => doc.data() as Map<String, dynamic>)
+        .where((t) => t['is_legacy_titipan'] != true)
+        .toList();
   }
 
   Future<List<Map<String, dynamic>>> getAllDebtPayments() async {

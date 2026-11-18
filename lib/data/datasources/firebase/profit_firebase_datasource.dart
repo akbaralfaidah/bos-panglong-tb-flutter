@@ -46,6 +46,7 @@ class ProfitFirebaseDataSource {
         
     for (var doc in tDocs) {
       var t = doc.data() as Map<String, dynamic>;
+      if (t['is_legacy_titipan'] == true) continue;
       if (t['payment_status'] == 'Lunas') {
         double op = (t['operational_cost'] as num?)?.toDouble() ?? 0;
         double disc = (t['discount'] as num?)?.toDouble() ?? 0;

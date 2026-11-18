@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../theme/app_colors.dart';
 import '../theme/glass_widgets.dart';
 import '../controllers/capital_history_controller.dart';
@@ -14,6 +15,12 @@ class CapitalHistoryScreen extends StatefulWidget {
 }
 
 class _CapitalHistoryScreenState extends State<CapitalHistoryScreen> {
+  static final NumberFormat _currencyFmt = NumberFormat.currency(locale: 'id', symbol: 'Rp ', decimalDigits: 0);
+  static final DateFormat _timeFmt = DateFormat('HH:mm');
+  static final DateFormat _dateHeaderFmt = DateFormat('dd MMM yyyy');
+  static final DateFormat _shortDateFmt = DateFormat('dd MMM');
+  static final DateFormat _isoDateFmt = DateFormat('yyyy-MM-dd');
+
   final CapitalHistoryController _controller = CapitalHistoryController();
   
   final ScrollController _scrollController = ScrollController();
@@ -79,8 +86,8 @@ class _CapitalHistoryScreenState extends State<CapitalHistoryScreen> {
     );
 
     if (range != null) {
-      String start = DateFormat('yyyy-MM-dd').format(range.start);
-      String end = DateFormat('yyyy-MM-dd').format(range.end);
+      String start = _isoDateFmt.format(range.start);
+      String end = _isoDateFmt.format(range.end);
       setState(() {
         _selectedFilter = "CUSTOM|$start|$end";
       });
@@ -97,10 +104,10 @@ class _CapitalHistoryScreenState extends State<CapitalHistoryScreen> {
 
     if (target == today) return "Hari Ini";
     if (target == yesterday) return "Kemarin";
-    return DateFormat('dd MMM yyyy').format(target);
+    return _dateHeaderFmt.format(target);
   }
 
-  String _formatRp(dynamic number) => NumberFormat.currency(locale: 'id', symbol: 'Rp ', decimalDigits: 0).format(number);
+  String _formatRp(dynamic number) => _currencyFmt.format(number);
 
   @override
   Widget build(BuildContext context) {
@@ -210,7 +217,7 @@ class _CapitalHistoryScreenState extends State<CapitalHistoryScreen> {
                           if (_selectedFilter.startsWith('CUSTOM|')) {
                             isSelected = true;
                             var parts = _selectedFilter.split('|');
-                            displayLabel = "${DateFormat('dd MMM').format(DateTime.parse(parts[1]))} - ${DateFormat('dd MMM').format(DateTime.parse(parts[2]))}";
+                            displayLabel = "${_shortDateFmt.format(DateTime.parse(parts[1]))} - ${_shortDateFmt.format(DateTime.parse(parts[2]))}";
                           }
                         } else {
                           isSelected = _selectedFilter == filter;
@@ -233,8 +240,8 @@ class _CapitalHistoryScreenState extends State<CapitalHistoryScreen> {
                               decoration: AppColors.glassFilterPill(isSelected: isSelected),
                               child: Row(
                                 children: [
-                                  if (isSelected && filter != 'Pilih Tanggal') const Padding(padding: EdgeInsets.only(right: 6), child: Icon(Icons.check, color: AppColors.primaryNavy, size: 16)),
-                                  if (filter == 'Pilih Tanggal') Padding(padding: const EdgeInsets.only(right: 6), child: Icon(Icons.calendar_month, color: isSelected ? AppColors.primaryNavy : Colors.white70, size: 16)),
+                                  if (isSelected && filter != 'Pilih Tanggal') const Padding(padding: EdgeInsets.only(right: 6), child: Icon(LucideIcons.check, color: AppColors.primaryNavy, size: 15)),
+                                  if (filter == 'Pilih Tanggal') Padding(padding: const EdgeInsets.only(right: 6), child: Icon(LucideIcons.calendar, color: isSelected ? AppColors.primaryNavy : Colors.white70, size: 15)),
                                   Text(displayLabel, style: TextStyle(color: isSelected ? AppColors.primaryNavy : Colors.white70, fontWeight: FontWeight.bold, fontSize: 13)),
                                 ],
                               ),
@@ -257,7 +264,7 @@ class _CapitalHistoryScreenState extends State<CapitalHistoryScreen> {
                       decoration: InputDecoration(
                         hintText: "Cari nota, pelanggan, atau nama barang...",
                         hintStyle: const TextStyle(color: Colors.grey, fontSize: 13),
-                        prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                        prefixIcon: const Icon(LucideIcons.search, color: Colors.grey, size: 18),
                         filled: true,
                         fillColor: Colors.white.withValues(alpha: 0.92),
                         contentPadding: const EdgeInsets.symmetric(vertical: 0),
@@ -274,51 +281,81 @@ class _CapitalHistoryScreenState extends State<CapitalHistoryScreen> {
 
             Padding(
               padding: const EdgeInsets.all(16),
-              child: GlassContainer(
-                borderRadius: 20,
-                padding: const EdgeInsets.all(20),
-                child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start, 
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text("Total Modal Keluar", style: TextStyle(color: AppColors.textGrey, fontSize: 12, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 5),
-                        Text(_formatRp(totalNominal), style: const TextStyle(color: AppColors.menuBlueIcon, fontSize: 22, fontWeight: FontWeight.w900)),
-                        const SizedBox(height: 8),
-                        Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: BoxDecoration(color: AppColors.menuBlueIcon.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text("🪵 Kayu: ${_formatRp(currentKayu)}", style: const TextStyle(fontSize: 10, color: AppColors.menuBlueIcon, fontWeight: FontWeight.bold)),
-                              const SizedBox(height: 3),
-                              Text("🧱 Bgn  : ${_formatRp(currentBgn)}", style: const TextStyle(fontSize: 10, color: AppColors.menuBlueIcon, fontWeight: FontWeight.bold)),
-                              const SizedBox(height: 3),
-                              Text("⛽ Bensin: ${_formatRp(currentBensin)}", style: const TextStyle(fontSize: 10, color: AppColors.menuBlueIcon, fontWeight: FontWeight.bold)), 
-                            ],
-                          ),
-                        )
-                      ],
-                    ),
-                  ),
-                  Container(height: 80, width: 1, color: Colors.grey.shade300),
-                  const SizedBox(width: 15),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
+              child: LiquidEntrance(
+                delayMs: 60,
+                child: LiquidShimmerSweep(
+                  borderRadius: 20,
+                  child: GlassContainer(
+                    borderRadius: 20,
+                    padding: const EdgeInsets.all(20),
+                    child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text("Total Transaksi", style: TextStyle(color: AppColors.textGrey, fontSize: 12, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 5),
-                      Text("${displayedList.length} Nota", style: const TextStyle(color: AppColors.primaryNavy, fontSize: 18, fontWeight: FontWeight.w900)),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text("Total Modal Keluar", style: TextStyle(color: AppColors.textGrey, fontSize: 12, fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 5),
+                            AnimatedMoneyText(
+                              value: totalNominal,
+                              style: const TextStyle(color: AppColors.menuBlueIcon, fontSize: 22, fontWeight: FontWeight.w900),
+                            ),
+                            const SizedBox(height: 8),
+                            Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(color: AppColors.menuBlueIcon.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(LucideIcons.trees, size: 12, color: AppColors.menuBlueIcon),
+                                      const SizedBox(width: 5),
+                                      Text("Kayu: ${_formatRp(currentKayu)}", style: const TextStyle(fontSize: 10, color: AppColors.menuBlueIcon, fontWeight: FontWeight.bold)),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(LucideIcons.brickWall, size: 12, color: AppColors.menuBlueIcon),
+                                      const SizedBox(width: 5),
+                                      Text("Bgn : ${_formatRp(currentBgn)}", style: const TextStyle(fontSize: 10, color: AppColors.menuBlueIcon, fontWeight: FontWeight.bold)),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(LucideIcons.fuel, size: 12, color: AppColors.menuBlueIcon),
+                                      const SizedBox(width: 5),
+                                      Text("Bensin: ${_formatRp(currentBensin)}", style: const TextStyle(fontSize: 10, color: AppColors.menuBlueIcon, fontWeight: FontWeight.bold)),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            )
+                          ],
+                        ),
+                      ),
+                      Container(height: 80, width: 1, color: Colors.grey.shade300),
+                      const SizedBox(width: 15),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          const Text("Total Transaksi", style: TextStyle(color: AppColors.textGrey, fontSize: 12, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 5),
+                          Text("${displayedList.length} Nota", style: const TextStyle(color: AppColors.primaryNavy, fontSize: 18, fontWeight: FontWeight.w900)),
+                        ],
+                      ),
                     ],
                   ),
-                ],
+                ),
               ),
             ),
-          ),
+            ),
 
           Expanded(
             child: _isLoading 
@@ -348,7 +385,7 @@ class _CapitalHistoryScreenState extends State<CapitalHistoryScreen> {
                             }
 
                             DateTime dt = DateTime.parse(item['transaction_date'].toString());
-                            String formattedTime = DateFormat('HH:mm').format(dt);
+                            String formattedTime = _timeFmt.format(dt);
                             String customer = item['customer_name'] ?? "Pelanggan Umum";
                             String cashierName = item['cashier_name'] ?? "Tidak Diketahui";
 
@@ -363,22 +400,21 @@ class _CapitalHistoryScreenState extends State<CapitalHistoryScreen> {
                                }
                             }
 
-                            return Column(
+                            final Widget rowWidget = Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 if (showHeader)
-                                  Container(
-                                    width: double.infinity,
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                                    margin: const EdgeInsets.only(top: 10, bottom: 10),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withValues(alpha: 0.6),
-                                      borderRadius: BorderRadius.circular(10),
-                                      border: Border.all(color: Colors.white.withValues(alpha: 0.9)),
-                                    ),
-                                    child: Text(currDateStr, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryNavy, fontSize: 13)),
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                                  margin: const EdgeInsets.only(top: 10, bottom: 10),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.72),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(color: Colors.white.withValues(alpha: 0.9)),
                                   ),
-                                
+                                  child: Text(currDateStr, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryNavy, fontSize: 13)),
+                                ),
                                 InkWell(
                                   onTap: () {
                                     Navigator.push(context, MaterialPageRoute(builder: (_) => ModalTransactionDetailScreen(transaction: item)));
@@ -393,11 +429,11 @@ class _CapitalHistoryScreenState extends State<CapitalHistoryScreen> {
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
                                           const GlassIconBadge(
-                                            icon: Icons.inventory_2,
+                                            icon: LucideIcons.package,
                                             iconColor: AppColors.menuBlueIcon,
                                             bgColor: AppColors.menuBlueBg,
                                             size: 44,
-                                            iconSize: 22,
+                                            iconSize: 21,
                                             radius: 12,
                                           ),
                                           const SizedBox(width: 12),
@@ -411,11 +447,11 @@ class _CapitalHistoryScreenState extends State<CapitalHistoryScreen> {
                                                 const SizedBox(height: 6),
                                                 Row(
                                                   children: [
-                                                    const Icon(Icons.person, size: 12, color: AppColors.primaryNavy),
+                                                    const Icon(LucideIcons.user, size: 12, color: AppColors.primaryNavy),
                                                     const SizedBox(width: 4),
                                                     Text(cashierName, style: const TextStyle(fontSize: 11, color: AppColors.primaryNavy, fontWeight: FontWeight.bold)),
                                                     const SizedBox(width: 8),
-                                                    const Icon(Icons.access_time, size: 12, color: AppColors.textGrey),
+                                                    const Icon(LucideIcons.clock, size: 12, color: AppColors.textGrey),
                                                     const SizedBox(width: 4),
                                                     Text("$formattedTime WIB", style: const TextStyle(fontSize: 11, color: AppColors.textGrey)),
                                                   ],
@@ -431,7 +467,7 @@ class _CapitalHistoryScreenState extends State<CapitalHistoryScreen> {
                                               const SizedBox(height: 6),
                                               Container(
                                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                                decoration: BoxDecoration(color: AppColors.statusRed.withOpacity(0.1), borderRadius: BorderRadius.circular(6)),
+                                                decoration: BoxDecoration(color: AppColors.statusRed.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)),
                                                 child: const Text('MODAL KELUAR', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.statusRed)),
                                               )
                                             ],
@@ -443,6 +479,7 @@ class _CapitalHistoryScreenState extends State<CapitalHistoryScreen> {
                                 ),
                               ],
                             );
+                            return rowWidget;
                           },
                         ),
                     ),

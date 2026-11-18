@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:shared_preferences/shared_preferences.dart'; 
 import 'package:cloud_firestore/cloud_firestore.dart'; 
 import '../theme/app_colors.dart';
@@ -1318,7 +1319,14 @@ class _ReviewTransactionScreenState extends State<ReviewTransactionScreen> {
                                         color: AppColors.menuAmberBg.withValues(alpha: 0.9),
                                         borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
                                       ),
-                                      child: Text("📦 PAKET KUBIK (${_formatRp(pPrice)}/m³)", style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.menuAmberIcon)),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(LucideIcons.package, size: 16, color: AppColors.menuAmberIcon),
+                                          const SizedBox(width: 6),
+                                          Text("PAKET KUBIK (${_formatRp(pPrice)}/m³)", style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.menuAmberIcon)),
+                                        ],
+                                      ),
                                     ),
                                     Padding(
                                       padding: const EdgeInsets.all(12),

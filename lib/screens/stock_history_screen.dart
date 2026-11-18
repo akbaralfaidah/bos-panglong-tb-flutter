@@ -362,53 +362,56 @@ class _StockHistoryScreenState extends State<StockHistoryScreen>
 
                         return Padding(
                           padding: const EdgeInsets.only(right: 10),
-                          child: InkWell(
-                            onTap: () {
-                              if (filter == 'Pilih Tanggal') {
-                                _pickDateRange();
-                              } else {
-                                setState(() => _selectedFilter = filter);
-                                _fetchData();
-                              }
-                            },
-                            borderRadius: BorderRadius.circular(22),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 8,
-                              ),
-                              decoration: AppColors.glassFilterPill(isSelected: isSelected),
-                              child: Row(
-                                children: [
-                                  if (isSelected && filter != 'Pilih Tanggal')
-                                    const Padding(
-                                      padding: EdgeInsets.only(right: 6),
-                                      child: Icon(
-                                        Icons.check,
-                                        color: AppColors.primaryNavy,
-                                        size: 16,
+                          child: LiquidPressWrapper(
+                            pressedScale: 0.93,
+                            child: InkWell(
+                              onTap: () {
+                                if (filter == 'Pilih Tanggal') {
+                                  _pickDateRange();
+                                } else {
+                                  setState(() => _selectedFilter = filter);
+                                  _fetchData();
+                                }
+                              },
+                              borderRadius: BorderRadius.circular(22),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
+                                decoration: AppColors.glassFilterPill(isSelected: isSelected),
+                                child: Row(
+                                  children: [
+                                    if (isSelected && filter != 'Pilih Tanggal')
+                                      const Padding(
+                                        padding: EdgeInsets.only(right: 6),
+                                        child: Icon(
+                                          Icons.check,
+                                          color: AppColors.primaryNavy,
+                                          size: 16,
+                                        ),
+                                      ),
+                                    if (filter == 'Pilih Tanggal')
+                                      Padding(
+                                        padding: const EdgeInsets.only(right: 6),
+                                        child: Icon(
+                                          Icons.calendar_month,
+                                          color: isSelected ? AppColors.primaryNavy : Colors.white70,
+                                          size: 16,
+                                        ),
+                                      ),
+                                    Text(
+                                      displayLabel,
+                                      style: TextStyle(
+                                        color: isSelected
+                                            ? AppColors.primaryNavy
+                                            : Colors.white70,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
                                       ),
                                     ),
-                                  if (filter == 'Pilih Tanggal')
-                                    Padding(
-                                      padding: const EdgeInsets.only(right: 6),
-                                      child: Icon(
-                                        Icons.calendar_month,
-                                        color: isSelected ? AppColors.primaryNavy : Colors.white70,
-                                        size: 16,
-                                      ),
-                                    ),
-                                  Text(
-                                    displayLabel,
-                                    style: TextStyle(
-                                      color: isSelected
-                                          ? AppColors.primaryNavy
-                                          : Colors.white70,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
                           ),
@@ -671,12 +674,14 @@ class _StockHistoryScreenState extends State<StockHistoryScreen>
                               child: Text(currDateStr, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryNavy, fontSize: 13)),
                             ),
 
-                          InkWell(
-                            onTap: () async {
-                              if (isAuditLog) {
-                                AppNotification.show(context, message: "Ini adalah log otomatis, bukan transaksi.", type: AppNotificationType.warning);
-                                return;
-                              }
+                          LiquidPressWrapper(
+                            pressedScale: 0.975,
+                            child: InkWell(
+                              onTap: () async {
+                                if (isAuditLog) {
+                                  AppNotification.show(context, message: "Ini adalah log otomatis, bukan transaksi.", type: AppNotificationType.warning);
+                                  return;
+                                }
                               double rawInputQty =
                                   item.containsKey('input_qty') &&
                                       item['input_qty'] != null
@@ -1119,6 +1124,7 @@ class _StockHistoryScreenState extends State<StockHistoryScreen>
                                 ),
                               ),
                             ),
+                          ),
                           ),
                         ],
                       );

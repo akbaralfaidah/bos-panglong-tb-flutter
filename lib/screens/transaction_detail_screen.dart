@@ -1173,9 +1173,269 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
     );
   }
 
+  void _showConvertToTitipanDialog() {
+    Map<int, double> titipQtyMap = {};
+    for (int i = 0; i < _items.length; i++) {
+      double reqQty = _getItemReqQty(_items[i]);
+      titipQtyMap[i] = reqQty; // Default: anggap semua item masih titip di gudang
+    }
+    if (titipQtyMap.isEmpty) return;
+
+    final TextEditingController noteCtrl = TextEditingController();
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            backgroundColor: AppColors.pureWhite,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: const Row(
+              children: [
+                Icon(Icons.warehouse, color: AppColors.menuAmberIcon),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    "Jadikan Barang Titipan",
+                    style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryNavy, fontSize: 17),
+                  ),
+                ),
+              ],
+            ),
+            content: SizedBox(
+              width: 500,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppColors.menuAmberBg,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Text(
+                        "Tentukan berapa banyak barang pada nota ini yang MASIH disimpan di gudang (belum diambil/diantar). Stok Siap Jual tidak akan dipotong dua kali.",
+                        style: TextStyle(fontSize: 11.5, color: AppColors.primaryNavy, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    ...List.generate(_items.length, (idx) {
+                      var item = _items[idx];
+                      double reqMax = _getItemReqQty(item);
+                      double titipNow = titipQtyMap[idx] ?? 0.0;
+                      String unit = _cleanUnitLabel(item['unit_type']);
+                      String pName = (item['product_name'] ?? '').toString()
+                          .replaceAll(RegExp(r'Kelas \d+\s?'), '')
+                          .replaceAll('()', '')
+                          .trim();
+
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 10),
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: AppColors.backgroundWhite,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.grey.shade200),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(pName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.primaryNavy)),
+                            const SizedBox(height: 2),
+                            Text("Total Pembelian: ${_formatQtyClean(reqMax)} $unit", style: const TextStyle(fontSize: 11, color: AppColors.textGrey)),
+                            const SizedBox(height: 8),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: [
+                                    IconButton(
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                      icon: const Icon(Icons.remove_circle, color: AppColors.statusRed, size: 28),
+                                      onPressed: () {
+                                        setDialogState(() {
+                                          titipQtyMap[idx] = (titipNow - 1).clamp(0.0, reqMax);
+                                        });
+                                      },
+                                    ),
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                                      child: Text(
+                                        "${_formatQtyClean(titipNow)} $unit dititip",
+                                        style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5, color: AppColors.menuAmberIcon),
+                                      ),
+                                    ),
+                                    IconButton(
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                      icon: const Icon(Icons.add_circle, color: AppColors.statusGreen, size: 28),
+                                      onPressed: () {
+                                        setDialogState(() {
+                                          titipQtyMap[idx] = (titipNow + 1).clamp(0.0, reqMax);
+                                        });
+                                      },
+                                    ),
+                                  ],
+                                ),
+                                Row(
+                                  children: [
+                                    TextButton(
+                                      onPressed: () => setDialogState(() => titipQtyMap[idx] = 0.0),
+                                      style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 6), minimumSize: Size.zero),
+                                      child: const Text("0", style: TextStyle(fontSize: 11, color: AppColors.textGrey, fontWeight: FontWeight.bold)),
+                                    ),
+                                    TextButton(
+                                      onPressed: () => setDialogState(() => titipQtyMap[idx] = reqMax),
+                                      style: TextButton.styleFrom(
+                                        backgroundColor: AppColors.menuAmberBg,
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        minimumSize: Size.zero,
+                                      ),
+                                      child: const Text("Semua", style: TextStyle(fontSize: 11, color: AppColors.menuAmberIcon, fontWeight: FontWeight.bold)),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: noteCtrl,
+                      decoration: InputDecoration(
+                        labelText: "Catatan (Opsional)",
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                        isDense: true,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text("Batal", style: TextStyle(color: AppColors.textGrey)),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.menuAmberIcon,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                onPressed: () async {
+                  bool hasTitipan = titipQtyMap.values.any((v) => v > 0.001);
+                  if (!hasTitipan) {
+                    AppNotification.show(context, message: "Pilih minimal 1 barang yang masih dititip di gudang!", type: AppNotificationType.warning);
+                    return;
+                  }
+                  Navigator.pop(ctx);
+                  setState(() => _isUpdatingDelivery = true);
+                  try {
+                    List<Map<String, dynamic>> updatedItems = [];
+                    for (int i = 0; i < _items.length; i++) {
+                      var item = Map<String, dynamic>.from(_items[i]);
+                      double qty = _getItemQty(item);
+                      double reqQty = _getItemReqQty(item);
+                      double titipReq = (titipQtyMap[i] ?? 0.0).clamp(0.0, reqQty);
+                      double newDelReq = double.parse((reqQty - titipReq).clamp(0.0, reqQty).toStringAsFixed(2));
+                      double newDelQty = reqQty > 0
+                          ? double.parse(((newDelReq / reqQty) * qty).clamp(0.0, qty).toStringAsFixed(2))
+                          : qty;
+
+                      item['delivered_request_qty'] = newDelReq;
+                      item['delivered_qty'] = newDelQty;
+                      updatedItems.add(item);
+                    }
+
+                    final updatedTrans = await _controller.convertTransactionToTitipan(
+                      transId: _transId,
+                      updatedItems: updatedItems,
+                      note: noteCtrl.text,
+                    );
+
+                    if (mounted) {
+                      setState(() {
+                        _items = List<Map<String, dynamic>>.from(
+                          (updatedTrans['items'] as List).map((e) => Map<String, dynamic>.from(e as Map)),
+                        );
+                        _deliveryStatus = updatedTrans['delivery_status']?.toString() ?? 'Belum Diantar';
+                        _deliveryLogs = List<Map<String, dynamic>>.from(
+                          (updatedTrans['delivery_logs'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)),
+                        );
+                        widget.transaction['items'] = _items;
+                        widget.transaction['delivery_status'] = _deliveryStatus;
+                        widget.transaction['delivery_logs'] = _deliveryLogs;
+                        _isUpdatingDelivery = false;
+                      });
+                      AppNotification.show(
+                        context,
+                        message: "Nota berhasil ditandai sebagai Barang Titipan!",
+                        type: AppNotificationType.success,
+                      );
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      setState(() => _isUpdatingDelivery = false);
+                      AppNotification.show(context, message: "Gagal mengubah status titipan: $e", type: AppNotificationType.error);
+                    }
+                  }
+                },
+                child: const Text("SIMPAN TITIPAN", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   Widget _buildDeliveryControlSection() {
     if (_deliveryStatus == 'Selesai' && _deliveryLogs.isEmpty) {
-      return const SizedBox.shrink();
+      return Container(
+        margin: const EdgeInsets.only(bottom: 20),
+        padding: const EdgeInsets.all(14),
+        decoration: AppColors.liquidGlassCard(radius: 18),
+        child: Row(
+          children: [
+            const Icon(Icons.check_circle_outline, color: AppColors.statusGreen, size: 22),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Status: Sudah Diantar Semua",
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.primaryNavy),
+                  ),
+                  Text(
+                    "Barang masih di gudang? Ubah jadi Titipan tanpa transaksi ulang.",
+                    style: TextStyle(fontSize: 11, color: AppColors.textGrey),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            ElevatedButton(
+              onPressed: _isUpdatingDelivery ? null : _showConvertToTitipanDialog,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.menuAmberIcon,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              child: const Text(
+                "Jadikan Titipan",
+                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+      );
     }
 
     Color badgeColor = _deliveryStatus == 'Selesai'
@@ -1549,9 +1809,35 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                 )
               : SingleChildScrollView(
                   padding: const EdgeInsets.all(16),
-                  child: Column(
-                    children: [
-                      if (widget.isNewTransaction) ...[
+                  child: ResponsiveLayout.constrained(
+                    context: context,
+                    maxWidth: 860,
+                    child: Column(
+                      children: [
+                        if (widget.transaction['is_legacy_titipan'] == true) ...[
+                          Container(
+                            margin: const EdgeInsets.only(bottom: 14),
+                            padding: const EdgeInsets.all(12),
+                            decoration: AppColors.liquidGlassCard(
+                              radius: 16,
+                              borderColor: AppColors.menuTealIcon.withValues(alpha: 0.45),
+                              borderWidth: 1.5,
+                            ),
+                            child: const Row(
+                              children: [
+                                Icon(Icons.warehouse_rounded, color: AppColors.menuTealIcon, size: 22),
+                                SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    "Catatan Barang Titipan Lama (Tanpa Transaksi Ulang — Tidak Menambah Omset, Profit, atau Arus Kas).",
+                                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primaryNavy),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                        if (widget.isNewTransaction) ...[
                         ScaleTransition(
                           scale: _scaleAnimation,
                           child: Container(
@@ -2794,6 +3080,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                   ],
                 ),
               ),
+            ),
         ),
       ),
     );

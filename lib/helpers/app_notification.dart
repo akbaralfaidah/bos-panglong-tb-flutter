@@ -2,8 +2,8 @@
 // Custom top notification helper - glassmorphism style (rounded, blur, transparent)
 // Animasi: muncul dari atas ke bawah (slide down + fade)
 
-import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 enum AppNotificationType { success, error, warning, info }
 
@@ -64,28 +64,28 @@ class AppNotification {
       case AppNotificationType.success:
         return _NotificationConfig(
           defaultTitle: 'Sukses',
-          icon: Icons.check_circle_rounded,
+          icon: LucideIcons.circleCheck,
           accentColor: const Color(0xFF22C55E),
           glassColor: const Color(0xFF14532D),
         );
       case AppNotificationType.error:
         return _NotificationConfig(
           defaultTitle: 'Gagal',
-          icon: Icons.cancel_rounded,
+          icon: LucideIcons.circleAlert,
           accentColor: const Color(0xFFEF4444),
           glassColor: const Color(0xFF7F1D1D),
         );
       case AppNotificationType.warning:
         return _NotificationConfig(
           defaultTitle: 'Peringatan',
-          icon: Icons.warning_rounded,
+          icon: LucideIcons.triangleAlert,
           accentColor: const Color(0xFFF59E0B),
           glassColor: const Color(0xFF78350F),
         );
       case AppNotificationType.info:
         return _NotificationConfig(
           defaultTitle: 'Info',
-          icon: Icons.info_rounded,
+          icon: LucideIcons.sparkles,
           accentColor: const Color(0xFF3B82F6),
           glassColor: const Color(0xFF1E3A5F),
         );
@@ -195,93 +195,87 @@ class _TopNotificationWidgetState extends State<_TopNotificationWidget>
                   _dismiss();
                 }
               },
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(20),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 14,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
+                decoration: BoxDecoration(
+                  color: widget.config.glassColor.withValues(alpha: 0.95),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: widget.config.accentColor.withValues(alpha: 0.45),
+                    width: 1.2,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.22),
+                      blurRadius: 14,
+                      offset: const Offset(0, 6),
                     ),
-                    decoration: BoxDecoration(
-                      color: widget.config.glassColor.withOpacity(0.78),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: widget.config.accentColor.withOpacity(0.45),
-                        width: 1.2,
+                  ],
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    // Icon
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: widget.config.accentColor.withValues(alpha: 0.22),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.22),
-                          blurRadius: 20,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
+                      child: Icon(
+                        widget.config.icon,
+                        color: widget.config.accentColor,
+                        size: 22,
+                      ),
                     ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        // Icon
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: widget.config.accentColor.withOpacity(0.22),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Icon(
-                            widget.config.icon,
-                            color: widget.config.accentColor,
-                            size: 22,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        // Teks
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                widget.title,
-                                style: TextStyle(
-                                  color: widget.config.accentColor,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 13.5,
-                                  letterSpacing: 0.2,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                widget.message,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w400,
-                                  height: 1.35,
-                                ),
-                                maxLines: 3,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        // Tombol tutup
-                        GestureDetector(
-                          onTap: _dismiss,
-                          child: Container(
-                            padding: const EdgeInsets.all(4),
-                            child: Icon(
-                              Icons.close_rounded,
-                              color: Colors.white.withOpacity(0.6),
-                              size: 18,
+                    const SizedBox(width: 12),
+                    // Teks
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            widget.title,
+                            style: TextStyle(
+                              color: widget.config.accentColor,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13.5,
+                              letterSpacing: 0.2,
                             ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 2),
+                          Text(
+                            widget.message,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w400,
+                              height: 1.35,
+                            ),
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 8),
+                    // Tombol tutup
+                    GestureDetector(
+                      onTap: _dismiss,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        child: Icon(
+                          LucideIcons.x,
+                          color: Colors.white.withValues(alpha: 0.7),
+                          size: 18,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),

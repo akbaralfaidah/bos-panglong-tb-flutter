@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../theme/app_colors.dart';
 import '../theme/glass_widgets.dart';
 import '../controllers/profit_history_controller.dart';
@@ -15,6 +16,16 @@ class ProfitHistoryScreen extends StatefulWidget {
 }
 
 class _ProfitHistoryScreenState extends State<ProfitHistoryScreen> {
+  static final NumberFormat _currencyFmt = NumberFormat.currency(
+    locale: 'id',
+    symbol: 'Rp ',
+    decimalDigits: 0,
+  );
+  static final DateFormat _timeFmt = DateFormat('HH:mm');
+  static final DateFormat _dateHeaderFmt = DateFormat('dd MMM yyyy');
+  static final DateFormat _shortDateFmt = DateFormat('dd MMM');
+  static final DateFormat _isoDateFmt = DateFormat('yyyy-MM-dd');
+
   final ProfitHistoryController _controller = ProfitHistoryController();
   final TransactionFirebaseDataSource _transDS =
       TransactionFirebaseDataSource();
@@ -74,8 +85,8 @@ class _ProfitHistoryScreenState extends State<ProfitHistoryScreen> {
     );
 
     if (range != null) {
-      String start = DateFormat('yyyy-MM-dd').format(range.start);
-      String end = DateFormat('yyyy-MM-dd').format(range.end);
+      String start = _isoDateFmt.format(range.start);
+      String end = _isoDateFmt.format(range.end);
       setState(() {
         _selectedFilter = "CUSTOM|$start|$end";
       });
@@ -92,14 +103,10 @@ class _ProfitHistoryScreenState extends State<ProfitHistoryScreen> {
 
     if (target == today) return "Hari Ini";
     if (target == yesterday) return "Kemarin";
-    return DateFormat('dd MMM yyyy').format(target);
+    return _dateHeaderFmt.format(target);
   }
 
-  String _formatRp(dynamic number) => NumberFormat.currency(
-    locale: 'id',
-    symbol: 'Rp ',
-    decimalDigits: 0,
-  ).format(number);
+  String _formatRp(dynamic number) => _currencyFmt.format(number);
 
   @override
   Widget build(BuildContext context) {
@@ -163,7 +170,7 @@ class _ProfitHistoryScreenState extends State<ProfitHistoryScreen> {
                         isSelected = true;
                         var parts = _selectedFilter.split('|');
                         displayLabel =
-                            "${DateFormat('dd MMM').format(DateTime.parse(parts[1]))} - ${DateFormat('dd MMM').format(DateTime.parse(parts[2]))}";
+                            "${_shortDateFmt.format(DateTime.parse(parts[1]))} - ${_shortDateFmt.format(DateTime.parse(parts[2]))}";
                       }
                     } else {
                       isSelected = _selectedFilter == filter;
@@ -171,55 +178,58 @@ class _ProfitHistoryScreenState extends State<ProfitHistoryScreen> {
 
                     return Padding(
                       padding: const EdgeInsets.only(right: 10),
-                      child: InkWell(
-                        onTap: () {
-                          if (filter == 'Pilih Tanggal') {
-                            _pickDateRange();
-                          } else {
-                            setState(() => _selectedFilter = filter);
-                            _fetchData();
-                          }
-                        },
-                        borderRadius: BorderRadius.circular(22),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 8,
-                          ),
-                          decoration: AppColors.glassFilterPill(isSelected: isSelected),
-                          child: Row(
-                            children: [
-                              if (isSelected && filter != 'Pilih Tanggal')
-                                const Padding(
-                                  padding: EdgeInsets.only(right: 6),
-                                  child: Icon(
-                                    Icons.check,
-                                    color: AppColors.primaryNavy,
-                                    size: 16,
+                      child: LiquidPressWrapper(
+                        pressedScale: 0.93,
+                        child: InkWell(
+                          onTap: () {
+                            if (filter == 'Pilih Tanggal') {
+                              _pickDateRange();
+                            } else {
+                              setState(() => _selectedFilter = filter);
+                              _fetchData();
+                            }
+                          },
+                          borderRadius: BorderRadius.circular(22),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            decoration: AppColors.glassFilterPill(isSelected: isSelected),
+                            child: Row(
+                              children: [
+                                if (isSelected && filter != 'Pilih Tanggal')
+                                  const Padding(
+                                    padding: EdgeInsets.only(right: 6),
+                                    child: Icon(
+                                      LucideIcons.check,
+                                      color: AppColors.primaryNavy,
+                                      size: 15,
+                                    ),
                                   ),
-                                ),
-                              if (filter == 'Pilih Tanggal')
-                                Padding(
-                                  padding: const EdgeInsets.only(right: 6),
-                                  child: Icon(
-                                    Icons.calendar_month,
+                                if (filter == 'Pilih Tanggal')
+                                  Padding(
+                                    padding: const EdgeInsets.only(right: 6),
+                                    child: Icon(
+                                      LucideIcons.calendar,
+                                      color: isSelected
+                                          ? AppColors.primaryNavy
+                                          : Colors.white70,
+                                      size: 15,
+                                    ),
+                                  ),
+                                Text(
+                                  displayLabel,
+                                  style: TextStyle(
                                     color: isSelected
                                         ? AppColors.primaryNavy
                                         : Colors.white70,
-                                    size: 16,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
                                   ),
                                 ),
-                              Text(
-                                displayLabel,
-                                style: TextStyle(
-                                  color: isSelected
-                                      ? AppColors.primaryNavy
-                                      : Colors.white70,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
                       ),
@@ -231,10 +241,14 @@ class _ProfitHistoryScreenState extends State<ProfitHistoryScreen> {
 
             Padding(
               padding: const EdgeInsets.all(16),
-              child: GlassContainer(
-                borderRadius: 20,
-                padding: const EdgeInsets.all(20),
-                child: Column(
+              child: LiquidEntrance(
+                delayMs: 60,
+                child: LiquidShimmerSweep(
+                  borderRadius: 20,
+                  child: GlassContainer(
+                    borderRadius: 20,
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
                 children: [
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -267,28 +281,48 @@ class _ProfitHistoryScreenState extends State<ProfitHistoryScreen> {
                             Container(
                               padding: const EdgeInsets.all(6),
                               decoration: BoxDecoration(
-                                color: AppColors.statusGreen.withOpacity(0.1),
+                                color: AppColors.statusGreen.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
-                                    "🪵 Kayu: ${_formatRp(_labaKayu)}",
-                                    style: const TextStyle(
-                                      fontSize: 10,
-                                      color: AppColors.primaryNavy,
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(LucideIcons.trees, size: 12, color: AppColors.primaryNavy),
+                                      const SizedBox(width: 4),
+                                      Flexible(
+                                        child: Text(
+                                          "Kayu: ${_formatRp(_labaKayu)}",
+                                          style: const TextStyle(
+                                            fontSize: 10,
+                                            color: AppColors.primaryNavy,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                   const SizedBox(height: 3),
-                                  Text(
-                                    "🧱 Bgn  : ${_formatRp(_labaBangunan)}",
-                                    style: const TextStyle(
-                                      fontSize: 10,
-                                      color: AppColors.primaryNavy,
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(LucideIcons.brickWall, size: 12, color: AppColors.primaryNavy),
+                                      const SizedBox(width: 4),
+                                      Flexible(
+                                        child: Text(
+                                          "Bgn : ${_formatRp(_labaBangunan)}",
+                                          style: const TextStyle(
+                                            fontSize: 10,
+                                            color: AppColors.primaryNavy,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ],
                               ),
@@ -400,6 +434,8 @@ class _ProfitHistoryScreenState extends State<ProfitHistoryScreen> {
               ),
             ),
           ),
+          ),
+          ),
 
           Expanded(
             child: _isLoading
@@ -443,7 +479,7 @@ class _ProfitHistoryScreenState extends State<ProfitHistoryScreen> {
                       int amt = (item['amount'] as num).toInt();
 
                       DateTime dt = DateTime.parse(item['date'].toString());
-                      String formattedTime = DateFormat('HH:mm').format(dt);
+                      String formattedTime = _timeFmt.format(dt);
                       String cashierName =
                           item['cashier_name'] ?? 'Tidak Diketahui';
 
@@ -453,14 +489,14 @@ class _ProfitHistoryScreenState extends State<ProfitHistoryScreen> {
                                 ? Colors.blueAccent
                                 : AppColors.statusRed);
                       IconData iconData = isLaba
-                          ? Icons.trending_up
-                          : (isReinvest ? Icons.loop : Icons.money_off);
+                          ? LucideIcons.trendingUp
+                          : (isReinvest ? LucideIcons.refreshCw : LucideIcons.wallet);
                       String labelType = isLaba
                           ? "Pemasukan"
                           : (isReinvest ? "Subsidi Modal" : "Pengeluaran");
                       String sign = isLaba ? "+" : "-";
 
-                      return Column(
+                      final Widget rowWidget = Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           if (showHeader)
@@ -533,7 +569,7 @@ class _ProfitHistoryScreenState extends State<ProfitHistoryScreen> {
                                       iconColor: iconColor,
                                       bgColor: iconColor.withValues(alpha: 0.14),
                                       size: 44,
-                                      iconSize: 22,
+                                      iconSize: 21,
                                       radius: 12,
                                     ),
                                     const SizedBox(width: 12),
@@ -564,7 +600,7 @@ class _ProfitHistoryScreenState extends State<ProfitHistoryScreen> {
                                           Row(
                                             children: [
                                               const Icon(
-                                                Icons.person,
+                                                LucideIcons.user,
                                                 size: 12,
                                                 color: AppColors.primaryNavy,
                                               ),
@@ -579,7 +615,7 @@ class _ProfitHistoryScreenState extends State<ProfitHistoryScreen> {
                                               ),
                                               const SizedBox(width: 8),
                                               const Icon(
-                                                Icons.access_time,
+                                                LucideIcons.clock,
                                                 size: 12,
                                                 color: AppColors.textGrey,
                                               ),
@@ -625,6 +661,7 @@ class _ProfitHistoryScreenState extends State<ProfitHistoryScreen> {
                           ),
                         ],
                       );
+                      return rowWidget;
                     },
                   ),
           ),

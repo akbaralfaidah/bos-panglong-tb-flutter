@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../controllers/debt_controller.dart';
 import '../theme/app_colors.dart';
 import '../theme/glass_widgets.dart';
@@ -28,6 +29,13 @@ class DebtGroupDetailScreen extends StatefulWidget {
 
 class _DebtGroupDetailScreenState extends State<DebtGroupDetailScreen>
     with SingleTickerProviderStateMixin {
+  static final NumberFormat _currencyFmt = NumberFormat.currency(
+    locale: 'id',
+    symbol: 'Rp ',
+    decimalDigits: 0,
+  );
+  static final DateFormat _longDateFmt = DateFormat('EEEE, dd MMMM yyyy', 'id_ID');
+
   final DebtController _controller = DebtController();
 
   bool _isLoading = true;
@@ -52,7 +60,7 @@ class _DebtGroupDetailScreenState extends State<DebtGroupDetailScreen>
     _glowController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1800),
-    )..repeat(reverse: true);
+    );
     _glowAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _glowController, curve: Curves.easeInOut),
     );
@@ -77,9 +85,7 @@ class _DebtGroupDetailScreenState extends State<DebtGroupDetailScreen>
     }
   }
 
-  String _formatRp(int number) => NumberFormat.currency(
-    locale: 'id', symbol: 'Rp ', decimalDigits: 0,
-  ).format(number);
+  String _formatRp(int number) => _currencyFmt.format(number);
 
   int get _totalTransaksiBelumLunas {
     int count = 0;
@@ -246,7 +252,7 @@ class _DebtGroupDetailScreenState extends State<DebtGroupDetailScreen>
                       ),
                       borderRadius: BorderRadius.circular(14),
                     ),
-                    child: const Icon(Icons.bolt, color: Colors.white, size: 28),
+                    child: const Icon(LucideIcons.zap, color: Colors.white, size: 26),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
@@ -254,7 +260,7 @@ class _DebtGroupDetailScreenState extends State<DebtGroupDetailScreen>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          "⚡ Lunasi Hutang $_groupName?",
+                          "Lunasi Hutang $_groupName?",
                           style: const TextStyle(
                             fontSize: 17, fontWeight: FontWeight.w900, color: AppColors.primaryNavy,
                           ),
@@ -316,10 +322,10 @@ class _DebtGroupDetailScreenState extends State<DebtGroupDetailScreen>
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.calendar_today, color: AppColors.menuBlueIcon, size: 20),
+                      const Icon(LucideIcons.calendar, color: AppColors.menuBlueIcon, size: 20),
                       const SizedBox(width: 12),
                       Text(
-                        DateFormat('EEEE, dd MMMM yyyy', 'id_ID').format(selectedDate),
+                        _longDateFmt.format(selectedDate),
                         style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.menuBlueIcon),
                       ),
                     ],
@@ -357,7 +363,7 @@ class _DebtGroupDetailScreenState extends State<DebtGroupDetailScreen>
                             await _controller.payAllDebtsInGroup(_customerNames, selectedDate);
                             if (mounted) {
                               Navigator.pop(ctx);
-                              AppNotification.show(context, message: "🎉 Semua hutang $_groupName berhasil dilunasi!", type: AppNotificationType.success);
+                              AppNotification.show(context, message: "Semua hutang $_groupName berhasil dilunasi!", type: AppNotificationType.success);
                               _fetchDebts();
                             }
                           } catch (e) {
@@ -369,7 +375,7 @@ class _DebtGroupDetailScreenState extends State<DebtGroupDetailScreen>
                         },
                         icon: isProcessing
                             ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                            : const Icon(Icons.check_circle, color: Colors.white),
+                            : const Icon(LucideIcons.circleCheck, color: Colors.white, size: 20),
                         label: Text(
                           isProcessing ? "MEMPROSES..." : "LUNASI SEMUA",
                           style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 15),
@@ -541,11 +547,11 @@ class _DebtGroupDetailScreenState extends State<DebtGroupDetailScreen>
                                 child: Row(
                                   children: [
                                     GlassIconBadge(
-                                      icon: Icons.person,
+                                      icon: LucideIcons.user,
                                       iconColor: AppColors.statusRed,
                                       bgColor: AppColors.statusRed.withValues(alpha: 0.14),
                                       size: 46,
-                                      iconSize: 23,
+                                      iconSize: 22,
                                       radius: 14,
                                     ),
                                     const SizedBox(width: 15),
@@ -563,7 +569,7 @@ class _DebtGroupDetailScreenState extends State<DebtGroupDetailScreen>
                                             ),
                                             if (transCount > 1) ...[
                                               const SizedBox(width: 6),
-                                              const Icon(Icons.arrow_forward_ios, size: 10, color: AppColors.textGrey),
+                                              const Icon(LucideIcons.chevronRight, size: 12, color: AppColors.textGrey),
                                             ],
                                           ]),
                                           const SizedBox(height: 8),
@@ -641,9 +647,8 @@ class _DebtGroupDetailScreenState extends State<DebtGroupDetailScreen>
                             decoration: BoxDecoration(
                               gradient: const LinearGradient(
                                 colors: [
-                                  Color(0xFF0A2647),
-                                  Color(0xFF144272),
-                                  Color(0xFF205295),
+                                  AppColors.navyGlassStart,
+                                  AppColors.navyGlassEnd,
                                 ],
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
@@ -655,7 +660,7 @@ class _DebtGroupDetailScreenState extends State<DebtGroupDetailScreen>
                               child: const Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Icon(Icons.bolt, color: Colors.white, size: 26),
+                                  Icon(LucideIcons.zap, color: Colors.white, size: 22),
                                   SizedBox(width: 10),
                                   Text(
                                     "LUNASI SEMUA HUTANG",
@@ -666,8 +671,8 @@ class _DebtGroupDetailScreenState extends State<DebtGroupDetailScreen>
                                       letterSpacing: 1.2,
                                     ),
                                   ),
-                                  SizedBox(width: 6),
-                                  Text("🤑", style: TextStyle(fontSize: 22)),
+                                  SizedBox(width: 8),
+                                  Icon(LucideIcons.circleCheck, color: Colors.white, size: 20),
                                 ],
                               ),
                             ),

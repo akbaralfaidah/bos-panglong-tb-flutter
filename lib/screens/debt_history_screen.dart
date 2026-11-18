@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../controllers/debt_controller.dart';
 import '../theme/app_colors.dart';
 import '../theme/glass_widgets.dart';
@@ -18,6 +19,13 @@ class DebtHistoryScreen extends StatefulWidget {
 
 class _DebtHistoryScreenState extends State<DebtHistoryScreen>
     with SingleTickerProviderStateMixin {
+  static final NumberFormat _currencyFmt = NumberFormat.currency(
+    locale: 'id',
+    symbol: 'Rp ',
+    decimalDigits: 0,
+  );
+  static final DateFormat _longDateFmt = DateFormat('EEEE, dd MMMM yyyy', 'id_ID');
+
   final DebtController _controller = DebtController();
 
   bool _isLoading = true;
@@ -38,7 +46,7 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen>
     _glowController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1800),
-    )..repeat(reverse: true);
+    );
 
     _glowAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _glowController, curve: Curves.easeInOut),
@@ -70,11 +78,7 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen>
   }
 
 
-  String _formatRp(int number) => NumberFormat.currency(
-    locale: 'id',
-    symbol: 'Rp ',
-    decimalDigits: 0,
-  ).format(number);
+  String _formatRp(int number) => _currencyFmt.format(number);
 
   // Hitung total transaksi belum lunas (bukan total grup)
   int get _totalTransaksiBelumLunas {
@@ -196,7 +200,7 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen>
                                 ),
                                 borderRadius: BorderRadius.circular(14),
                               ),
-                              child: const Icon(Icons.bolt, color: Colors.white, size: 28),
+                              child: const Icon(LucideIcons.zap, color: Colors.white, size: 26),
                             ),
                             const SizedBox(width: 14),
                             const Expanded(
@@ -204,7 +208,7 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen>
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    "⚡ Lunasi Semua Hutang?",
+                                    "Lunasi Semua Hutang?",
                                     style: TextStyle(
                                       fontSize: 20,
                                       fontWeight: FontWeight.w900,
@@ -258,7 +262,7 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen>
                             },
                             child: Row(
                               children: [
-                                const Icon(Icons.calendar_today, color: AppColors.menuBlueIcon, size: 22),
+                                const Icon(LucideIcons.calendar, color: AppColors.menuBlueIcon, size: 20),
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
@@ -274,7 +278,7 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen>
                                       ),
                                       const SizedBox(height: 4),
                                       Text(
-                                        DateFormat('EEEE, dd MMMM yyyy', 'id_ID').format(selectedDate),
+                                        _longDateFmt.format(selectedDate),
                                         style: const TextStyle(
                                           fontSize: 15,
                                           fontWeight: FontWeight.w900,
@@ -489,7 +493,14 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen>
                           ),
                           child: Row(
                             children: [
-                              const Text("😁🤑", style: TextStyle(fontSize: 36)),
+                              const GlassIconBadge(
+                                icon: LucideIcons.trendingUp,
+                                iconColor: AppColors.statusGreen,
+                                bgColor: Colors.white,
+                                size: 46,
+                                iconSize: 24,
+                                radius: 14,
+                              ),
                               const SizedBox(width: 14),
                               Expanded(
                                 child: Column(
@@ -566,7 +577,7 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen>
 
                                             if (mounted) {
                                               Navigator.pop(ctx);
-                                              AppNotification.show(context, message: "🎉", type: AppNotificationType.success);
+                                              AppNotification.show(context, message: "Semua hutang berhasil dilunasi!", type: AppNotificationType.success);
                                               _fetchDebts(); // Refresh
                                             }
                                           } catch (e) {
@@ -655,10 +666,12 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen>
               padding: const EdgeInsets.fromLTRB(16, 10, 16, 22),
               decoration: AppColors.liquidNavyHeader(bottomRadius: 28),
               width: double.infinity,
-              child: GlassContainer(
-                borderRadius: 20,
-                padding: const EdgeInsets.all(20),
-                child: Column(
+              child: LiquidEntrance(
+                delayMs: 60,
+                child: GlassContainer(
+                  borderRadius: 20,
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
                 children: [
                   const Text(
                     "Total Uang di Luar (Sisa Piutang)",
@@ -733,6 +746,7 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen>
                   ),
                 ],
               ),
+              ),
             ),
           ),
 
@@ -765,214 +779,216 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen>
                       ],
                     ),
                   )
-                : ListView(
+                : ListView.builder(
                     padding: const EdgeInsets.all(16),
-                    children: [
-                      // ====== KARTU-KARTU GRUP ======
-                      if (_groupSummaries.isNotEmpty) ...[
-                        ..._groupSummaries.map((gs) {
-                          String groupName = gs['group_name'] ?? 'Grup';
-                          int sisaHutang = (gs['sisa_hutang'] as num?)?.toInt() ?? 0;
-                          int potProfit = (gs['potential_profit'] as num?)?.toInt() ?? 0;
-                          int customerCount = (gs['customer_count'] as num?)?.toInt() ?? 0;
-                          int notaCount = (gs['nota_count'] as num?)?.toInt() ?? 0;
-                          List<dynamic> customerNames = gs['customer_names'] ?? [];
+                    itemCount: _groupSummaries.length +
+                        ((_groupSummaries.isNotEmpty && _groups.isNotEmpty) ? 1 : 0) +
+                        _groups.length,
+                    itemBuilder: (ctx, i) {
+                      final bool hasDivider =
+                          _groupSummaries.isNotEmpty && _groups.isNotEmpty;
+                      if (i < _groupSummaries.length) {
+                        final gs = _groupSummaries[i];
+                        String groupName = gs['group_name'] ?? 'Grup';
+                        int sisaHutang = (gs['sisa_hutang'] as num?)?.toInt() ?? 0;
+                        int potProfit = (gs['potential_profit'] as num?)?.toInt() ?? 0;
+                        int customerCount = (gs['customer_count'] as num?)?.toInt() ?? 0;
+                        int notaCount = (gs['nota_count'] as num?)?.toInt() ?? 0;
+                        List<dynamic> customerNames = gs['customer_names'] ?? [];
 
-                          return Container(
-                            margin: const EdgeInsets.only(bottom: 12),
-                            child: Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                borderRadius: BorderRadius.circular(18),
-                                onTap: () async {
-                                  final result = await Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => DebtGroupDetailScreen(
-                                        groupId: gs['id'],
-                                        groupName: groupName,
-                                        customerNames: customerNames.map((e) => e.toString()).toList(),
-                                      ),
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(18),
+                              onTap: () async {
+                                await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => DebtGroupDetailScreen(
+                                      groupId: gs['id'],
+                                      groupName: groupName,
+                                      customerNames: customerNames.map((e) => e.toString()).toList(),
                                     ),
-                                  );
-                                  _fetchDebts(); // Refresh setelah kembali
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.all(18),
-                                  decoration: AppColors.liquidGlassCard(
-                                    tint: AppColors.primaryNavy.withValues(alpha: 0.05),
-                                    radius: 20,
-                                    borderColor: AppColors.primaryNavy.withValues(alpha: 0.16),
-                                    borderWidth: 1.4,
                                   ),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          Container(
-                                            padding: const EdgeInsets.all(11),
-                                            decoration: BoxDecoration(
-                                              gradient: const LinearGradient(
-                                                colors: [Color(0xFF0A2647), Color(0xFF205295)],
+                                );
+                                _fetchDebts();
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.all(18),
+                                decoration: AppColors.liquidGlassCard(
+                                  tint: AppColors.primaryNavy.withValues(alpha: 0.05),
+                                  radius: 20,
+                                  borderColor: AppColors.primaryNavy.withValues(alpha: 0.16),
+                                  borderWidth: 1.4,
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(11),
+                                          decoration: BoxDecoration(
+                                            gradient: const LinearGradient(
+                                              colors: [Color(0xFF0A2647), Color(0xFF205295)],
+                                            ),
+                                            borderRadius: BorderRadius.circular(13),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: AppColors.primaryNavy.withValues(alpha: 0.2),
+                                                blurRadius: 8,
+                                                offset: const Offset(0, 3),
                                               ),
-                                              borderRadius: BorderRadius.circular(13),
-                                              boxShadow: [
-                                                BoxShadow(
-                                                  color: AppColors.primaryNavy.withValues(alpha: 0.25),
-                                                  blurRadius: 8,
-                                                  offset: const Offset(0, 3),
-                                                ),
-                                              ],
-                                            ),
-                                            child: const Icon(Icons.home_work, color: Colors.white, size: 22),
+                                            ],
                                           ),
-                                          const SizedBox(width: 14),
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  groupName,
-                                                  style: const TextStyle(
-                                                    fontWeight: FontWeight.w900,
-                                                    color: AppColors.primaryNavy,
-                                                    fontSize: 17,
-                                                  ),
-                                                  maxLines: 1,
-                                                  overflow: TextOverflow.ellipsis,
-                                                ),
-                                                const SizedBox(height: 4),
-                                                Row(
-                                                  children: [
-                                                    Container(
-                                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                                      decoration: BoxDecoration(
-                                                        color: AppColors.menuIndigoBg,
-                                                        borderRadius: BorderRadius.circular(4),
-                                                      ),
-                                                      child: Text(
-                                                        "$customerCount Orang",
-                                                        style: const TextStyle(
-                                                          color: AppColors.menuIndigoIcon,
-                                                          fontWeight: FontWeight.bold,
-                                                          fontSize: 10,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                    const SizedBox(width: 6),
-                                                    Container(
-                                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                                      decoration: BoxDecoration(
-                                                        color: AppColors.statusRed.withOpacity(0.1),
-                                                        borderRadius: BorderRadius.circular(4),
-                                                      ),
-                                                      child: Text(
-                                                        "$notaCount Nota",
-                                                        style: const TextStyle(
-                                                          color: AppColors.statusRed,
-                                                          fontWeight: FontWeight.bold,
-                                                          fontSize: 10,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.textGrey),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 14),
-                                      Row(
-                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          Column(
+                                          child: const Icon(LucideIcons.building2, color: Colors.white, size: 22),
+                                        ),
+                                        const SizedBox(width: 14),
+                                        Expanded(
+                                          child: Column(
                                             crossAxisAlignment: CrossAxisAlignment.start,
                                             children: [
-                                              const Text(
-                                                "Sisa Hutang",
-                                                style: TextStyle(color: AppColors.textGrey, fontSize: 11, fontWeight: FontWeight.bold),
-                                              ),
-                                              const SizedBox(height: 2),
                                               Text(
-                                                _formatRp(sisaHutang),
+                                                groupName,
                                                 style: const TextStyle(
                                                   fontWeight: FontWeight.w900,
-                                                  color: AppColors.statusRed,
-                                                  fontSize: 16,
+                                                  color: AppColors.primaryNavy,
+                                                  fontSize: 17,
+                                                ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Row(
+                                                children: [
+                                                  Container(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                    decoration: BoxDecoration(
+                                                      color: AppColors.menuIndigoBg,
+                                                      borderRadius: BorderRadius.circular(4),
+                                                    ),
+                                                    child: Text(
+                                                      "$customerCount Orang",
+                                                      style: const TextStyle(
+                                                        color: AppColors.menuIndigoIcon,
+                                                        fontWeight: FontWeight.bold,
+                                                        fontSize: 10,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 6),
+                                                  Container(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                    decoration: BoxDecoration(
+                                                      color: AppColors.statusRed.withValues(alpha: 0.1),
+                                                      borderRadius: BorderRadius.circular(4),
+                                                    ),
+                                                    child: Text(
+                                                      "$notaCount Nota",
+                                                      style: const TextStyle(
+                                                        color: AppColors.statusRed,
+                                                        fontWeight: FontWeight.bold,
+                                                        fontSize: 10,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        const Icon(LucideIcons.chevronRight, size: 18, color: AppColors.textGrey),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 14),
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            const Text(
+                                              "Sisa Hutang",
+                                              style: TextStyle(color: AppColors.textGrey, fontSize: 11, fontWeight: FontWeight.bold),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              _formatRp(sisaHutang),
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w900,
+                                                color: AppColors.statusRed,
+                                                fontSize: 16,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                          decoration: BoxDecoration(
+                                            color: AppColors.statusGreen.withValues(alpha: 0.1),
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              const Icon(LucideIcons.trendingUp, size: 14, color: AppColors.statusGreen),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                _formatRp(potProfit),
+                                                style: const TextStyle(
+                                                  color: AppColors.statusGreen,
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 12,
                                                 ),
                                               ),
                                             ],
                                           ),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                            decoration: BoxDecoration(
-                                              color: AppColors.statusGreen.withOpacity(0.1),
-                                              borderRadius: BorderRadius.circular(8),
-                                            ),
-                                            child: Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                const Icon(Icons.trending_up, size: 14, color: AppColors.statusGreen),
-                                                const SizedBox(width: 4),
-                                                Text(
-                                                  _formatRp(potProfit),
-                                                  style: const TextStyle(
-                                                    color: AppColors.statusGreen,
-                                                    fontWeight: FontWeight.bold,
-                                                    fontSize: 12,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
-                          );
-                        }),
-                        // Divider antara grup dan ungrouped
-                        if (_groups.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            child: Row(
-                              children: [
-                                Expanded(child: Divider(color: Colors.grey.shade300)),
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                                  child: Text(
-                                    "Pelanggan Tanpa Grup",
-                                    style: TextStyle(
-                                      color: Colors.grey.shade500,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                          ),
+                        );
+                      }
+
+                      if (hasDivider && i == _groupSummaries.length) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: Row(
+                            children: [
+                              Expanded(child: Divider(color: Colors.grey.shade300)),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 12),
+                                child: Text(
+                                  "Pelanggan Tanpa Grup",
+                                  style: TextStyle(
+                                    color: Colors.grey.shade500,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
                                   ),
                                 ),
-                                Expanded(child: Divider(color: Colors.grey.shade300)),
-                              ],
-                            ),
+                              ),
+                              Expanded(child: Divider(color: Colors.grey.shade300)),
+                            ],
                           ),
-                      ],
+                        );
+                      }
 
-                      // ====== PELANGGAN TANPA GRUP ======
-                      ..._groups.asMap().entries.map((entry) {
-                        final group = entry.value;
-                        String customerName = group['customer_name'];
-                        int sisaHutang = group['sisa_hutang'] as int;
-                        int totalHutang = group['total_hutang'] as int;
-                        int totalDicicil = group['total_dicicil'] as int;
-                        int transCount = group['transaction_count'] as int;
-                        int potProfit = (group['potential_profit'] as num?)?.toInt() ?? 0;
-                        List<Map<String, dynamic>> transactions =
-                            group['transactions'] as List<Map<String, dynamic>>;
-
+                      final int custIdx = i - _groupSummaries.length - (hasDivider ? 1 : 0);
+                      final group = _groups[custIdx];
+                      String customerName = group['customer_name'];
+                      int sisaHutang = group['sisa_hutang'] as int;
+                      int totalHutang = group['total_hutang'] as int;
+                      int totalDicicil = group['total_dicicil'] as int;
+                      int transCount = group['transaction_count'] as int;
+                      int potProfit = (group['potential_profit'] as num?)?.toInt() ?? 0;
+                      List<Map<String, dynamic>> transactions =
+                          group['transactions'] as List<Map<String, dynamic>>;
 
                       return Container(
                         decoration: AppColors.liquidGlassCard(radius: 18),
@@ -981,7 +997,6 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen>
                           borderRadius: BorderRadius.circular(18),
                           onTap: () async {
                             if (transCount == 1) {
-                              // LANGSUNG BUKA NOTA DETAIL
                               await Navigator.push(
                                 context,
                                 MaterialPageRoute(
@@ -991,7 +1006,6 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen>
                                 ),
                               );
                             } else {
-                              // BUKA DAFTAR HUTANG PER PELANGGAN
                               await Navigator.push(
                                 context,
                                 MaterialPageRoute(
@@ -1006,23 +1020,21 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen>
                                 ),
                               );
                             }
-                            _fetchDebts(); // Refresh setelah kembali
+                            _fetchDebts();
                           },
                           child: Padding(
                             padding: const EdgeInsets.all(16),
                             child: Row(
                               children: [
-                                // Ikon pelanggan
                                 GlassIconBadge(
-                                  icon: Icons.person,
+                                  icon: LucideIcons.user,
                                   iconColor: AppColors.statusRed,
                                   bgColor: AppColors.statusRed.withValues(alpha: 0.14),
                                   size: 46,
-                                  iconSize: 23,
+                                  iconSize: 22,
                                   radius: 14,
                                 ),
                                 const SizedBox(width: 15),
-                                // Info pelanggan
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1061,8 +1073,8 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen>
                                           if (transCount > 1) ...[
                                             const SizedBox(width: 6),
                                             const Icon(
-                                              Icons.arrow_forward_ios,
-                                              size: 10,
+                                              LucideIcons.chevronRight,
+                                              size: 12,
                                               color: AppColors.textGrey,
                                             ),
                                           ],
@@ -1082,7 +1094,6 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen>
                                   ),
                                 ),
                                 const SizedBox(width: 15),
-                                // Sisa hutang & Profit
                                 Column(
                                   crossAxisAlignment: CrossAxisAlignment.end,
                                   children: [
@@ -1107,7 +1118,7 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen>
                                     Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                                       decoration: BoxDecoration(
-                                        color: AppColors.statusGreen.withOpacity(0.1),
+                                        color: AppColors.statusGreen.withValues(alpha: 0.1),
                                         borderRadius: BorderRadius.circular(4),
                                       ),
                                       child: Text(
@@ -1127,9 +1138,8 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen>
                           ),
                         ),
                       );
-                    }),
-                  ],
-                ),
+                    },
+                  ),
           ),
         ],
       ),
@@ -1140,7 +1150,7 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen>
           ? FloatingActionButton.extended(
               onPressed: _showCreateGroupDialog,
               backgroundColor: AppColors.primaryNavy,
-              icon: const Icon(Icons.group_add, color: Colors.white),
+              icon: const Icon(LucideIcons.users, color: Colors.white),
               label: const Text("Buat Grup", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
               elevation: 6,
             )
@@ -1185,9 +1195,8 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen>
                             decoration: BoxDecoration(
                               gradient: const LinearGradient(
                                 colors: [
-                                  Color(0xFF0A2647), // primaryNavy
-                                  Color(0xFF144272), // secondaryNavy
-                                  Color(0xFF205295), // accent blue
+                                  AppColors.navyGlassStart,
+                                  AppColors.navyGlassEnd,
                                 ],
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
@@ -1199,7 +1208,7 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen>
                               child: const Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Icon(Icons.bolt, color: Colors.white, size: 26),
+                                  Icon(LucideIcons.zap, color: Colors.white, size: 22),
                                   SizedBox(width: 10),
                                   Text(
                                     "LUNASI SEMUA HUTANG",
@@ -1210,8 +1219,8 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen>
                                       letterSpacing: 1.2,
                                     ),
                                   ),
-                                  SizedBox(width: 6),
-                                  Text("🤑", style: TextStyle(fontSize: 22)),
+                                  SizedBox(width: 8),
+                                  Icon(LucideIcons.circleCheck, color: Colors.white, size: 20),
                                 ],
                               ),
                             ),

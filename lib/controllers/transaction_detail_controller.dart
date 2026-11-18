@@ -78,6 +78,19 @@ class TransactionDetailController {
     );
   }
 
+  // 🔥 UBAH NOTA LAMA MENJADI BARANG TITIPAN 🔥
+  Future<Map<String, dynamic>> convertTransactionToTitipan({
+    required int transId,
+    required List<Map<String, dynamic>> updatedItems,
+    String note = '',
+  }) async {
+    return await _transDS.convertTransactionToTitipan(
+      transId: transId,
+      updatedItems: updatedItems,
+      note: note,
+    );
+  }
+
   // 🔥 JEMBATAN VOID TRANSAKSI 🔥
   Future<void> voidTransaction(
     int transId,

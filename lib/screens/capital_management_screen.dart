@@ -238,16 +238,19 @@ class _CapitalManagementScreenState extends State<CapitalManagementScreen> {
                       bool isSelected = _selectedFilterStatus == filter;
                       return Padding(
                         padding: const EdgeInsets.only(right: 8),
-                        child: InkWell(
-                          onTap: () {
-                            setState(() => _selectedFilterStatus = filter);
-                            _applyFilters();
-                          },
-                          borderRadius: BorderRadius.circular(22),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                            decoration: AppColors.glassFilterPill(isSelected: isSelected),
-                            child: Text(filter, style: TextStyle(color: isSelected ? AppColors.primaryNavy : Colors.white70, fontWeight: FontWeight.bold, fontSize: 12)),
+                        child: LiquidPressWrapper(
+                          pressedScale: 0.93,
+                          child: InkWell(
+                            onTap: () {
+                              setState(() => _selectedFilterStatus = filter);
+                              _applyFilters();
+                            },
+                            borderRadius: BorderRadius.circular(22),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                              decoration: AppColors.glassFilterPill(isSelected: isSelected),
+                              child: Text(filter, style: TextStyle(color: isSelected ? AppColors.primaryNavy : Colors.white70, fontWeight: FontWeight.bold, fontSize: 12)),
+                            ),
                           ),
                         ),
                       );
@@ -301,10 +304,12 @@ class _CapitalManagementScreenState extends State<CapitalManagementScreen> {
                                  }
                               }
 
-                              return Container(
-                                decoration: AppColors.liquidGlassCard(radius: 18),
-                                margin: const EdgeInsets.only(bottom: 12),
-                                child: Padding(
+                              return LiquidPressWrapper(
+                                pressedScale: 0.98,
+                                child: Container(
+                                  decoration: AppColors.liquidGlassCard(radius: 18),
+                                  margin: const EdgeInsets.only(bottom: 12),
+                                  child: Padding(
                                   padding: const EdgeInsets.all(15),
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -368,6 +373,7 @@ class _CapitalManagementScreenState extends State<CapitalManagementScreen> {
                                     ],
                                   ),
                                 ),
+                              ),
                               );
                             },
                           ),

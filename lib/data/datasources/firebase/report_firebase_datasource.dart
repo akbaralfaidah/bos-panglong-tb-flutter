@@ -36,6 +36,7 @@ class ReportFirebaseDataSource {
     List<Map<String, dynamic>> flattenedItems = [];
     for (var doc in docs) {
       var t = doc.data() as Map<String, dynamic>;
+      if (t['is_legacy_titipan'] == true) continue;
       List<dynamic> items = t['items'] ?? [];
       for (var i in items) {
         double qty = (i['quantity'] as num?)?.toDouble() ?? 0;
@@ -74,6 +75,7 @@ class ReportFirebaseDataSource {
     
     for (var doc in docs) {
       var t = doc.data() as Map<String, dynamic>;
+      if (t['is_legacy_titipan'] == true) continue;
       if (t['payment_status'] == 'Lunas') {
         List<dynamic> items = t['items'] ?? [];
         
@@ -216,6 +218,7 @@ class ReportFirebaseDataSource {
 
     for (var doc in tDocs) {
       var t = doc.data() as Map<String, dynamic>;
+      if (t['is_legacy_titipan'] == true) continue;
       if (t['payment_status'] == 'Lunas') {
         String dateStr = t['transaction_date'].toString();
         String mKey = "";
@@ -258,6 +261,7 @@ class ReportFirebaseDataSource {
 
     for (var doc in tDocs) {
       var t = doc.data() as Map<String, dynamic>;
+      if (t['is_legacy_titipan'] == true) continue;
       if (t['payment_status'] == 'Lunas') {
         List<dynamic> items = t['items'] ?? [];
         for (var i in items) {
@@ -301,6 +305,7 @@ class ReportFirebaseDataSource {
       int spent = 0; int hutang = 0;
       for (var tDoc in tDocs) {
         var t = tDoc.data() as Map<String, dynamic>;
+        if (t['is_legacy_titipan'] == true) continue;
         int tp = (t['total_price'] as num?)?.toInt() ?? 0;
         if (t['payment_status'] == 'Lunas') spent += tp;
         else {

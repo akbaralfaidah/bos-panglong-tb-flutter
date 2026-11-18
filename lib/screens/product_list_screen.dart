@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'dart:convert';
-import 'dart:ui';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/product.dart';
 import '../controllers/product_controller.dart';
@@ -18,6 +18,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../helpers/app_notification.dart';
 import '../helpers/stock_cost_calculator.dart';
 import 'transaction_detail_screen.dart';
+import 'legacy_titipan_sheet.dart';
 
 class StockCartItem {
   final Product product;
@@ -832,6 +833,19 @@ class _ProductListScreenState extends State<ProductListScreen>
                 ),
         ),
         actions: [
+          ElevatedButton.icon(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final saved = await showLegacyTitipanDialog(context, initialProduct: p);
+              if (saved == true) _loadProducts();
+            },
+            icon: const Icon(Icons.add_circle_outline, size: 16, color: Colors.white),
+            label: const Text("Catat Titipan Lama", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.menuAmberIcon,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text("TUTUP", style: TextStyle(color: AppColors.primaryNavy, fontWeight: FontWeight.bold)),
@@ -872,25 +886,31 @@ class _ProductListScreenState extends State<ProductListScreen>
                 }),
               )
             : const Text("Gudang Stok"),
-        backgroundColor: Colors.white.withValues(alpha: 0.78),
+        backgroundColor: Colors.white.withValues(alpha: 0.94),
         surfaceTintColor: Colors.transparent,
         foregroundColor: AppColors.primaryNavy,
         elevation: 0,
-        flexibleSpace: ClipRect(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-            child: Container(color: Colors.transparent),
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.white.withValues(alpha: 0.96),
+                const Color(0xFFEAF3FC).withValues(alpha: 0.92),
+              ],
+            ),
           ),
         ),
         actions: [
           if (_isOwner)
             IconButton(
-              icon: const Icon(Icons.delete_sweep, color: AppColors.statusRed),
+              icon: const Icon(LucideIcons.trash2, color: AppColors.statusRed, size: 20),
               tooltip: "Hapus Stok",
               onPressed: _showDeleteStockSheet,
             ),
           IconButton(
-            icon: Icon(_isSearching ? Icons.close : Icons.search),
+            icon: Icon(_isSearching ? LucideIcons.x : LucideIcons.search, size: 21),
             onPressed: () {
               setState(() {
                 _isSearching = !_isSearching;
@@ -952,100 +972,185 @@ class _ProductListScreenState extends State<ProductListScreen>
       body: LiquidAmbientBackground(
         child: Column(
           children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.65),
-                border: Border(
-                  bottom: BorderSide(
-                    color: Colors.white.withValues(alpha: 0.85),
-                    width: 1,
-                  ),
-                ),
-              ),
-              child: Row(
-              children: [
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    decoration: InputDecoration(
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
+            ResponsiveLayout.constrained(
+              context: context,
+              maxWidth: 1120,
+              child: GlassContainer(
+                borderRadius: 20,
+                margin: const EdgeInsets.fromLTRB(16, 10, 16, 6),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                child: Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      icon: const Icon(
+                        LucideIcons.chevronDown,
+                        size: 16,
+                        color: AppColors.primaryNavy,
                       ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
+                      style: const TextStyle(
+                        color: AppColors.primaryNavy,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
                       ),
-                      labelText: "Kategori",
-                      isDense: true,
-                    ),
-                    value: isTabKayu
-                        ? _selectedKayuCategory
-                        : _selectedBangunanCategory,
-                    items:
-                        (isTabKayu ? _listKategoriKayu : _listKategoriBangunan)
-                            .map(
-                              (e) => DropdownMenuItem(
-                                value: e,
-                                child: Text(
-                                  e,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontSize: 13),
-                                ),
-                              ),
-                            )
-                            .toList(),
-                    onChanged: (val) {
-                      setState(() {
-                        if (isTabKayu)
-                          _selectedKayuCategory = val!;
-                        else
-                          _selectedBangunanCategory = val!;
-                        _applyFilters();
-                      });
-                    },
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    decoration: InputDecoration(
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      labelText: "Urutkan",
-                      isDense: true,
-                    ),
-                    value: isTabKayu ? _sortByKayu : _sortByBangunan,
-                    items: _listSortOptions
-                        .map(
-                          (e) => DropdownMenuItem(
-                            value: e,
-                            child: Text(
-                              e,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontSize: 13),
-                            ),
+                      decoration: InputDecoration(
+                        labelText: "Kategori",
+                        labelStyle: const TextStyle(
+                          color: AppColors.textGrey,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        prefixIcon: const Icon(
+                          LucideIcons.listFilter,
+                          size: 15,
+                          color: AppColors.secondaryNavy,
+                        ),
+                        prefixIconConstraints: const BoxConstraints(
+                          minWidth: 34,
+                          minHeight: 0,
+                        ),
+                        filled: true,
+                        fillColor: const Color(0xFFF2F6FF),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 9,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFD8E4F8),
+                            width: 1.2,
                           ),
-                        )
-                        .toList(),
-                    onChanged: (val) {
-                      setState(() {
-                        if (isTabKayu)
-                          _sortByKayu = val!;
-                        else
-                          _sortByBangunan = val!;
-                        _applyFilters();
-                      });
-                    },
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFD8E4F8),
+                            width: 1.2,
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: AppColors.secondaryNavy,
+                            width: 1.4,
+                          ),
+                        ),
+                        isDense: true,
+                      ),
+                      value: isTabKayu
+                          ? _selectedKayuCategory
+                          : _selectedBangunanCategory,
+                      items:
+                          (isTabKayu ? _listKategoriKayu : _listKategoriBangunan)
+                              .map(
+                                (e) => DropdownMenuItem(
+                                  value: e,
+                                  child: Text(
+                                    e,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(fontSize: 13),
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                      onChanged: (val) {
+                        setState(() {
+                          if (isTabKayu)
+                            _selectedKayuCategory = val!;
+                          else
+                            _selectedBangunanCategory = val!;
+                          _applyFilters();
+                        });
+                      },
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      icon: const Icon(
+                        LucideIcons.chevronDown,
+                        size: 16,
+                        color: AppColors.primaryNavy,
+                      ),
+                      style: const TextStyle(
+                        color: AppColors.primaryNavy,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
+                      decoration: InputDecoration(
+                        labelText: "Urutkan",
+                        labelStyle: const TextStyle(
+                          color: AppColors.textGrey,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        prefixIcon: const Icon(
+                          LucideIcons.arrowUpDown,
+                          size: 15,
+                          color: AppColors.secondaryNavy,
+                        ),
+                        prefixIconConstraints: const BoxConstraints(
+                          minWidth: 34,
+                          minHeight: 0,
+                        ),
+                        filled: true,
+                        fillColor: const Color(0xFFF2F6FF),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 9,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFD8E4F8),
+                            width: 1.2,
+                          ),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFD8E4F8),
+                            width: 1.2,
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: AppColors.secondaryNavy,
+                            width: 1.4,
+                          ),
+                        ),
+                        isDense: true,
+                      ),
+                      value: isTabKayu ? _sortByKayu : _sortByBangunan,
+                      items: _listSortOptions
+                          .map(
+                            (e) => DropdownMenuItem(
+                              value: e,
+                              child: Text(
+                                e,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 13),
+                              ),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (val) {
+                        setState(() {
+                          if (isTabKayu)
+                            _sortByKayu = val!;
+                          else
+                            _sortByBangunan = val!;
+                          _applyFilters();
+                        });
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              ),
             ),
-          ),
 
             Expanded(
               child: TabBarView(
@@ -1217,7 +1322,9 @@ class _ProductListScreenState extends State<ProductListScreen>
       }
     }
 
+    final bool isTablet = ResponsiveLayout.isTablet(context);
     bool canDrag =
+        !isTablet &&
         !_isSearching &&
         (isTabKayu
             ? _selectedKayuCategory == "Semua"
@@ -1254,6 +1361,92 @@ class _ProductListScreenState extends State<ProductListScreen>
           _loadProducts();
         },
       );
+    } else if (isTablet) {
+      final int availRows = (available.length / 2).ceil();
+      final int emptyRows = (empty.length / 2).ceil();
+      final int rowCount = availRows + (empty.isNotEmpty ? 1 : 0) + emptyRows;
+
+      listContent = ListView.builder(
+        controller: scrollController,
+        padding: EdgeInsets.fromLTRB(
+          16,
+          10,
+          16,
+          _stockCart.isNotEmpty ? 100 : 20,
+        ),
+        itemCount: rowCount,
+        itemBuilder: (context, rowIndex) {
+          if (rowIndex < availRows) {
+            final int i1 = rowIndex * 2;
+            final int i2 = i1 + 1;
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: _buildProductCard(
+                    available[i1],
+                    key: ValueKey("avail_${available[i1].id}"),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: i2 < available.length
+                      ? _buildProductCard(
+                          available[i2],
+                          key: ValueKey("avail_${available[i2].id}"),
+                        )
+                      : const SizedBox.shrink(),
+                ),
+              ],
+            );
+          } else if (rowIndex == availRows) {
+            return Container(
+              key: const ValueKey("empty_header_key"),
+              padding: const EdgeInsets.only(top: 14, bottom: 14),
+              child: const Row(
+                children: [
+                  Icon(Icons.remove_shopping_cart, color: AppColors.statusRed),
+                  SizedBox(width: 8),
+                  Text(
+                    "PRODUK HABIS",
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      color: AppColors.statusRed,
+                      fontSize: 16,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          } else {
+            final int emptyRow = rowIndex - availRows - 1;
+            final int i1 = emptyRow * 2;
+            final int i2 = i1 + 1;
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: _buildProductCard(
+                    empty[i1],
+                    key: ValueKey("empty_${empty[i1].id}"),
+                    isHabis: true,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: i2 < empty.length
+                      ? _buildProductCard(
+                          empty[i2],
+                          key: ValueKey("empty_${empty[i2].id}"),
+                          isHabis: true,
+                        )
+                      : const SizedBox.shrink(),
+                ),
+              ],
+            );
+          }
+        },
+      );
     } else {
       listContent = ListView.builder(
         controller: scrollController,
@@ -1268,16 +1461,20 @@ class _ProductListScreenState extends State<ProductListScreen>
       );
     }
 
-    return RefreshIndicator(
-      onRefresh: _loadProducts,
-      color: AppColors.primaryNavy,
-      child: Scrollbar(
-        controller: scrollController,
-        thumbVisibility: true,
-        thickness: 8,
-        radius: const Radius.circular(10),
-        interactive: true,
-        child: listContent,
+    return ResponsiveLayout.constrained(
+      context: context,
+      maxWidth: 1120,
+      child: RefreshIndicator(
+        onRefresh: _loadProducts,
+        color: AppColors.primaryNavy,
+        child: Scrollbar(
+          controller: scrollController,
+          thumbVisibility: true,
+          thickness: 8,
+          radius: const Radius.circular(10),
+          interactive: true,
+          child: listContent,
+        ),
       ),
     );
   }
@@ -1332,6 +1529,12 @@ class _ProductListScreenState extends State<ProductListScreen>
 
     String unitShort = isBangunan ? (p.dimensions ?? "Pcs") : "Btg";
 
+    final bool isLowStock = p.stock <= 5;
+    final Color stockTextColor =
+        isLowStock ? AppColors.statusRed : const Color(0xFF065F46);
+    final Color stockSubTextColor =
+        isLowStock ? const Color(0xFFB91C1C) : const Color(0xFF047857);
+
     Widget stockWidget;
     if (isBangunan &&
         p.grosirUnit != null &&
@@ -1351,23 +1554,18 @@ class _ProductListScreenState extends State<ProductListScreen>
             Text(
               "Siap Jual: ${p.stockDisplay} $dim",
               style: TextStyle(
-                color: p.stock <= 5
-                    ? AppColors.pureWhite
-                    : AppColors.accentGold,
-                fontSize: 12.5,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 0.3,
+                color: stockTextColor,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
               ),
             ),
             const SizedBox(height: 1),
             Text(
               subText,
               style: TextStyle(
-                color: p.stock <= 5
-                    ? Colors.white70
-                    : AppColors.accentGold.withOpacity(0.85),
+                color: stockSubTextColor,
                 fontSize: 10.5,
-                fontWeight: FontWeight.bold,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ],
@@ -1376,10 +1574,9 @@ class _ProductListScreenState extends State<ProductListScreen>
         stockWidget = Text(
           "Siap Jual: ${p.stockDisplay} $dim",
           style: TextStyle(
-            color: p.stock <= 5 ? AppColors.pureWhite : AppColors.accentGold,
-            fontSize: 12.5,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 0.3,
+            color: stockTextColor,
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
           ),
         );
       }
@@ -1387,113 +1584,112 @@ class _ProductListScreenState extends State<ProductListScreen>
       stockWidget = Text(
         "Siap Jual: ${p.stockDisplay} $unitShort",
         style: TextStyle(
-          color: p.stock <= 5 ? AppColors.pureWhite : AppColors.accentGold,
-          fontSize: 12.5,
-          fontWeight: FontWeight.w900,
-          letterSpacing: 0.3,
+          color: stockTextColor,
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
         ),
       );
     }
 
     return Container(
       key: key,
-      margin: const EdgeInsets.only(bottom: 15),
-      decoration: AppColors.liquidNavyCard(radius: 20, isDimmed: isHabis),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: ExpansionTile(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: isHabis
+          ? BoxDecoration(
+              color: const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
+            )
+          : AppColors.liquidGlassCard(
+              radius: 18,
+              borderColor: const Color(0xFFDCE7FA),
+              borderWidth: 1.3,
+            ),
+      child: ExpansionTile(
           backgroundColor: Colors.transparent,
           collapsedBackgroundColor: Colors.transparent,
           shape: const Border(),
           collapsedShape: const Border(),
-          iconColor: AppColors.accentGold,
-          collapsedIconColor: AppColors.pureWhite,
-          tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          iconColor: AppColors.primaryNavy,
+          collapsedIconColor: AppColors.textGrey,
+          tilePadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
           trailing: SizedBox(
-            width: 80,
+            width: 68,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 GestureDetector(
                   onTap: () => _showQuickAddStock(p, displayName),
                   child: Container(
-                    padding: const EdgeInsets.all(7),
+                    padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
-                        colors: [Color(0xFF7ED957), Colors.lightGreen],
+                        colors: [Color(0xFF0D9488), Color(0xFF059669)],
                       ),
                       borderRadius: BorderRadius.circular(11),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.35),
-                      ),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.lightGreen.withValues(alpha: 0.35),
+                          color: const Color(0xFF059669).withValues(alpha: 0.22),
                           blurRadius: 8,
                           offset: const Offset(0, 3),
                         ),
                       ],
                     ),
-                    child: const Icon(Icons.add, color: Colors.white, size: 21),
+                    child: const Icon(LucideIcons.plus, color: Colors.white, size: 18),
                   ),
                 ),
-                const SizedBox(width: 8),
-                const Icon(Icons.keyboard_arrow_down, color: Colors.white54),
+                const SizedBox(width: 6),
+                const Icon(LucideIcons.chevronDown, size: 18, color: AppColors.textGrey),
               ],
             ),
           ),
-          leading: Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Colors.white.withValues(alpha: 0.22),
-                  Colors.white.withValues(alpha: 0.08),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.26),
-              ),
-            ),
-            child: Icon(
-              (isKayu || isReng || isBulat) ? Icons.forest : Icons.home_work,
-              color: isHabis ? Colors.white54 : AppColors.accentGold,
-              size: 21,
-            ),
+          leading: GlassIconBadge(
+            icon: (isKayu || isReng || isBulat)
+                ? LucideIcons.trees
+                : LucideIcons.package,
+            iconColor: isHabis
+                ? AppColors.textGrey
+                : ((isKayu || isReng || isBulat)
+                    ? AppColors.menuAmberIcon
+                    : AppColors.menuBlueIcon),
+            bgColor: isHabis
+                ? AppColors.surfaceGrey
+                : ((isKayu || isReng || isBulat)
+                    ? AppColors.menuAmberBg
+                    : AppColors.menuBlueBg),
+            size: 44,
+            iconSize: 20,
+            radius: 13,
           ),
           title: Text(
             displayName,
             style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: isHabis ? Colors.white70 : AppColors.pureWhite,
-              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: isHabis ? AppColors.textGrey : AppColors.primaryNavy,
+              fontSize: 15.5,
             ),
           ),
           subtitle: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               Wrap(
                 spacing: 6,
                 runSpacing: 6,
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
-                      color: p.stock <= 5
-                          ? AppColors.statusRed
-                          : Colors.white.withValues(alpha: 0.14),
+                      color: isLowStock
+                          ? const Color(0xFFFEF2F2)
+                          : const Color(0xFFECFDF5),
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
-                        color: p.stock <= 5
-                            ? Colors.redAccent.shade100
-                            : Colors.white.withValues(alpha: 0.2),
+                        color: isLowStock
+                            ? const Color(0xFFFECACA)
+                            : const Color(0xFFA7F3D0),
                       ),
                     ),
                     child: Row(
@@ -1501,53 +1697,61 @@ class _ProductListScreenState extends State<ProductListScreen>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Padding(
-                          padding: const EdgeInsets.only(top: 1.0),
+                          padding: const EdgeInsets.only(top: 1.5),
                           child: Icon(
-                            p.stock <= 5
-                                ? Icons.warning_amber_rounded
-                                : Icons.inventory,
-                            size: 14,
-                            color: p.stock <= 5
-                                ? AppColors.pureWhite
-                                : AppColors.accentGold,
+                            isLowStock
+                                ? LucideIcons.triangleAlert
+                                : LucideIcons.packageCheck,
+                            size: 13.5,
+                            color: isLowStock
+                                ? AppColors.statusRed
+                                : const Color(0xFF059669),
                           ),
                         ),
                         const SizedBox(width: 6),
-                        stockWidget,
+                        Flexible(child: stockWidget),
                       ],
                     ),
                   ),
                   InkWell(
-                    onTap: p.reservedStock > 0 ? () => _showProductTitipanDialog(p, displayName, unitShort) : null,
+                    onTap: () => _showProductTitipanDialog(p, displayName, unitShort),
                     borderRadius: BorderRadius.circular(10),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
                       decoration: BoxDecoration(
                         color: p.reservedStock > 0
-                            ? AppColors.accentGold.withValues(alpha: 0.22)
-                            : Colors.white.withValues(alpha: 0.08),
+                            ? const Color(0xFFFFFBEB)
+                            : const Color(0xFFF1F5F9),
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
                           color: p.reservedStock > 0
-                              ? AppColors.accentGold.withValues(alpha: 0.7)
-                              : Colors.white.withValues(alpha: 0.15),
+                              ? const Color(0xFFFDE68A)
+                              : const Color(0xFFCBD5E1),
                         ),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
-                            Icons.warehouse,
+                            p.reservedStock > 0
+                                ? LucideIcons.warehouse
+                                : LucideIcons.circlePlus,
                             size: 13,
-                            color: p.reservedStock > 0 ? AppColors.accentGold : Colors.white60,
+                            color: p.reservedStock > 0
+                                ? AppColors.menuAmberIcon
+                                : AppColors.textGrey,
                           ),
                           const SizedBox(width: 5),
                           Text(
-                            "Titipan: ${p.reservedStockDisplay} $unitShort",
+                            p.reservedStock > 0
+                                ? "Titipan: ${p.reservedStockDisplay} $unitShort"
+                                : "+ Catat Titipan",
                             style: TextStyle(
-                              color: p.reservedStock > 0 ? AppColors.accentGold : Colors.white70,
+                              color: p.reservedStock > 0
+                                  ? const Color(0xFFB45309)
+                                  : AppColors.textGrey,
                               fontSize: 11.5,
-                              fontWeight: FontWeight.bold,
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
                         ],
@@ -1555,23 +1759,27 @@ class _ProductListScreenState extends State<ProductListScreen>
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
                     decoration: BoxDecoration(
-                      color: Colors.cyanAccent.withValues(alpha: 0.14),
+                      color: AppColors.menuBlueBg,
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: Colors.cyanAccent.withValues(alpha: 0.35)),
+                      border: Border.all(color: const Color(0xFFBFDBFE)),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.fact_check_outlined, size: 13, color: Colors.cyanAccent),
+                        const Icon(
+                          LucideIcons.boxes,
+                          size: 13,
+                          color: AppColors.menuBlueIcon,
+                        ),
                         const SizedBox(width: 5),
                         Text(
                           "Fisik Gudang: ${p.physicalStockDisplay} $unitShort",
                           style: const TextStyle(
-                            color: Colors.cyanAccent,
+                            color: AppColors.primaryNavy,
                             fontSize: 11.5,
-                            fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                       ],
@@ -1579,68 +1787,75 @@ class _ProductListScreenState extends State<ProductListScreen>
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  if (isKayu && kelas.isNotEmpty) ...[
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.blueAccent.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.blueAccent.shade100),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.category,
-                            size: 12,
-                            color: Colors.blueAccent,
-                          ),
-                          const SizedBox(width: 5),
-                          Text(
-                            kelas,
-                            style: const TextStyle(
-                              color: Colors.blueAccent,
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                  ],
-                  if (p.source.isNotEmpty) ...[
-                    const Icon(
-                      Icons.local_shipping,
-                      size: 13,
-                      color: Colors.white60,
-                    ),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        p.source,
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 11,
+              if ((isKayu && kelas.isNotEmpty) || p.source.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    if (isKayu && kelas.isNotEmpty) ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
                         ),
-                        overflow: TextOverflow.ellipsis,
+                        decoration: BoxDecoration(
+                          color: AppColors.menuIndigoBg,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFFC7D2FE)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              LucideIcons.tag,
+                              size: 11,
+                              color: AppColors.menuIndigoIcon,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              kelas,
+                              style: const TextStyle(
+                                color: AppColors.menuIndigoIcon,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
+                      const SizedBox(width: 8),
+                    ],
+                    if (p.source.isNotEmpty) ...[
+                      const Icon(
+                        LucideIcons.truck,
+                        size: 12,
+                        color: AppColors.textGrey,
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          p.source,
+                          style: const TextStyle(
+                            color: AppColors.textGrey,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
                   ],
-                ],
-              ),
+                ),
+              ],
             ],
           ),
           children: [
             Container(
               width: double.infinity,
-              color: Colors.white.withValues(alpha: 0.96),
+              decoration: const BoxDecoration(
+                color: Color(0xFFF8FAFF),
+                border: Border(top: BorderSide(color: Color(0xFFE2E8F0))),
+                borderRadius: BorderRadius.vertical(bottom: Radius.circular(18)),
+              ),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
             child: Column(
               children: [
@@ -1656,7 +1871,7 @@ class _ProductListScreenState extends State<ProductListScreen>
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.warehouse, color: AppColors.menuAmberIcon, size: 20),
+                        const Icon(LucideIcons.warehouse, color: AppColors.menuAmberIcon, size: 20),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
@@ -1736,7 +1951,7 @@ class _ProductListScreenState extends State<ProductListScreen>
                       children: [
                         Expanded(
                           child: _actionButton(
-                            Icons.add,
+                            LucideIcons.plus,
                             "Tambah Stok",
                             AppColors.statusGreen,
                             () => _showQuickAddStock(p, displayName),
@@ -1744,7 +1959,7 @@ class _ProductListScreenState extends State<ProductListScreen>
                         ),
                         Expanded(
                           child: _actionButton(
-                            Icons.edit,
+                            LucideIcons.pencil,
                             "Edit",
                             AppColors.menuAmberIcon,
                             () async {
@@ -1760,7 +1975,7 @@ class _ProductListScreenState extends State<ProductListScreen>
                         ),
                         Expanded(
                           child: _actionButton(
-                            Icons.qr_code_2,
+                            LucideIcons.qrCode,
                             "Barcode",
                             AppColors.menuBlueIcon,
                             () async {
@@ -1777,7 +1992,7 @@ class _ProductListScreenState extends State<ProductListScreen>
                         ),
                         Expanded(
                           child: _actionButton(
-                            Icons.delete,
+                            LucideIcons.trash2,
                             "Hapus",
                             AppColors.statusRed,
                             () => _confirmDelete(p),
@@ -1836,7 +2051,7 @@ class _ProductListScreenState extends State<ProductListScreen>
                       children: [
                         Expanded(
                           child: _actionButton(
-                            Icons.add,
+                            LucideIcons.plus,
                             "Tambah Stok",
                             AppColors.statusGreen,
                             () => _showQuickAddStock(p, displayName),
@@ -1844,7 +2059,7 @@ class _ProductListScreenState extends State<ProductListScreen>
                         ),
                         Expanded(
                           child: _actionButton(
-                            Icons.edit,
+                            LucideIcons.pencil,
                             "Edit",
                             AppColors.menuAmberIcon,
                             () async {
@@ -1860,7 +2075,7 @@ class _ProductListScreenState extends State<ProductListScreen>
                         ),
                         Expanded(
                           child: _actionButton(
-                            Icons.qr_code_2,
+                            LucideIcons.qrCode,
                             "Barcode",
                             AppColors.menuBlueIcon,
                             () async {
@@ -1877,7 +2092,7 @@ class _ProductListScreenState extends State<ProductListScreen>
                         ),
                         Expanded(
                           child: _actionButton(
-                            Icons.archive,
+                            LucideIcons.archive,
                             "Arsipkan",
                             AppColors.statusRed,
                             () => _confirmDelete(p),
@@ -1891,7 +2106,6 @@ class _ProductListScreenState extends State<ProductListScreen>
             ),
           ),
         ],
-      ),
       ),
     );
   }

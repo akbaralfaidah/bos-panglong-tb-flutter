@@ -1,6 +1,6 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'dart:io';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -265,7 +265,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: ListTile(
                       leading: const CircleAvatar(
                         backgroundColor: AppColors.menuTealBg,
-                        child: Icon(Icons.badge, color: AppColors.menuTealIcon),
+                        child: Icon(LucideIcons.userCheck, color: AppColors.menuTealIcon, size: 18),
                       ),
                       title: Text(
                         empName,
@@ -275,8 +275,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                       trailing: const Icon(
-                        Icons.arrow_forward_ios,
-                        size: 14,
+                        LucideIcons.chevronRight,
+                        size: 16,
                         color: AppColors.primaryNavy,
                       ),
                       onTap: () async {
@@ -531,105 +531,89 @@ class _LoginScreenState extends State<LoginScreen> {
         isDark: true,
         child: Stack(
           children: [
-            Positioned(
-              top: -50,
-              right: -50,
-              child: Container(
-                width: 200,
-                height: 200,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withValues(alpha: 0.05),
-                ),
-              ),
-            ),
-            Positioned(
-              top: 150,
-              left: -100,
-              child: Container(
-                width: 300,
-                height: 300,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withValues(alpha: 0.03),
-                ),
-              ),
-            ),
-
             SafeArea(
-              bottom: false,
               child: Column(
                 children: [
                   Expanded(
                     flex: 5,
                     child: Center(
                       child: SingleChildScrollView(
-                        padding: const EdgeInsets.symmetric(horizontal: 30),
+                        padding: const EdgeInsets.symmetric(horizontal: 28),
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            GlassContainer(
-                              borderRadius: 32,
-                              blur: 18,
-                              padding: const EdgeInsets.all(16),
-                              borderColor: Colors.white.withValues(alpha: 0.9),
-                              borderWidth: 1.5,
-                              child: SizedBox(
-                                height: 92,
-                                width: 92,
-                                child: (_logoPath != null &&
-                                        File(_logoPath!).existsSync())
-                                    ? ClipRRect(
-                                        borderRadius: BorderRadius.circular(18),
-                                        child: Image.file(
-                                          File(_logoPath!),
-                                          fit: BoxFit.contain,
-                                        ),
-                                      )
-                                    : const Icon(
-                                        Icons.storefront,
-                                        size: 68,
-                                        color: AppColors.primaryNavy,
-                                      ),
-                              ),
-                            ),
-                            const SizedBox(height: 25),
-                            Text(
-                              _storeName.toUpperCase(),
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.w900,
-                                color: AppColors.pureWhite,
-                                letterSpacing: 1.2,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(20),
-                              child: BackdropFilter(
-                                filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 7,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withValues(alpha: 0.14),
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(
-                                      color: Colors.white.withValues(alpha: 0.28),
-                                    ),
-                                  ),
-                                  child: const Text(
-                                    "Sistem Manajemen & Kasir",
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
+                            LiquidEntrance(
+                              delayMs: 40,
+                              child: LiquidFloatBadge(
+                                child: LiquidShimmerSweep(
+                                  borderRadius: 24,
+                                  child: GlassContainer(
+                                    borderRadius: 24,
+                                    padding: const EdgeInsets.all(14),
+                                    borderColor: Colors.white.withValues(alpha: 0.96),
+                                    borderWidth: 1.6,
+                                    child: SizedBox(
+                                      width: 72,
+                                      height: 72,
+                                      child: (_logoPath != null &&
+                                              File(_logoPath!).existsSync())
+                                          ? ClipRRect(
+                                              borderRadius: BorderRadius.circular(14),
+                                              child: Image.file(
+                                                File(_logoPath!),
+                                                fit: BoxFit.contain,
+                                              ),
+                                            )
+                                          : const Icon(
+                                              LucideIcons.store,
+                                              size: 46,
+                                              color: AppColors.primaryNavy,
+                                            ),
                                     ),
                                   ),
                                 ),
+                              ),
+                            ),
+                            const SizedBox(height: 22),
+                            LiquidEntrance(
+                              delayMs: 120,
+                              child: Column(
+                                children: [
+                                  Text(
+                                    _storeName.toUpperCase(),
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.w900,
+                                      color: AppColors.pureWhite,
+                                      letterSpacing: 0.8,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withValues(alpha: 0.14),
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(
+                                        color: Colors.white.withValues(alpha: 0.34),
+                                        width: 1.1,
+                                      ),
+                                    ),
+                                    child: const Text(
+                                      "SISTEM MANAJEMEN & KASIR POS",
+                                      style: TextStyle(
+                                        color: Color(0xFFDBEAFE),
+                                        fontSize: 10.5,
+                                        fontWeight: FontWeight.w700,
+                                        letterSpacing: 1.1,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
@@ -638,146 +622,241 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
 
-                  Expanded(
-                    flex: 4,
-                    child: ClipRRect(
-                      borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(38),
-                      ),
-                      child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+                  // FROSTED iOS 26 TRANSLUCENT WHITE GLASS ACCESS PANEL (RESPONSIF TABLET)
+                  LiquidEntrance(
+                    delayMs: 180,
+                    offsetY: 28,
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: ResponsiveLayout.isTablet(context)
+                              ? 480
+                              : double.infinity,
+                        ),
                         child: Container(
                           width: double.infinity,
-                          padding: const EdgeInsets.fromLTRB(28, 34, 28, 20),
+                          margin: const EdgeInsets.fromLTRB(16, 0, 16, 18),
                           decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                Colors.white.withValues(alpha: 0.92),
-                                Colors.white.withValues(alpha: 0.98),
-                              ],
-                            ),
-                            borderRadius: const BorderRadius.vertical(
-                              top: Radius.circular(38),
-                            ),
-                            border: Border(
-                              top: BorderSide(
-                                color: Colors.white.withValues(alpha: 0.95),
-                                width: 1.5,
-                              ),
-                            ),
-                            boxShadow: [
+                            borderRadius: BorderRadius.circular(28),
+                            boxShadow: const [
                               BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.22),
+                                color: Color(0x280F172A),
                                 blurRadius: 24,
-                                offset: const Offset(0, -6),
+                                offset: Offset(0, 10),
                               ),
                             ],
                           ),
-                          child: SafeArea(
-                            top: false,
+                          child: Container(
+                            padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [Color(0xFFFFFFFF), Color(0xFFF4F8FF)],
+                              ),
+                              borderRadius: BorderRadius.circular(28),
+                              border: Border.all(
+                                color: Colors.white,
+                                width: 1.5,
+                              ),
+                            ),
                             child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
+                                Center(
+                                  child: Container(
+                                    width: 38,
+                                    height: 4,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primaryNavy.withValues(alpha: 0.16),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 14),
                                 const Text(
                                   "Pilih Akses Masuk",
                                   textAlign: TextAlign.center,
                                   style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                    color: AppColors.textDark,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 17,
+                                    color: AppColors.primaryNavy,
                                   ),
                                 ),
-                                const SizedBox(height: 26),
-
-                                Container(
-                                  decoration: BoxDecoration(
-                                    gradient: const LinearGradient(
-                                      colors: [Color(0xFFE0F2F1), Color(0xFFC8EAE6)],
-                                    ),
-                                    borderRadius: BorderRadius.circular(18),
-                                    border: Border.all(
-                                      color: const Color(0xFF00695C).withValues(alpha: 0.25),
-                                    ),
+                                const SizedBox(height: 4),
+                                const Text(
+                                  "Masuk sesuai peran Anda di toko",
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.textGrey,
                                   ),
-                                  child: ElevatedButton.icon(
-                                    onPressed: _isLoading
-                                        ? null
-                                        : _showEmployeeLoginDialog,
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.transparent,
-                                      shadowColor: Colors.transparent,
-                                      foregroundColor: const Color(0xFF00695C),
-                                      elevation: 0,
-                                      minimumSize: const Size(double.infinity, 56),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(18),
+                                ),
+                                const SizedBox(height: 18),
+
+                                // TOMBOL LOGIN KARYAWAN / KASIR
+                                LiquidPressWrapper(
+                                  onTap: _isLoading ? null : _showEmployeeLoginDialog,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: 13,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF5F9FF),
+                                      borderRadius: BorderRadius.circular(18),
+                                      border: Border.all(
+                                        color: const Color(0xFFBFDBFE),
+                                        width: 1.3,
                                       ),
                                     ),
-                                    icon: const Icon(Icons.badge, size: 24),
-                                    label: const Text(
-                                      "Login Karyawan",
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                      ),
+                                    child: const Row(
+                                      children: [
+                                        GlassIconBadge(
+                                          icon: LucideIcons.userCheck,
+                                          iconColor: AppColors.menuTealIcon,
+                                          bgColor: AppColors.menuTealBg,
+                                          size: 42,
+                                          iconSize: 20,
+                                          radius: 13,
+                                        ),
+                                        SizedBox(width: 14),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                "Karyawan / Kasir",
+                                                style: TextStyle(
+                                                  fontSize: 15,
+                                                  fontWeight: FontWeight.w800,
+                                                  color: AppColors.primaryNavy,
+                                                ),
+                                              ),
+                                              SizedBox(height: 2),
+                                              Text(
+                                                "Transaksi & stok operasional",
+                                                style: TextStyle(
+                                                  fontSize: 11.5,
+                                                  color: AppColors.textGrey,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        Icon(
+                                          LucideIcons.chevronRight,
+                                          size: 20,
+                                          color: AppColors.primaryNavy,
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ),
 
-                                const SizedBox(height: 14),
+                                const SizedBox(height: 12),
 
+                                // TOMBOL LOGIN PEMILIK (BOS) + BIOMETRIK
                                 Row(
                                   children: [
                                     Expanded(
-                                      child: Container(
-                                        decoration: AppColors.liquidNavyCard(radius: 18),
-                                        child: ElevatedButton.icon(
-                                          onPressed: _isLoading
-                                              ? null
-                                              : _onOwnerLoginButtonPressed,
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: Colors.transparent,
-                                            shadowColor: Colors.transparent,
-                                            foregroundColor: AppColors.pureWhite,
-                                            elevation: 0,
-                                            minimumSize: const Size(0, 56),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius: BorderRadius.circular(18),
-                                            ),
+                                      child: LiquidPressWrapper(
+                                        onTap: _isLoading
+                                            ? null
+                                            : _onOwnerLoginButtonPressed,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 14,
+                                            vertical: 13,
                                           ),
-                                          icon: const Icon(
-                                            Icons.admin_panel_settings,
-                                            size: 24,
-                                          ),
-                                          label: const Text(
-                                            "Login Pemilik Toko",
-                                            style: TextStyle(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.bold,
+                                          decoration: BoxDecoration(
+                                            gradient: const LinearGradient(
+                                              begin: Alignment.topLeft,
+                                              end: Alignment.bottomRight,
+                                              colors: [
+                                                Color(0xFF2563EB),
+                                                AppColors.primaryNavy,
+                                              ],
                                             ),
+                                            borderRadius: BorderRadius.circular(18),
+                                            border: Border.all(
+                                              color: const Color(0xFF93C5FD).withValues(alpha: 0.45),
+                                              width: 1.3,
+                                            ),
+                                            boxShadow: const [
+                                              BoxShadow(
+                                                color: Color(0x221E3A8A),
+                                                blurRadius: 10,
+                                                offset: Offset(0, 4),
+                                              ),
+                                            ],
+                                          ),
+                                          child: const Row(
+                                            children: [
+                                              GlassIconBadge(
+                                                icon: LucideIcons.shieldCheck,
+                                                iconColor: AppColors.primaryNavy,
+                                                bgColor: Color(0xFFFEF3C7),
+                                                size: 42,
+                                                iconSize: 20,
+                                                radius: 13,
+                                              ),
+                                              SizedBox(width: 12),
+                                              Expanded(
+                                                child: Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: [
+                                                    Text(
+                                                      "Pemilik (Bos)",
+                                                      style: TextStyle(
+                                                        fontSize: 15,
+                                                        fontWeight: FontWeight.w800,
+                                                        color: AppColors.pureWhite,
+                                                      ),
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                    ),
+                                                    SizedBox(height: 2),
+                                                    Text(
+                                                      "Akses penuh laporan & brankas",
+                                                      style: TextStyle(
+                                                        fontSize: 11,
+                                                        color: Color(0xFFDBEAFE),
+                                                      ),
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ),
                                       ),
                                     ),
-
                                     if (_canCheckBiometrics) ...[
-                                      const SizedBox(width: 12),
-                                      InkWell(
+                                      const SizedBox(width: 10),
+                                      LiquidPressWrapper(
                                         onTap: _isLoading
                                             ? null
                                             : _authenticateBiometric,
-                                        borderRadius: BorderRadius.circular(18),
                                         child: Container(
-                                          height: 56,
-                                          width: 56,
-                                          decoration: AppColors.liquidNavyCard(
-                                            radius: 18,
-                                            borderColor: AppColors.accentGold.withValues(alpha: 0.55),
+                                          height: 68,
+                                          width: 60,
+                                          decoration: BoxDecoration(
+                                            color: AppColors.menuAmberBg,
+                                            borderRadius: BorderRadius.circular(18),
+                                            border: Border.all(
+                                              color: AppColors.accentGold.withValues(alpha: 0.45),
+                                              width: 1.3,
+                                            ),
                                           ),
                                           child: const Icon(
-                                            Icons.fingerprint,
-                                            color: AppColors.accentGold,
+                                            LucideIcons.fingerprint,
+                                            color: AppColors.menuAmberIcon,
                                             size: 28,
                                           ),
                                         ),
@@ -786,9 +865,10 @@ class _LoginScreenState extends State<LoginScreen> {
                                   ],
                                 ),
 
-                                const Spacer(),
+                                const SizedBox(height: 14),
                                 const Text(
-                                  "Versi 2.0",
+                                  "Versi 2.2 • Frosted Sapphire",
+                                  textAlign: TextAlign.center,
                                   style: TextStyle(
                                     color: AppColors.textGrey,
                                     fontSize: 11,
@@ -807,12 +887,11 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
 
             if (_isLoading)
-              BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                child: Container(
-                  color: AppColors.primaryNavy.withValues(alpha: 0.65),
-                  child: const Center(
-                    child: CircularProgressIndicator(color: AppColors.accentGold),
+              Container(
+                color: AppColors.primaryNavy.withValues(alpha: 0.68),
+                child: const Center(
+                  child: CircularProgressIndicator(
+                    color: AppColors.accentAmberBright,
                   ),
                 ),
               ),

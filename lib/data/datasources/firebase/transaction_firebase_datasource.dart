@@ -97,11 +97,15 @@ class TransactionFirebaseDataSource {
     WriteBatch batch = _db.batch();
 
     bool wasLunas = false;
+    bool isLegacyTitipan = false;
+    bool deductedFromStock = true;
     List<Map<String, dynamic>> dbItems = items;
     final tDocs = await _safeQuery(_col('transactions').where('id', isEqualTo: transId));
     if (tDocs.isNotEmpty) {
        var tData = tDocs.first.data() as Map<String, dynamic>;
        wasLunas = (tData['payment_status'] ?? '').toString().toLowerCase() == 'lunas';
+       isLegacyTitipan = tData['is_legacy_titipan'] == true;
+       deductedFromStock = tData['deducted_from_stock'] != false;
        if (tData['items'] != null && (tData['items'] as List).isNotEmpty) {
          dbItems = List<Map<String, dynamic>>.from(
            (tData['items'] as List).map((e) => Map<String, dynamic>.from(e as Map)),
@@ -117,17 +121,20 @@ class TransactionFirebaseDataSource {
 
         DocumentReference prodRef = _col('products').doc(item['product_id'].toString());
         
-        Map<String, dynamic> updateMap = {
-          'stock': FieldValue.increment(qtyToRestore),
-        };
-        if (wasLunas && capTotal > 0) {
+        Map<String, dynamic> updateMap = {};
+        if (!isLegacyTitipan || deductedFromStock) {
+          updateMap['stock'] = FieldValue.increment(qtyToRestore);
+        }
+        if (wasLunas && !isLegacyTitipan && capTotal > 0) {
           // KARENA BATAL JUAL, DUIT MODAL DITARIK LAGI BIAR GAK MINUS! (-)
           updateMap['modal_cair'] = FieldValue.increment(-capTotal);
         }
         if (undeliveredToRelease > 0) {
           updateMap['reserved_stock'] = FieldValue.increment(-undeliveredToRelease);
         }
-        batch.set(prodRef, updateMap, SetOptions(merge: true));
+        if (updateMap.isNotEmpty) {
+          batch.set(prodRef, updateMap, SetOptions(merge: true));
+        }
       }
     }
 
@@ -285,6 +292,222 @@ class TransactionFirebaseDataSource {
     for (var entry in releaseByProduct.entries) {
       batch.set(_col('products').doc(entry.key), {
         'reserved_stock': FieldValue.increment(-entry.value),
+      }, SetOptions(merge: true));
+    }
+
+    Map<String, dynamic> transUpdate = {
+      'items': updatedItems,
+      'delivery_status': newDeliveryStatus,
+      'delivery_logs': existingLogs,
+    };
+
+    batch.update(transRef, transUpdate);
+    await batch.commit();
+
+    return {
+      ...existingTrans,
+      ...transUpdate,
+    };
+  }
+
+  /// INPUT TITIPAN LAMA / EXISTING WAREHOUSE RESERVATION (TANPA TRANSAKSI ULANG)
+  /// Tidak menambah Omset, Profit, Modal Cair, atau Cashflow.
+  Future<Map<String, dynamic>> createLegacyTitipan({
+    required String customerName,
+    String customerPhone = '',
+    String customerAddress = '',
+    required String cashierName,
+    required String transactionDate,
+    required List<Map<String, dynamic>> items,
+    required bool deductFromStock,
+    String note = '',
+  }) async {
+    String cleanCust = customerName.trim().isEmpty
+        ? 'Pelanggan Umum'
+        : customerName.trim();
+    int transId = DateTime.now().millisecondsSinceEpoch;
+
+    String datePrefix = transactionDate.length >= 10
+        ? transactionDate.substring(0, 10)
+        : DateTime.now().toIso8601String().substring(0, 10);
+    int queueNum = 1;
+    try {
+      final daySnap = await _col('transactions')
+          .where('transaction_date', isGreaterThanOrEqualTo: '${datePrefix}T00:00:00.000')
+          .where('transaction_date', isLessThanOrEqualTo: '${datePrefix}T23:59:59.999')
+          .get(const GetOptions(source: Source.cache));
+      queueNum = daySnap.docs.length + 1;
+    } catch (_) {
+      queueNum = 1;
+    }
+
+    WriteBatch batch = _db.batch();
+
+    if (cleanCust != 'Pelanggan Umum') {
+      batch.set(_col('customers').doc(cleanCust), {
+        'name': cleanCust,
+        if (customerPhone.trim().isNotEmpty) 'phone': customerPhone.trim(),
+        if (customerAddress.trim().isNotEmpty) 'address': customerAddress.trim(),
+      }, SetOptions(merge: true));
+    }
+
+    Map<String, double> reserveByProduct = {};
+    List<Map<String, dynamic>> embeddedItems = [];
+
+    for (var raw in items) {
+      double baseQty = (raw['quantity'] as num?)?.toDouble() ?? 1.0;
+      double reqQty = (raw['request_qty'] as num?)?.toDouble() ?? baseQty;
+      if (raw['product_id'] != null) {
+        String pid = raw['product_id'].toString();
+        reserveByProduct[pid] = (reserveByProduct[pid] ?? 0.0) + baseQty;
+      }
+
+      embeddedItems.add({
+        'product_id': raw['product_id'],
+        'product_name': raw['product_name'] ?? 'Barang Titipan',
+        'product_type': raw['product_type'] ?? 'BANGUNAN',
+        'dimensions': raw['dimensions'] ?? '',
+        'quantity': baseQty,
+        'request_qty': reqQty,
+        'delivered_qty': 0.0,
+        'delivered_request_qty': 0.0,
+        'unit_type': raw['unit_type'] ?? 'Pcs',
+        'capital_price': 0,
+        'sell_price': 0,
+        'agreed_total': 0,
+        'capital_total': 0,
+      });
+    }
+
+    for (var entry in reserveByProduct.entries) {
+      Map<String, dynamic> prodUpdate = {
+        'reserved_stock': FieldValue.increment(entry.value),
+      };
+      if (deductFromStock) {
+        prodUpdate['stock'] = FieldValue.increment(-entry.value);
+      }
+      batch.set(_col('products').doc(entry.key), prodUpdate, SetOptions(merge: true));
+    }
+
+    String modeLabel = deductFromStock
+        ? 'Potong Stok Siap Jual -> Pindah ke Titipan'
+        : 'Tambah Angka Titipan Saja (Stok Siap Jual Tetap)';
+    String logNote = note.trim().isNotEmpty
+        ? 'Input Titipan Lama ($modeLabel): ${note.trim()}'
+        : 'Input Titipan Lama ($modeLabel)';
+
+    Map<String, dynamic> transactionData = {
+      'id': transId,
+      'total_price': 0,
+      'operational_cost': 0,
+      'discount': 0,
+      'cut_profit': 0,
+      'customer_name': cleanCust,
+      'customer_phone': customerPhone.trim(),
+      'customer_address': customerAddress.trim(),
+      'payment_method': 'Titipan Lama',
+      'payment_status': 'Lunas',
+      'queue_number': queueNum,
+      'delivery_status': 'Belum Diantar',
+      'is_legacy_titipan': true,
+      'deducted_from_stock': deductFromStock,
+      'legacy_note': note.trim(),
+      'transaction_date': transactionDate,
+      'cashier_name': cashierName,
+      'items': embeddedItems,
+      'delivery_logs': [
+        {
+          'date': DateTime.now().toIso8601String(),
+          'cashier_name': cashierName,
+          'note': logNote,
+          'items': [],
+        }
+      ],
+    };
+
+    batch.set(_col('transactions').doc(transId.toString()), transactionData);
+    await batch.commit();
+    return transactionData;
+  }
+
+  /// UBAH NOTA TRANSAKSI LAMA YANG SUDAH SELESAI MENJADI BARANG TITIPAN
+  /// Hanya menambah reserved_stock tanpa memotong stok siap jual lagi.
+  Future<Map<String, dynamic>> convertTransactionToTitipan({
+    required int transId,
+    required List<Map<String, dynamic>> updatedItems,
+    String note = '',
+  }) async {
+    DocumentReference transRef = _col('transactions').doc(transId.toString());
+    Map<String, dynamic> existingTrans = {};
+    try {
+      final snap = await transRef
+          .get(const GetOptions(source: Source.server))
+          .timeout(const Duration(seconds: 4));
+      if (snap.exists && snap.data() != null) {
+        existingTrans = Map<String, dynamic>.from(snap.data() as Map);
+      }
+    } catch (_) {
+      final snap = await transRef.get(const GetOptions(source: Source.cache));
+      if (snap.exists && snap.data() != null) {
+        existingTrans = Map<String, dynamic>.from(snap.data() as Map);
+      }
+    }
+
+    List<dynamic> oldItemsRaw = existingTrans['items'] is List
+        ? List<dynamic>.from(existingTrans['items'])
+        : [];
+
+    bool allDelivered = true;
+    bool noneDelivered = true;
+    Map<String, double> reserveByProduct = {};
+
+    for (int i = 0; i < updatedItems.length; i++) {
+      var newItem = updatedItems[i];
+      double qty = (newItem['quantity'] as num?)?.toDouble() ?? 0.0;
+      double newDelQty = (newItem['delivered_qty'] as num?)?.toDouble() ?? 0.0;
+
+      if (newDelQty < qty - 0.01) allDelivered = false;
+      if (newDelQty > 0.01) noneDelivered = false;
+
+      double oldDelQty = qty;
+      if (i < oldItemsRaw.length && oldItemsRaw[i] is Map) {
+        var oldIt = Map<String, dynamic>.from(oldItemsRaw[i] as Map);
+        oldDelQty = oldIt.containsKey('delivered_qty') && oldIt['delivered_qty'] != null
+            ? (oldIt['delivered_qty'] as num).toDouble()
+            : qty;
+      }
+
+      double newlyReserved = double.parse((oldDelQty - newDelQty).clamp(0.0, qty).toStringAsFixed(2));
+      if (newlyReserved > 0.0001 && newItem['product_id'] != null) {
+        String pid = newItem['product_id'].toString();
+        reserveByProduct[pid] = (reserveByProduct[pid] ?? 0.0) + newlyReserved;
+      }
+    }
+
+    String newDeliveryStatus = allDelivered
+        ? 'Selesai'
+        : (noneDelivered ? 'Belum Diantar' : 'Sebagian');
+
+    List<Map<String, dynamic>> existingLogs = [];
+    if (existingTrans['delivery_logs'] != null && existingTrans['delivery_logs'] is List) {
+      existingLogs = List<Map<String, dynamic>>.from(
+        (existingTrans['delivery_logs'] as List).map((e) => Map<String, dynamic>.from(e as Map)),
+      );
+    }
+
+    existingLogs.add({
+      'date': DateTime.now().toIso8601String(),
+      'cashier_name': SessionManager().userName ?? 'Admin',
+      'note': note.trim().isNotEmpty
+          ? 'Nota diubah jadi Titipan Gudang: ${note.trim()}'
+          : 'Nota diubah jadi Barang Titipan (Belum Diantar)',
+      'items': [],
+    });
+
+    WriteBatch batch = _db.batch();
+    for (var entry in reserveByProduct.entries) {
+      batch.set(_col('products').doc(entry.key), {
+        'reserved_stock': FieldValue.increment(entry.value),
       }, SetOptions(merge: true));
     }
 

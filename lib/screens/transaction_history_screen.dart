@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../theme/app_colors.dart';
 import '../theme/glass_widgets.dart';
 import '../controllers/transaction_history_controller.dart';
 import '../helpers/search_helper.dart';
 import 'transaction_detail_screen.dart';
+import 'legacy_titipan_sheet.dart';
 
 class TransactionHistoryScreen extends StatefulWidget {
   final int initialTabIndex;
@@ -15,6 +17,12 @@ class TransactionHistoryScreen extends StatefulWidget {
 }
 
 class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> with SingleTickerProviderStateMixin {
+  static final NumberFormat _currencyFmt = NumberFormat.currency(locale: 'id', symbol: 'Rp ', decimalDigits: 0);
+  static final DateFormat _timeFmt = DateFormat('HH:mm');
+  static final DateFormat _dateHeaderFmt = DateFormat('dd MMM yyyy');
+  static final DateFormat _shortDateFmt = DateFormat('dd MMM');
+  static final DateFormat _isoDateFmt = DateFormat('yyyy-MM-dd');
+
   late TabController _tabController;
   final TransactionHistoryController _controller = TransactionHistoryController();
   
@@ -99,8 +107,8 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> wit
     );
 
     if (range != null) {
-      String start = DateFormat('yyyy-MM-dd').format(range.start);
-      String end = DateFormat('yyyy-MM-dd').format(range.end);
+      String start = _isoDateFmt.format(range.start);
+      String end = _isoDateFmt.format(range.end);
       setState(() {
         _selectedFilter = "CUSTOM|$start|$end";
       });
@@ -117,10 +125,10 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> wit
 
     if (target == today) return "Hari Ini";
     if (target == yesterday) return "Kemarin";
-    return DateFormat('dd MMM yyyy').format(target);
+    return _dateHeaderFmt.format(target);
   }
 
-  String _formatRp(dynamic number) => NumberFormat.currency(locale: 'id', symbol: 'Rp ', decimalDigits: 0).format(number);
+  String _formatRp(dynamic number) => _currencyFmt.format(number);
 
   @override
   Widget build(BuildContext context) {
@@ -178,6 +186,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> wit
 
     if (_searchQuery.isNotEmpty) {
       for (var t in displayedList) {
+        if (t['is_legacy_titipan'] == true) continue;
         calcBensin += (t['operational_cost'] as num?)?.toInt() ?? 0;
         if (t['items'] != null && t['items'] is List) {
           for (var item in t['items']) {
@@ -221,6 +230,22 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> wit
         ),
         iconTheme: const IconThemeData(color: AppColors.pureWhite),
         elevation: 0,
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 10),
+            child: TextButton.icon(
+              onPressed: () async {
+                final saved = await showLegacyTitipanDialog(context);
+                if (saved == true) _fetchData();
+              },
+              icon: const Icon(LucideIcons.circlePlus, color: AppColors.accentGold, size: 17),
+              label: const Text(
+                "Titipan Lama",
+                style: TextStyle(color: AppColors.accentGold, fontWeight: FontWeight.bold, fontSize: 12),
+              ),
+            ),
+          ),
+        ],
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: AppColors.accentGold, indicatorWeight: 4, labelColor: AppColors.accentGold, unselectedLabelColor: Colors.white60,
@@ -231,322 +256,417 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> wit
           ],
         ),
       ),
+      floatingActionButton: _tabController.index == 2
+          ? FloatingActionButton.extended(
+              backgroundColor: AppColors.menuAmberIcon,
+              onPressed: () async {
+                final saved = await showLegacyTitipanDialog(context);
+                if (saved == true) _fetchData();
+              },
+              icon: const Icon(Icons.add_rounded, color: Colors.white),
+              label: const Text(
+                "Input Titipan Lama",
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+            )
+          : null,
       body: LiquidAmbientBackground(
         child: Column(
           children: [
             Container(
               decoration: AppColors.liquidNavyHeader(bottomRadius: 26),
               padding: const EdgeInsets.only(top: 8, bottom: 16),
-              child: Column(
-                children: [
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                    child: Row(
-                      children: _filters.map((filter) {
-                        bool isSelected = false;
-                        String displayLabel = filter;
+              child: ResponsiveLayout.constrained(
+                context: context,
+                maxWidth: 960,
+                child: Column(
+                  children: [
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      child: Row(
+                        children: _filters.map((filter) {
+                          bool isSelected = false;
+                          String displayLabel = filter;
 
-                        if (filter == 'Pilih Tanggal') {
-                          if (_selectedFilter.startsWith('CUSTOM|')) {
-                            isSelected = true;
-                            var parts = _selectedFilter.split('|');
-                            displayLabel = "${DateFormat('dd MMM').format(DateTime.parse(parts[1]))} - ${DateFormat('dd MMM').format(DateTime.parse(parts[2]))}";
+                          if (filter == 'Pilih Tanggal') {
+                            if (_selectedFilter.startsWith('CUSTOM|')) {
+                              isSelected = true;
+                              var parts = _selectedFilter.split('|');
+                              displayLabel = "${_shortDateFmt.format(DateTime.parse(parts[1]))} - ${_shortDateFmt.format(DateTime.parse(parts[2]))}";
+                            }
+                          } else {
+                            isSelected = _selectedFilter == filter;
                           }
-                        } else {
-                          isSelected = _selectedFilter == filter;
-                        }
 
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 10),
-                          child: InkWell(
-                            onTap: () {
-                              if (filter == 'Pilih Tanggal') {
-                                _pickDateRange();
-                              } else {
-                                setState(() => _selectedFilter = filter);
-                                _fetchData();
-                              }
-                            },
-                            borderRadius: BorderRadius.circular(22),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                              decoration: AppColors.glassFilterPill(isSelected: isSelected),
-                              child: Row(
-                                children: [
-                                  if (isSelected && filter != 'Pilih Tanggal') const Padding(padding: EdgeInsets.only(right: 6), child: Icon(Icons.check, color: AppColors.primaryNavy, size: 16)),
-                                  if (filter == 'Pilih Tanggal') Padding(padding: const EdgeInsets.only(right: 6), child: Icon(Icons.calendar_month, color: isSelected ? AppColors.primaryNavy : Colors.white70, size: 16)),
-                                  Text(displayLabel, style: TextStyle(color: isSelected ? AppColors.primaryNavy : Colors.white70, fontWeight: FontWeight.bold, fontSize: 13)),
-                                ],
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 10),
+                            child: InkWell(
+                              onTap: () {
+                                if (filter == 'Pilih Tanggal') {
+                                  _pickDateRange();
+                                } else {
+                                  setState(() => _selectedFilter = filter);
+                                  _fetchData();
+                                }
+                              },
+                              borderRadius: BorderRadius.circular(22),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                decoration: AppColors.glassFilterPill(isSelected: isSelected),
+                                child: Row(
+                                  children: [
+                                    if (isSelected && filter != 'Pilih Tanggal') const Padding(padding: EdgeInsets.only(right: 6), child: Icon(LucideIcons.check, color: AppColors.primaryNavy, size: 15)),
+                                    if (filter == 'Pilih Tanggal') Padding(padding: EdgeInsets.only(right: 6), child: Icon(LucideIcons.calendar, color: isSelected ? AppColors.primaryNavy : Colors.white70, size: 15)),
+                                    Text(displayLabel, style: TextStyle(color: isSelected ? AppColors.primaryNavy : Colors.white70, fontWeight: FontWeight.bold, fontSize: 13)),
+                                  ],
+                                ),
                               ),
                             ),
-                          ),
-                        );
-                      }).toList(),
+                          );
+                        }).toList(),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 10),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: TextField(
-                      controller: _searchController,
-                      onChanged: (val) {
-                        setState(() {
-                          _searchQuery = val;
-                        });
-                      },
-                      decoration: InputDecoration(
-                        hintText: "Cari nota, pelanggan, atau nama barang...",
-                        hintStyle: const TextStyle(color: Colors.grey, fontSize: 13),
-                        prefixIcon: const Icon(Icons.search, color: Colors.grey),
-                        filled: true,
-                        fillColor: Colors.white.withValues(alpha: 0.92),
-                        contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide.none,
+                    const SizedBox(height: 10),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: TextField(
+                        controller: _searchController,
+                        onChanged: (val) {
+                          setState(() {
+                            _searchQuery = val;
+                          });
+                        },
+                        decoration: InputDecoration(
+                          hintText: "Cari nota, pelanggan, atau nama barang...",
+                          hintStyle: const TextStyle(color: Colors.grey, fontSize: 13),
+                          prefixIcon: const Icon(LucideIcons.search, color: Colors.grey, size: 18),
+                          filled: true,
+                          fillColor: Colors.white.withValues(alpha: 0.92),
+                          contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: BorderSide.none,
+                          ),
                         ),
                       ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: GlassContainer(
-                borderRadius: 20,
-                padding: const EdgeInsets.all(20),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start, 
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(summaryTitle, style: const TextStyle(color: AppColors.textGrey, fontSize: 12, fontWeight: FontWeight.bold)),
-                          const SizedBox(height: 5),
-                          Text(_formatRp(totalNominal), style: TextStyle(color: summaryColor, fontSize: 22, fontWeight: FontWeight.w900)),
-                          const SizedBox(height: 8),
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(color: summaryColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text("🪵 Kayu: ${_formatRp(currentKayu)}", style: TextStyle(fontSize: 10, color: summaryColor, fontWeight: FontWeight.bold)),
-                                const SizedBox(height: 3),
-                                Text("🧱 Bgn  : ${_formatRp(currentBgn)}", style: TextStyle(fontSize: 10, color: summaryColor, fontWeight: FontWeight.bold)),
-                                const SizedBox(height: 3),
-                                Text("⛽ Bensin: ${_formatRp(currentBensin)}", style: TextStyle(fontSize: 10, color: summaryColor, fontWeight: FontWeight.bold)), 
-                              ],
-                            ),
-                          )
-                        ],
-                      ),
-                    ),
-                    Container(height: 80, width: 1, color: Colors.grey.shade300),
-                    const SizedBox(width: 15),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        const Text("Total Transaksi", style: TextStyle(color: AppColors.textGrey, fontSize: 12, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 5),
-                        Text("${displayedList.length} Nota", style: const TextStyle(color: AppColors.primaryNavy, fontSize: 18, fontWeight: FontWeight.w900)),
-                      ],
                     ),
                   ],
                 ),
               ),
             ),
 
-          Expanded(
-            child: _isLoading 
-              ? const Center(child: CircularProgressIndicator(color: AppColors.primaryNavy))
-              : displayedList.isEmpty
-                  ? const Center(child: Text("Tidak ada transaksi atau barang tidak ditemukan.", style: TextStyle(color: AppColors.textGrey)))
-                  : Scrollbar(
-                      controller: _scrollController,
-                      thumbVisibility: true,
-                      thickness: 8,
-                      radius: const Radius.circular(10),
-                      interactive: true,
-                      child: ListView.builder(
-                          controller: _scrollController,
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
-                          itemCount: displayedList.length,
-                          itemBuilder: (ctx, i) {
-                            final item = displayedList[i];
-
-                            bool showHeader = false;
-                            String currDateStr = _formatDateHeader(item['transaction_date'].toString());
-                            if (i == 0) {
-                              showHeader = true;
-                            } else {
-                              String prevDateStr = _formatDateHeader(displayedList[i-1]['transaction_date'].toString());
-                              if (currDateStr != prevDateStr) showHeader = true;
-                            }
-
-                            DateTime dt = DateTime.parse(item['transaction_date'].toString());
-                            String formattedTime = DateFormat('HH:mm').format(dt);
-                            String customer = item['customer_name'] ?? "Pelanggan Umum";
-                            int total = (item['total_price'] as num).toInt();
-                            String cashierName = item['cashier_name'] ?? "Tidak Diketahui";
-                            bool isLunas = (item['payment_status'] ?? '') == 'Lunas';
-                            String deliveryStatus = item['delivery_status']?.toString() ?? 'Selesai';
-                            bool isTitipan = deliveryStatus != 'Selesai';
-
-                            // Ringkasan barang yang masih dititip di gudang
-                            List<String> titipanSummary = [];
-                            if (isTitipan && item['items'] is List) {
-                              for (var rawIt in item['items']) {
-                                double reqQty = (rawIt['request_qty'] as num?)?.toDouble() ??
-                                    (rawIt['quantity'] as num?)?.toDouble() ??
-                                    1.0;
-                                double delReq = rawIt.containsKey('delivered_request_qty') && rawIt['delivered_request_qty'] != null
-                                    ? (rawIt['delivered_request_qty'] as num).toDouble()
-                                    : reqQty;
-                                double rem = (reqQty - delReq).clamp(0.0, reqQty);
-                                if (rem > 0.001) {
-                                  String pn = (rawIt['product_name'] ?? '').toString()
-                                      .replaceAll(RegExp(r'Kelas \d+\s?'), '')
-                                      .replaceAll('()', '')
-                                      .trim();
-                                  String u = (rawIt['unit_type'] ?? 'Pcs').toString();
-                                  if (u.contains('[PAKET_')) u = u.substring(0, u.indexOf('[PAKET_')).trim();
-                                  if (u.contains('(')) u = u.substring(0, u.indexOf('(')).trim();
-                                  String rStr = (rem - rem.roundToDouble()).abs() < 0.001
-                                      ? rem.round().toString()
-                                      : rem.toStringAsFixed(2);
-                                  titipanSummary.add("$pn ($rStr $u)");
-                                }
-                              }
-                            }
-
-                            return Column(
+            ResponsiveLayout.constrained(
+              context: context,
+              maxWidth: 960,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: LiquidEntrance(
+                  delayMs: 60,
+                  child: LiquidShimmerSweep(
+                    borderRadius: 20,
+                    child: GlassContainer(
+                      borderRadius: 20,
+                      padding: const EdgeInsets.all(20),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                if (showHeader)
-                                  Container(
-                                    width: double.infinity,
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                                    margin: const EdgeInsets.only(top: 10, bottom: 10),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withValues(alpha: 0.6),
-                                      borderRadius: BorderRadius.circular(10),
-                                      border: Border.all(color: Colors.white.withValues(alpha: 0.9)),
-                                    ),
-                                    child: Text(currDateStr, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryNavy, fontSize: 13)),
-                                  ),
-                                
-                                InkWell(
-                                  onTap: () async {
-                                    await Navigator.push(context, MaterialPageRoute(builder: (_) => TransactionDetailScreen(transaction: item)));
-                                    _fetchData();
-                                  },
-                                  borderRadius: BorderRadius.circular(18),
-                                  child: Container(
-                                    decoration: AppColors.liquidGlassCard(
-                                      radius: 18,
-                                      borderColor: isTitipan
-                                          ? AppColors.menuAmberIcon.withValues(alpha: 0.45)
-                                          : null,
-                                      borderWidth: isTitipan ? 1.5 : 1.2,
-                                    ),
-                                    margin: const EdgeInsets.only(bottom: 14),
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(15),
-                                      child: Row(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                Text(summaryTitle, style: const TextStyle(color: AppColors.textGrey, fontSize: 12, fontWeight: FontWeight.bold)),
+                                const SizedBox(height: 5),
+                                AnimatedMoneyText(
+                                  value: totalNominal,
+                                  style: TextStyle(color: summaryColor, fontSize: 22, fontWeight: FontWeight.w900),
+                                ),
+                                const SizedBox(height: 8),
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(color: summaryColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          GlassIconBadge(
-                                            icon: isTitipan ? Icons.warehouse : Icons.receipt_long,
-                                            iconColor: isTitipan ? AppColors.menuAmberIcon : AppColors.menuBlueIcon,
-                                            bgColor: isTitipan ? AppColors.menuAmberBg : AppColors.menuBlueBg,
-                                            size: 44,
-                                            iconSize: 22,
-                                            radius: 12,
-                                          ),
-                                          const SizedBox(width: 12),
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                              children: [
-                                                Text("INV-${item['id']}", style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: AppColors.primaryNavy)),
-                                                const SizedBox(height: 4),
-                                                Text("Kpd: $customer", style: const TextStyle(fontSize: 12, color: AppColors.textDark, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
-                                                if (titipanSummary.isNotEmpty) ...[
-                                                  const SizedBox(height: 4),
-                                                  Text(
-                                                    "Titipan: ${titipanSummary.join(', ')}",
-                                                    style: const TextStyle(fontSize: 11, color: AppColors.menuAmberIcon, fontWeight: FontWeight.w700),
-                                                    maxLines: 2,
-                                                    overflow: TextOverflow.ellipsis,
-                                                  ),
-                                                ],
-                                                const SizedBox(height: 6),
-                                                Row(
-                                                  children: [
-                                                    const Icon(Icons.person, size: 12, color: AppColors.primaryNavy),
-                                                    const SizedBox(width: 4),
-                                                    Flexible(child: Text(cashierName, style: const TextStyle(fontSize: 11, color: AppColors.primaryNavy, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
-                                                    const SizedBox(width: 8),
-                                                    const Icon(Icons.access_time, size: 12, color: AppColors.textGrey),
-                                                    const SizedBox(width: 4),
-                                                    Text("$formattedTime WIB", style: const TextStyle(fontSize: 11, color: AppColors.textGrey)),
-                                                  ],
-                                                )
-                                              ],
+                                          Icon(LucideIcons.trees, size: 12, color: summaryColor),
+                                          const SizedBox(width: 5),
+                                          Text("Kayu: ${_formatRp(currentKayu)}", style: TextStyle(fontSize: 10, color: summaryColor, fontWeight: FontWeight.bold)),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 3),
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(LucideIcons.brickWall, size: 12, color: summaryColor),
+                                          const SizedBox(width: 5),
+                                          Text("Bgn : ${_formatRp(currentBgn)}", style: TextStyle(fontSize: 10, color: summaryColor, fontWeight: FontWeight.bold)),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 3),
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(LucideIcons.fuel, size: 12, color: summaryColor),
+                                          const SizedBox(width: 5),
+                                          Text("Bensin: ${_formatRp(currentBensin)}", style: TextStyle(fontSize: 10, color: summaryColor, fontWeight: FontWeight.bold)),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              ],
+                            ),
+                          ),
+                          Container(height: 80, width: 1, color: Colors.grey.shade300),
+                          const SizedBox(width: 15),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              const Text("Total Transaksi", style: TextStyle(color: AppColors.textGrey, fontSize: 12, fontWeight: FontWeight.bold)),
+                              const SizedBox(height: 5),
+                              Text("${displayedList.length} Nota", style: const TextStyle(color: AppColors.primaryNavy, fontSize: 18, fontWeight: FontWeight.w900)),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+          Expanded(
+            child: ResponsiveLayout.constrained(
+              context: context,
+              maxWidth: 960,
+              child: _isLoading
+                ? const Center(child: CircularProgressIndicator(color: AppColors.primaryNavy))
+                : displayedList.isEmpty
+                    ? const Center(child: Text("Tidak ada transaksi atau barang tidak ditemukan.", style: TextStyle(color: AppColors.textGrey)))
+                    : Scrollbar(
+                        controller: _scrollController,
+                        thumbVisibility: true,
+                        thickness: 8,
+                        radius: const Radius.circular(10),
+                        interactive: true,
+                        child: ListView.builder(
+                            controller: _scrollController,
+                            padding: EdgeInsets.fromLTRB(
+                              16,
+                              5,
+                              16,
+                              _tabController.index == 2 ? 90 : 20,
+                            ),
+                            itemCount: displayedList.length,
+                            itemBuilder: (ctx, i) {
+                              final item = displayedList[i];
+
+                              bool showHeader = false;
+                              String currDateStr = _formatDateHeader(item['transaction_date'].toString());
+                              if (i == 0) {
+                                showHeader = true;
+                              } else {
+                                String prevDateStr = _formatDateHeader(displayedList[i-1]['transaction_date'].toString());
+                                if (currDateStr != prevDateStr) showHeader = true;
+                              }
+
+                              DateTime dt = DateTime.parse(item['transaction_date'].toString());
+                              String formattedTime = _timeFmt.format(dt);
+                              String customer = item['customer_name'] ?? "Pelanggan Umum";
+                              int total = (item['total_price'] as num).toInt();
+                              String cashierName = item['cashier_name'] ?? "Tidak Diketahui";
+                              bool isLunas = (item['payment_status'] ?? '') == 'Lunas';
+                              String deliveryStatus = item['delivery_status']?.toString() ?? 'Selesai';
+                              bool isTitipan = deliveryStatus != 'Selesai';
+                              bool isLegacyTitipan = item['is_legacy_titipan'] == true;
+
+                              // Ringkasan barang yang masih dititip di gudang
+                              List<String> titipanSummary = [];
+                              if (isTitipan && item['items'] is List) {
+                                for (var rawIt in item['items']) {
+                                  double reqQty = (rawIt['request_qty'] as num?)?.toDouble() ??
+                                      (rawIt['quantity'] as num?)?.toDouble() ??
+                                      1.0;
+                                  double delReq = rawIt.containsKey('delivered_request_qty') && rawIt['delivered_request_qty'] != null
+                                      ? (rawIt['delivered_request_qty'] as num).toDouble()
+                                      : reqQty;
+                                  double rem = (reqQty - delReq).clamp(0.0, reqQty);
+                                  if (rem > 0.001) {
+                                    String pn = (rawIt['product_name'] ?? '').toString()
+                                        .replaceAll(RegExp(r'Kelas \d+\s?'), '')
+                                        .replaceAll('()', '')
+                                        .trim();
+                                    String u = (rawIt['unit_type'] ?? 'Pcs').toString();
+                                    if (u.contains('[PAKET_')) u = u.substring(0, u.indexOf('[PAKET_')).trim();
+                                    if (u.contains('(')) u = u.substring(0, u.indexOf('(')).trim();
+                                    String rStr = (rem - rem.roundToDouble()).abs() < 0.001
+                                        ? rem.round().toString()
+                                        : rem.toStringAsFixed(2);
+                                    titipanSummary.add("$pn ($rStr $u)");
+                                  }
+                                }
+                              }
+
+                              final Widget rowWidget = Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if (showHeader)
+                                    Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                                      margin: const EdgeInsets.only(top: 10, bottom: 10),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withValues(alpha: 0.72),
+                                        borderRadius: BorderRadius.circular(10),
+                                        border: Border.all(color: Colors.white.withValues(alpha: 0.9)),
+                                      ),
+                                      child: Text(currDateStr, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryNavy, fontSize: 13)),
+                                    ),
+
+                                  InkWell(
+                                    onTap: () async {
+                                      await Navigator.push(context, MaterialPageRoute(builder: (_) => TransactionDetailScreen(transaction: item)));
+                                      _fetchData();
+                                    },
+                                    borderRadius: BorderRadius.circular(18),
+                                    child: Container(
+                                      decoration: AppColors.liquidGlassCard(
+                                        radius: 18,
+                                        borderColor: isTitipan
+                                            ? AppColors.menuAmberIcon.withValues(alpha: 0.45)
+                                            : null,
+                                        borderWidth: isTitipan ? 1.5 : 1.2,
+                                      ),
+                                      margin: const EdgeInsets.only(bottom: 14),
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(15),
+                                        child: Row(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            GlassIconBadge(
+                                              icon: isTitipan ? LucideIcons.warehouse : LucideIcons.receiptText,
+                                              iconColor: isTitipan ? AppColors.menuAmberIcon : AppColors.menuBlueIcon,
+                                              bgColor: isTitipan ? AppColors.menuAmberBg : AppColors.menuBlueBg,
+                                              size: 44,
+                                              iconSize: 21,
+                                              radius: 12,
                                             ),
-                                          ),
-                                          const SizedBox(width: 10),
-                                          Column(
-                                            crossAxisAlignment: CrossAxisAlignment.end,
-                                            children: [
-                                              Text(_formatRp(total), style: const TextStyle(fontWeight: FontWeight.w900, color: AppColors.primaryNavy, fontSize: 14)),
-                                              const SizedBox(height: 6),
-                                              Container(
-                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                                decoration: BoxDecoration(
-                                                  color: (isLunas ? AppColors.statusGreen : AppColors.statusRed).withOpacity(0.1),
-                                                  borderRadius: BorderRadius.circular(6),
-                                                ),
-                                                child: Text(
-                                                  isLunas ? 'LUNAS' : 'HUTANG',
-                                                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isLunas ? AppColors.statusGreen : AppColors.statusRed),
-                                                ),
-                                              ),
-                                              if (isTitipan) ...[
-                                                const SizedBox(height: 4),
-                                                Container(
-                                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                                                  decoration: BoxDecoration(
-                                                    color: deliveryStatus == 'Belum Diantar' ? AppColors.menuAmberBg : AppColors.menuBlueBg,
-                                                    borderRadius: BorderRadius.circular(6),
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Row(
+                                                    children: [
+                                                      Flexible(
+                                                        child: Text(
+                                                          isLegacyTitipan ? "TITIP-${item['id']}" : "INV-${item['id']}",
+                                                          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14.5, color: AppColors.primaryNavy),
+                                                          overflow: TextOverflow.ellipsis,
+                                                        ),
+                                                      ),
+                                                      if (isLegacyTitipan) ...[
+                                                        const SizedBox(width: 6),
+                                                        Container(
+                                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                          decoration: BoxDecoration(
+                                                            color: AppColors.menuTealBg,
+                                                            borderRadius: BorderRadius.circular(6),
+                                                          ),
+                                                          child: const Text(
+                                                            "TITIPAN LAMA",
+                                                            style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: AppColors.menuTealIcon),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ],
                                                   ),
-                                                  child: Text(
-                                                    deliveryStatus == 'Belum Diantar' ? 'BELUM DIANTAR' : 'SEBAGIAN',
-                                                    style: TextStyle(
-                                                      fontSize: 9,
-                                                      fontWeight: FontWeight.w900,
-                                                      color: deliveryStatus == 'Belum Diantar' ? AppColors.menuAmberIcon : AppColors.menuBlueIcon,
+                                                  const SizedBox(height: 4),
+                                                  Text("Kpd: $customer", style: const TextStyle(fontSize: 12, color: AppColors.textDark, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
+                                                  if (titipanSummary.isNotEmpty) ...[
+                                                    const SizedBox(height: 4),
+                                                    Text(
+                                                      "Titipan: ${titipanSummary.join(', ')}",
+                                                      style: const TextStyle(fontSize: 11, color: AppColors.menuAmberIcon, fontWeight: FontWeight.w700),
+                                                      maxLines: 2,
+                                                      overflow: TextOverflow.ellipsis,
+                                                    ),
+                                                  ],
+                                                  const SizedBox(height: 6),
+                                                  Row(
+                                                    children: [
+                                                      const Icon(LucideIcons.user, size: 12, color: AppColors.primaryNavy),
+                                                      const SizedBox(width: 4),
+                                                      Flexible(child: Text(cashierName, style: const TextStyle(fontSize: 11, color: AppColors.primaryNavy, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
+                                                      const SizedBox(width: 8),
+                                                      const Icon(LucideIcons.clock, size: 12, color: AppColors.textGrey),
+                                                      const SizedBox(width: 4),
+                                                      Text("$formattedTime WIB", style: const TextStyle(fontSize: 11, color: AppColors.textGrey)),
+                                                    ],
+                                                  )
+                                                ],
+                                              ),
+                                            ),
+                                            const SizedBox(width: 10),
+                                            Column(
+                                              crossAxisAlignment: CrossAxisAlignment.end,
+                                              children: [
+                                                Text(
+                                                  isLegacyTitipan ? "Non-Omset" : _formatRp(total),
+                                                  style: TextStyle(
+                                                    fontWeight: FontWeight.w900,
+                                                    color: isLegacyTitipan ? AppColors.menuTealIcon : AppColors.primaryNavy,
+                                                    fontSize: isLegacyTitipan ? 12 : 14,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 6),
+                                                if (!isLegacyTitipan)
+                                                  Container(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                    decoration: BoxDecoration(
+                                                      color: (isLunas ? AppColors.statusGreen : AppColors.statusRed).withValues(alpha: 0.12),
+                                                      borderRadius: BorderRadius.circular(6),
+                                                    ),
+                                                    child: Text(
+                                                      isLunas ? 'LUNAS' : 'HUTANG',
+                                                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isLunas ? AppColors.statusGreen : AppColors.statusRed),
                                                     ),
                                                   ),
-                                                ),
+                                                if (isTitipan) ...[
+                                                  const SizedBox(height: 4),
+                                                  Container(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                                    decoration: BoxDecoration(
+                                                      color: deliveryStatus == 'Belum Diantar' ? AppColors.menuAmberBg : AppColors.menuBlueBg,
+                                                      borderRadius: BorderRadius.circular(6),
+                                                    ),
+                                                    child: Text(
+                                                      deliveryStatus == 'Belum Diantar' ? 'BELUM DIANTAR' : 'SEBAGIAN',
+                                                      style: TextStyle(
+                                                        fontSize: 9,
+                                                        fontWeight: FontWeight.w900,
+                                                        color: deliveryStatus == 'Belum Diantar' ? AppColors.menuAmberIcon : AppColors.menuBlueIcon,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
                                               ],
-                                            ],
-                                          )
-                                        ],
+                                            )
+                                          ],
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ),
-                              ],
-                            );
-                          },
-                        ),
-                    ),
+                                ],
+                              );
+                              return rowWidget;
+                            },
+                          ),
+                      ),
+            ),
           ),
         ],
         ),

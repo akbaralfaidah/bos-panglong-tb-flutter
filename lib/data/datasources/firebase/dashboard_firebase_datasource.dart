@@ -42,6 +42,7 @@ class DashboardFirebaseDataSource {
       if ((t['delivery_status']?.toString() ?? 'Selesai') != 'Selesai') {
         activeTitipanCount += 1;
       }
+      if (t['is_legacy_titipan'] == true) continue;
       double tp = (t['total_price'] as num?)?.toDouble() ?? 0;
       double op = (t['operational_cost'] as num?)?.toDouble() ?? 0; // Uang Ongkir Masuk
       double disc = (t['discount'] as num?)?.toDouble() ?? 0;
