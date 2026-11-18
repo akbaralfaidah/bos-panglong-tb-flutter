@@ -190,7 +190,7 @@ class _CapitalManagementScreenState extends State<CapitalManagementScreen> {
                 Row(
                   children: [
                     Expanded(
-                      child: _buildSummaryBox("MODAL DI GUDANG", "Aset Barang", _totalModalTertanam, Colors.orange.shade100, Colors.orange.shade900),
+                      child: _buildSummaryBox("MODAL DI GUDANG", "Aset Barang", _totalModalTertanam, AppColors.menuIndigoBg, AppColors.menuIndigoIcon),
                     ),
                     const SizedBox(width: 10),
                     Expanded(

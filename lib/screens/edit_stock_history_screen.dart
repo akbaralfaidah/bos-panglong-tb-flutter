@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../theme/app_colors.dart';
 import '../controllers/stock_history_controller.dart';
@@ -198,7 +198,7 @@ class _EditStockHistoryScreenState extends State<EditStockHistoryScreen> {
                         ),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.edit, color: AppColors.accentGold),
+                        icon: const Icon(Icons.edit, color: AppColors.secondaryNavy),
                         onPressed: () => _showEditDialog(item),
                       ),
                       IconButton(

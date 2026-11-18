@@ -562,7 +562,7 @@ class _ProductListScreenState extends State<ProductListScreen>
                       const TabBar(
                         labelColor: AppColors.primaryNavy,
                         unselectedLabelColor: AppColors.textGrey,
-                        indicatorColor: AppColors.accentGold,
+                        indicatorColor: AppColors.secondaryNavy,
                         tabs: [
                           Tab(text: "KAYU & RENG"),
                           Tab(text: "BANGUNAN"),
@@ -688,7 +688,7 @@ class _ProductListScreenState extends State<ProductListScreen>
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const Center(child: CircularProgressIndicator(color: AppColors.accentGold)),
+      builder: (_) => const Center(child: CircularProgressIndicator(color: AppColors.secondaryNavy)),
     );
 
     List<Map<String, dynamic>> matchingOrders = [];
@@ -925,7 +925,7 @@ class _ProductListScreenState extends State<ProductListScreen>
         ],
         bottom: TabBar(
           controller: _tabController,
-          indicatorColor: AppColors.accentGold,
+          indicatorColor: AppColors.secondaryNavy,
           indicatorWeight: 4,
           labelColor: AppColors.primaryNavy,
           unselectedLabelColor: AppColors.textGrey,
@@ -983,6 +983,7 @@ class _ProductListScreenState extends State<ProductListScreen>
                 children: [
                   Expanded(
                     child: DropdownButtonFormField<String>(
+                      isExpanded: true,
                       icon: const Icon(
                         LucideIcons.chevronDown,
                         size: 16,
@@ -1068,6 +1069,7 @@ class _ProductListScreenState extends State<ProductListScreen>
                   const SizedBox(width: 10),
                   Expanded(
                     child: DropdownButtonFormField<String>(
+                      isExpanded: true,
                       icon: const Icon(
                         LucideIcons.chevronDown,
                         size: 16,
@@ -1652,12 +1654,12 @@ class _ProductListScreenState extends State<ProductListScreen>
             iconColor: isHabis
                 ? AppColors.textGrey
                 : ((isKayu || isReng || isBulat)
-                    ? AppColors.menuAmberIcon
+                    ? AppColors.menuTealIcon
                     : AppColors.menuBlueIcon),
             bgColor: isHabis
                 ? AppColors.surfaceGrey
                 : ((isKayu || isReng || isBulat)
-                    ? AppColors.menuAmberBg
+                    ? AppColors.menuTealBg
                     : AppColors.menuBlueBg),
             size: 44,
             iconSize: 20,
@@ -1720,12 +1722,12 @@ class _ProductListScreenState extends State<ProductListScreen>
                       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
                       decoration: BoxDecoration(
                         color: p.reservedStock > 0
-                            ? const Color(0xFFFFFBEB)
+                            ? AppColors.menuAmberBg
                             : const Color(0xFFF1F5F9),
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
                           color: p.reservedStock > 0
-                              ? const Color(0xFFFDE68A)
+                              ? const Color(0xFFC4B5FD)
                               : const Color(0xFFCBD5E1),
                         ),
                       ),
@@ -1742,16 +1744,18 @@ class _ProductListScreenState extends State<ProductListScreen>
                                 : AppColors.textGrey,
                           ),
                           const SizedBox(width: 5),
-                          Text(
-                            p.reservedStock > 0
-                                ? "Titipan: ${p.reservedStockDisplay} $unitShort"
-                                : "+ Catat Titipan",
-                            style: TextStyle(
-                              color: p.reservedStock > 0
-                                  ? const Color(0xFFB45309)
-                                  : AppColors.textGrey,
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w700,
+                          Flexible(
+                            child: Text(
+                              p.reservedStock > 0
+                                  ? "Titipan: ${p.reservedStockDisplay} $unitShort"
+                                  : "+ Catat Titipan",
+                              style: TextStyle(
+                                color: p.reservedStock > 0
+                                    ? AppColors.menuAmberIcon
+                                    : AppColors.textGrey,
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                           ),
                         ],
@@ -1774,12 +1778,14 @@ class _ProductListScreenState extends State<ProductListScreen>
                           color: AppColors.menuBlueIcon,
                         ),
                         const SizedBox(width: 5),
-                        Text(
-                          "Fisik Gudang: ${p.physicalStockDisplay} $unitShort",
-                          style: const TextStyle(
-                            color: AppColors.primaryNavy,
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w700,
+                        Flexible(
+                          child: Text(
+                            "Fisik Gudang: ${p.physicalStockDisplay} $unitShort",
+                            style: const TextStyle(
+                              color: AppColors.primaryNavy,
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ),
                       ],
@@ -2171,15 +2177,17 @@ class _ProductListScreenState extends State<ProductListScreen>
           children: [
             Icon(icon, color: color),
             const SizedBox(height: 4),
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: color,
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                label,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ],
@@ -2223,7 +2231,7 @@ class _ProductListScreenState extends State<ProductListScreen>
     
     bool useProfit = false;
     
-    showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator(color: AppColors.accentGold)));
+    showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator(color: AppColors.secondaryNavy)));
     
     double currentModalCair = await _fetchModalCair(p.id!);
     double currentProfitBersih = await _fetchCurrentProfitBersih(); 
@@ -2682,23 +2690,23 @@ class _ProductListScreenState extends State<ProductListScreen>
                           width: double.infinity,
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                           decoration: BoxDecoration(
-                            color: Colors.amber.shade50,
+                            color: AppColors.menuBlueBg,
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.amber.shade300),
+                            border: Border.all(color: const Color(0xFFBFDBFE)),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Row(
+                              const Row(
                                 children: [
-                                  Icon(Icons.calculate_outlined, size: 14, color: Colors.amber.shade900),
-                                  const SizedBox(width: 4),
+                                  Icon(Icons.calculate_outlined, size: 14, color: AppColors.primaryNavy),
+                                  SizedBox(width: 4),
                                   Text(
                                     "Estimasi Modal Rata-rata:",
                                     style: TextStyle(
                                       fontSize: 11,
                                       fontWeight: FontWeight.bold,
-                                      color: Colors.amber.shade900,
+                                      color: AppColors.primaryNavy,
                                     ),
                                   ),
                                 ],

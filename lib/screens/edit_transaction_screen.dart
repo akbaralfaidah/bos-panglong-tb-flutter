@@ -459,12 +459,12 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.edit, size: 14, color: AppColors.accentGold),
+                          Icon(Icons.edit, size: 14, color: AppColors.secondaryNavy),
                           const SizedBox(width: 4),
                           Text(
                             "Harga custom: " + NumberFormat.currency(locale: 'id', symbol: 'Rp ', decimalDigits: 0).format(_customUnitPrice) + "/${getUnitLabel(unitMode)}",
                             style: const TextStyle(
-                              color: AppColors.accentGold,
+                              color: AppColors.secondaryNavy,
                               fontWeight: FontWeight.bold,
                               fontSize: 12,
                             ),

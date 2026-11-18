@@ -3,38 +3,38 @@ import 'package:flutter/material.dart';
 
 /// Bright Royal-Sapphire & Ice-Porcelain Frosted Glass Design System Tokens
 class AppColors {
-  // --- CORE PALETTE (ROYAL SAPPHIRE, BUKAN HITAM PEKAT) ---
-  static const Color primaryNavy = Color(0xFF1E3A8A); // Royal Sapphire 800
-  static const Color secondaryNavy = Color(0xFF2563EB); // Vibrant Cobalt 600
-  static const Color accentGold = Color(0xFFF59E0B); // Luminous Amber 500
-  static const Color accentAmberBright = Color(0xFFFBBF24); // Amber 400
+  // --- CORE PALETTE (AZURE-COBALT & COOL ICE-BLUE, ZERO ORANGE) ---
+  static const Color primaryNavy = Color(0xFF1D4ED8); // Rich Cobalt Blue
+  static const Color secondaryNavy = Color(0xFF296DE8); // Reference Azure-Cobalt
+  static const Color accentGold = Color(0xFFFFFFFF); // Crisp White on Cobalt buttons/headers
+  static const Color accentAmberBright = Color(0xFFAFD6FF); // Reference Soft Sky Highlight
 
-  static const Color backgroundWhite = Color(0xFFF2F6FF); // Ice-Porcelain
-  static const Color liquidBackground = Color(0xFFEBF2FF); // Luminous Sky Frost
+  static const Color backgroundWhite = Color(0xFFF3F7FE); // Cool Ice-Porcelain
+  static const Color liquidBackground = Color(0xFFE5EEFD); // Reference Ice-Blue Canvas
   static const Color pureWhite = Color(0xFFFFFFFF);
   static const Color surfaceGrey = Color(0xFFE6EEFA);
-  static const Color borderLight = Color(0xFFD8E4F8);
-  static const Color borderDark = Color(0xFF3B82F6);
+  static const Color borderLight = Color(0xFFD6E3F8);
+  static const Color borderDark = Color(0xFF296DE8);
 
   static const Color textDark = Color(0xFF0F2557); // Deep Sapphire Ink
   static const Color textGrey = Color(0xFF52658A); // Cool Slate-Blue Grey
 
   // --- ROYAL SAPPHIRE DEPTH TOKENS ---
-  static const Color cardNavyStart = Color(0xFF1E3A8A);
-  static const Color cardNavyEnd = Color(0xFF2563EB);
-  static const Color navyGlassStart = Color(0xFF1E3A8A);
-  static const Color navyGlassMid = Color(0xFF1D4ED8);
-  static const Color navyGlassEnd = Color(0xFF2563EB);
+  static const Color cardNavyStart = Color(0xFF296DE8);
+  static const Color cardNavyEnd = Color(0xFF1D4ED8);
+  static const Color navyGlassStart = Color(0xFF1D4ED8);
+  static const Color navyGlassMid = Color(0xFF2563EB);
+  static const Color navyGlassEnd = Color(0xFF296DE8);
 
-  // --- SEMANTIC MENU TOKENS ---
-  static const Color menuTealBg = Color(0xFFE6FAF5);
+  // --- SEMANTIC MENU TOKENS (ZERO ORANGE — TEAL, LAVENDER-VIOLET, AZURE, INDIGO) ---
+  static const Color menuTealBg = Color(0xFFE0F7F4);
   static const Color menuTealIcon = Color(0xFF0D9488);
 
-  static const Color menuAmberBg = Color(0xFFFEF3C7);
-  static const Color menuAmberIcon = Color(0xFFD97706);
+  static const Color menuAmberBg = Color(0xFFEDE9FE); // Reference Soft Lavender
+  static const Color menuAmberIcon = Color(0xFF6D28D9); // Deep Periwinkle-Violet
 
   static const Color menuBlueBg = Color(0xFFDBEAFE);
-  static const Color menuBlueIcon = Color(0xFF2563EB);
+  static const Color menuBlueIcon = Color(0xFF296DE8);
 
   static const Color menuIndigoBg = Color(0xFFE0E7FF);
   static const Color menuIndigoIcon = Color(0xFF4F46E5);

@@ -727,12 +727,12 @@ class _CashierScreenState extends State<CashierScreen>
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.edit, size: 14, color: AppColors.accentGold),
+                          Icon(Icons.edit, size: 14, color: AppColors.secondaryNavy),
                           const SizedBox(width: 4),
                           Text(
                             "Harga custom: ${_formatRp(_customUnitPrice)}/${getUnitLabel(unitMode)}",
                             style: const TextStyle(
-                              color: AppColors.accentGold,
+                              color: AppColors.secondaryNavy,
                               fontWeight: FontWeight.bold,
                               fontSize: 12,
                             ),
@@ -1167,7 +1167,7 @@ class _CashierScreenState extends State<CashierScreen>
         ],
         bottom: TabBar(
           controller: _tabController,
-          indicatorColor: AppColors.accentGold,
+          indicatorColor: AppColors.secondaryNavy,
           indicatorWeight: 4,
           labelColor: AppColors.primaryNavy,
           unselectedLabelColor: AppColors.textGrey,
@@ -1201,6 +1201,7 @@ class _CashierScreenState extends State<CashierScreen>
                 children: [
                   Expanded(
                     child: DropdownButtonFormField<String>(
+                      isExpanded: true,
                       icon: const Icon(
                         LucideIcons.chevronDown,
                         size: 16,
@@ -1286,6 +1287,7 @@ class _CashierScreenState extends State<CashierScreen>
                   const SizedBox(width: 10),
                   Expanded(
                     child: DropdownButtonFormField<String>(
+                      isExpanded: true,
                       icon: const Icon(
                         LucideIcons.chevronDown,
                         size: 16,
@@ -1883,12 +1885,12 @@ class _CashierScreenState extends State<CashierScreen>
                 iconColor: isHabis
                     ? AppColors.textGrey
                     : ((isKayu || isReng || isBulat)
-                        ? AppColors.menuAmberIcon
+                        ? AppColors.menuTealIcon
                         : AppColors.menuBlueIcon),
                 bgColor: isHabis
                     ? AppColors.surfaceGrey
                     : ((isKayu || isReng || isBulat)
-                        ? AppColors.menuAmberBg
+                        ? AppColors.menuTealBg
                         : AppColors.menuBlueBg),
                 size: 44,
                 iconSize: 20,
@@ -1971,9 +1973,9 @@ class _CashierScreenState extends State<CashierScreen>
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFFFBEB),
+                        color: AppColors.menuAmberBg,
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: const Color(0xFFFDE68A)),
+                        border: Border.all(color: const Color(0xFFC4B5FD)),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -1984,12 +1986,14 @@ class _CashierScreenState extends State<CashierScreen>
                             color: AppColors.menuAmberIcon,
                           ),
                           const SizedBox(width: 4),
-                          Text(
-                            "Titipan: ${p.reservedStockDisplay} $unitShort",
-                            style: const TextStyle(
-                              color: Color(0xFFB45309),
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w700,
+                          Flexible(
+                            child: Text(
+                              "Titipan: ${p.reservedStockDisplay} $unitShort",
+                              style: const TextStyle(
+                                color: AppColors.menuAmberIcon,
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                           ),
                         ],
@@ -2011,12 +2015,14 @@ class _CashierScreenState extends State<CashierScreen>
                             color: AppColors.menuBlueIcon,
                           ),
                           const SizedBox(width: 4),
-                          Text(
-                            "Fisik: $physicalNowStr $unitShort",
-                            style: const TextStyle(
-                              color: AppColors.primaryNavy,
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w700,
+                          Flexible(
+                            child: Text(
+                              "Fisik: $physicalNowStr $unitShort",
+                              style: const TextStyle(
+                                color: AppColors.primaryNavy,
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                           ),
                         ],

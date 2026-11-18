@@ -875,9 +875,9 @@ class _ReviewStockScreenState extends State<ReviewStockScreen> {
                                   );
                                   return Text(
                                     "Modal lama ${_formatRp(item.product.buyPriceUnit)}, modal baru (rata-rata) ${_formatRp(estAvg)}",
-                                    style: TextStyle(
+                                    style: const TextStyle(
                                       fontSize: 11,
-                                      color: Colors.amber.shade900,
+                                      color: AppColors.primaryNavy,
                                       fontWeight: FontWeight.w600,
                                     ),
                                   );

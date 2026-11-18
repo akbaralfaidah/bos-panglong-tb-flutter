@@ -79,7 +79,7 @@ class GlassContainer extends StatelessWidget {
 
     final List<Color> gradientColors = isDark
         ? [
-            tintColor ?? const Color(0xFF2563EB),
+            tintColor ?? AppColors.secondaryNavy,
             AppColors.primaryNavy,
           ]
         : [
@@ -422,14 +422,14 @@ class LiquidAmbientBackground extends StatelessWidget {
           stops: const [0.0, 0.5, 1.0],
           colors: isDark
               ? const [
-                  Color(0xFF172E6E),
                   Color(0xFF1E3A8A),
-                  Color(0xFF2563EB),
+                  Color(0xFF1D4ED8),
+                  Color(0xFF296DE8),
                 ]
               : const [
-                  Color(0xFFE8F0FE),
-                  Color(0xFFF4F8FF),
-                  Color(0xFFEBF3FF),
+                  Color(0xFFE5EEFD),
+                  Color(0xFFF3F7FE),
+                  Color(0xFFE8F1FE),
                 ],
         ),
       ),

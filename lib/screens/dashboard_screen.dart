@@ -286,13 +286,15 @@ class _DashboardScreenState extends State<DashboardScreen>
                               Expanded(
                                 child: Text(
                                   _storeName.toUpperCase(),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
-                                    fontSize: 11,
+                                    fontSize: 10.5,
+                                    height: 1.15,
                                     color: AppColors.textGrey,
                                     fontWeight: FontWeight.w700,
                                     letterSpacing: 0.4,
                                   ),
-                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
                             ],
@@ -348,7 +350,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                             child: GlassContainer(
                               isDark: true,
                               borderRadius: 22,
-                              tintColor: const Color(0xFF2249B8),
+                              tintColor: const Color(0xFF296DE8),
                               padding: const EdgeInsets.all(20),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -449,19 +451,26 @@ class _DashboardScreenState extends State<DashboardScreen>
                                         color: Colors.white.withValues(alpha: 0.25),
                                       ),
                                     ),
-                                    child: const Row(
+                                    child: Row(
                                       mainAxisAlignment:
                                           MainAxisAlignment.spaceBetween,
                                       children: [
-                                        Text(
-                                          "Lihat Rincian Profit & Alokasi Modal",
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w700,
-                                            color: Colors.white,
+                                        const Expanded(
+                                          child: FittedBox(
+                                            fit: BoxFit.scaleDown,
+                                            alignment: Alignment.centerLeft,
+                                            child: Text(
+                                              "Lihat Rincian Profit & Alokasi Modal",
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w700,
+                                                color: Colors.white,
+                                              ),
+                                            ),
                                           ),
                                         ),
-                                        Icon(
+                                        const SizedBox(width: 8),
+                                        const Icon(
                                           LucideIcons.arrowRight,
                                           color: AppColors.accentAmberBright,
                                           size: 16,
@@ -748,170 +757,9 @@ class _DashboardScreenState extends State<DashboardScreen>
 
                 const SizedBox(height: 14),
 
-                // 4. BARANG TITIPAN GLASS CARD + INPUT TITIPAN LAMA
+                // 4. AKSES CEPAT LAINNYA (FROSTED GLASS DOCK)
                 LiquidEntrance(
                   delayMs: 260,
-                  child: GlassContainer(
-                    borderRadius: 20,
-                    tintColor: _titipanCount > 0 ? AppColors.menuAmberIcon : null,
-                    borderColor: _titipanCount > 0
-                        ? AppColors.accentAmberBright.withValues(alpha: 0.75)
-                        : Colors.white.withValues(alpha: 0.95),
-                    padding: const EdgeInsets.all(14),
-                    child: Column(
-                      children: [
-                        InkWell(
-                          onTap: () => _nav(
-                            const TransactionHistoryScreen(initialTabIndex: 2),
-                          ),
-                          borderRadius: BorderRadius.circular(12),
-                          child: Row(
-                            children: [
-                              GlassIconBadge(
-                                icon: LucideIcons.warehouse,
-                                iconColor: _titipanCount > 0
-                                    ? AppColors.menuAmberIcon
-                                    : AppColors.textGrey,
-                                bgColor: _titipanCount > 0
-                                    ? AppColors.menuAmberBg
-                                    : AppColors.surfaceGrey,
-                                size: 42,
-                                iconSize: 21,
-                                radius: 12,
-                              ),
-                              const SizedBox(width: 12),
-                              const Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      "Barang Titipan (Belum Diantar)",
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w800,
-                                        fontSize: 13.5,
-                                        color: AppColors.primaryNavy,
-                                      ),
-                                    ),
-                                    SizedBox(height: 2),
-                                    Text(
-                                      "Kontrol pesanan yang masih disimpan di gudang",
-                                      style: TextStyle(
-                                        fontSize: 11.5,
-                                        color: AppColors.textGrey,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 5,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: _titipanCount > 0
-                                      ? AppColors.accentGold
-                                      : AppColors.surfaceGrey,
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: Text(
-                                  "$_titipanCount Nota",
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w800,
-                                    color: _titipanCount > 0
-                                        ? Colors.white
-                                        : AppColors.textDark,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                onPressed: () => _nav(
-                                  const TransactionHistoryScreen(
-                                    initialTabIndex: 2,
-                                  ),
-                                ),
-                                icon: const Icon(
-                                  LucideIcons.clipboardList,
-                                  size: 16,
-                                  color: AppColors.primaryNavy,
-                                ),
-                                label: const Text(
-                                  "Lihat Daftar Titipan",
-                                  style: TextStyle(
-                                    fontSize: 11.5,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppColors.primaryNavy,
-                                  ),
-                                ),
-                                style: OutlinedButton.styleFrom(
-                                  backgroundColor: Colors.white,
-                                  side: const BorderSide(
-                                    color: AppColors.borderLight,
-                                  ),
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 10,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: ElevatedButton.icon(
-                                onPressed: () async {
-                                  final saved = await showLegacyTitipanDialog(
-                                    context,
-                                  );
-                                  if (saved == true) _refreshStats();
-                                },
-                                icon: const Icon(
-                                  LucideIcons.circlePlus,
-                                  size: 16,
-                                  color: Colors.white,
-                                ),
-                                label: const Text(
-                                  "+ Input Titipan Lama",
-                                  style: TextStyle(
-                                    fontSize: 11.5,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.menuAmberIcon,
-                                  elevation: 0,
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 10,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 14),
-
-                // 5. AKSES CEPAT LAINNYA (FROSTED GLASS DOCK)
-                LiquidEntrance(
-                  delayMs: 300,
                   child: GlassContainer(
                     borderRadius: 22,
                     padding: const EdgeInsets.symmetric(
@@ -1006,6 +854,177 @@ class _DashboardScreenState extends State<DashboardScreen>
                           ),
                   ),
                 ),
+
+                const SizedBox(height: 14),
+
+                // 5. BARANG TITIPAN GLASS CARD + INPUT TITIPAN LAMA (PALING BAWAH)
+                LiquidEntrance(
+                  delayMs: 300,
+                  child: GlassContainer(
+                    borderRadius: 20,
+                    tintColor: _titipanCount > 0 ? AppColors.menuIndigoIcon : null,
+                    borderColor: _titipanCount > 0
+                        ? const Color(0xFFC7D2FE)
+                        : Colors.white,
+                    padding: const EdgeInsets.all(14),
+                    child: Column(
+                      children: [
+                        InkWell(
+                          onTap: () => _nav(
+                            const TransactionHistoryScreen(initialTabIndex: 2),
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                          child: Row(
+                            children: [
+                              GlassIconBadge(
+                                icon: LucideIcons.warehouse,
+                                iconColor: _titipanCount > 0
+                                    ? AppColors.menuIndigoIcon
+                                    : AppColors.textGrey,
+                                bgColor: _titipanCount > 0
+                                    ? AppColors.menuIndigoBg
+                                    : AppColors.surfaceGrey,
+                                size: 42,
+                                iconSize: 21,
+                                radius: 12,
+                              ),
+                              const SizedBox(width: 12),
+                              const Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      "Barang Titipan",
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 13.5,
+                                        color: AppColors.primaryNavy,
+                                      ),
+                                    ),
+                                    SizedBox(height: 2),
+                                    Text(
+                                      "Kontrol pesanan yang masih disimpan di gudang",
+                                      style: TextStyle(
+                                        fontSize: 11.5,
+                                        color: AppColors.textGrey,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 5,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: _titipanCount > 0
+                                      ? AppColors.secondaryNavy
+                                      : AppColors.surfaceGrey,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  "$_titipanCount Nota",
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    color: _titipanCount > 0
+                                        ? Colors.white
+                                        : AppColors.textDark,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: () => _nav(
+                                  const TransactionHistoryScreen(
+                                    initialTabIndex: 2,
+                                  ),
+                                ),
+                                icon: const Icon(
+                                  LucideIcons.clipboardList,
+                                  size: 16,
+                                  color: AppColors.primaryNavy,
+                                ),
+                                label: const FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                    "Lihat Daftar Titipan",
+                                    maxLines: 1,
+                                    style: TextStyle(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.primaryNavy,
+                                    ),
+                                  ),
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  backgroundColor: Colors.white,
+                                  side: const BorderSide(
+                                    color: AppColors.borderLight,
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 10,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                onPressed: () async {
+                                  final saved = await showLegacyTitipanDialog(
+                                    context,
+                                  );
+                                  if (saved == true) _refreshStats();
+                                },
+                                icon: const Icon(
+                                  LucideIcons.circlePlus,
+                                  size: 16,
+                                  color: Colors.white,
+                                ),
+                                label: const FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                    "Input Titipan Lama",
+                                    maxLines: 1,
+                                    style: TextStyle(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.secondaryNavy,
+                                  elevation: 0,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 10,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -1095,15 +1114,18 @@ class _DashboardScreenState extends State<DashboardScreen>
             ],
           ),
           const SizedBox(height: 12),
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 12,
-              color: AppColors.textGrey,
-              fontWeight: FontWeight.w600,
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              title,
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.textGrey,
+                fontWeight: FontWeight.w600,
+              ),
+              maxLines: 1,
             ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 3),
           FittedBox(
@@ -1146,16 +1168,18 @@ class _DashboardScreenState extends State<DashboardScreen>
               radius: 14,
             ),
             const SizedBox(height: 8),
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w700,
-                color: AppColors.primaryNavy,
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.primaryNavy,
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 1,
               ),
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
@@ -1217,15 +1241,18 @@ class _DashboardScreenState extends State<DashboardScreen>
             overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 2),
-          Text(
-            subtitle,
-            style: const TextStyle(
-              fontSize: 11.5,
-              fontWeight: FontWeight.w500,
-              color: AppColors.textGrey,
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              subtitle,
+              style: const TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w500,
+                color: AppColors.textGrey,
+              ),
+              maxLines: 1,
             ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),

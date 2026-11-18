@@ -798,7 +798,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                               GlassIconBadge(
                                                 icon: LucideIcons.shieldCheck,
                                                 iconColor: AppColors.primaryNavy,
-                                                bgColor: Color(0xFFFEF3C7),
+                                                bgColor: AppColors.menuBlueBg,
                                                 size: 42,
                                                 iconSize: 20,
                                                 radius: 13,
@@ -850,7 +850,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                             color: AppColors.menuAmberBg,
                                             borderRadius: BorderRadius.circular(18),
                                             border: Border.all(
-                                              color: AppColors.accentGold.withValues(alpha: 0.45),
+                                              color: const Color(0xFFC4B5FD),
                                               width: 1.3,
                                             ),
                                           ),
