@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart'; // 🔥 Wajib di-import
 import 'package:get/get.dart'; // 🔥 Wajib untuk fitur notifikasi Get.snackbar()
+import 'package:google_fonts/google_fonts.dart';
 import 'screens/splash_screen.dart'; 
 import 'theme/app_colors.dart';
 import 'firebase_options.dart'; // 🔥 Wajib untuk konfigurasi Firebase
@@ -39,6 +40,10 @@ class BosPanglongApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final baseTextTheme = GoogleFonts.plusJakartaSansTextTheme(
+      ThemeData.light().textTheme,
+    );
+
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent, 
@@ -54,19 +59,28 @@ class BosPanglongApp extends StatelessWidget {
           useMaterial3: true,
           scaffoldBackgroundColor: AppColors.liquidBackground, 
           colorScheme: ColorScheme.fromSeed(seedColor: AppColors.primaryNavy),
-          appBarTheme: const AppBarTheme(
+          textTheme: baseTextTheme.apply(
+            bodyColor: AppColors.textDark,
+            displayColor: AppColors.textDark,
+          ),
+          appBarTheme: AppBarTheme(
             backgroundColor: AppColors.pureWhite,
             elevation: 0,
             scrolledUnderElevation: 0,
-            iconTheme: IconThemeData(color: AppColors.primaryNavy), 
-            titleTextStyle: TextStyle(color: AppColors.primaryNavy, fontSize: 18, fontWeight: FontWeight.bold),
+            iconTheme: const IconThemeData(color: AppColors.primaryNavy),
+            titleTextStyle: GoogleFonts.plusJakartaSans(
+              color: AppColors.textDark,
+              fontSize: 17.5,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.3,
+            ),
           ),
           cardTheme: CardThemeData(
             elevation: 0,
             color: AppColors.pureWhite,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(18),
-              side: BorderSide(color: Colors.white.withValues(alpha: 0.8), width: 1.2),
+              side: const BorderSide(color: AppColors.borderLight, width: 1.2),
             ),
           ),
           dialogTheme: DialogThemeData(

@@ -4,25 +4,25 @@ import 'package:flutter/material.dart';
 /// Bright Royal-Sapphire & Ice-Porcelain Frosted Glass Design System Tokens
 class AppColors {
   // --- CORE PALETTE (AZURE-COBALT & COOL ICE-BLUE, ZERO ORANGE) ---
-  static const Color primaryNavy = Color(0xFF1D4ED8); // Rich Cobalt Blue
-  static const Color secondaryNavy = Color(0xFF296DE8); // Reference Azure-Cobalt
+  static const Color primaryNavy = Color(0xFF1E40AF); // Deep Cobalt 800
+  static const Color secondaryNavy = Color(0xFF2563EB); // Vibrant Azure-Cobalt 600
   static const Color accentGold = Color(0xFFFFFFFF); // Crisp White on Cobalt buttons/headers
   static const Color accentAmberBright = Color(0xFFAFD6FF); // Reference Soft Sky Highlight
 
   static const Color backgroundWhite = Color(0xFFF3F7FE); // Cool Ice-Porcelain
-  static const Color liquidBackground = Color(0xFFE5EEFD); // Reference Ice-Blue Canvas
+  static const Color liquidBackground = Color(0xFFEEF3FB); // Crisp Cool Alabaster-Ice
   static const Color pureWhite = Color(0xFFFFFFFF);
   static const Color surfaceGrey = Color(0xFFE6EEFA);
-  static const Color borderLight = Color(0xFFD6E3F8);
-  static const Color borderDark = Color(0xFF296DE8);
+  static const Color borderLight = Color(0xFFCBD5E1); // Visible Slate-300 structural border
+  static const Color borderDark = Color(0xFF2563EB);
 
-  static const Color textDark = Color(0xFF0F2557); // Deep Sapphire Ink
-  static const Color textGrey = Color(0xFF52658A); // Cool Slate-Blue Grey
+  static const Color textDark = Color(0xFF0F172A); // Slate 900
+  static const Color textGrey = Color(0xFF475569); // Slate 600 (4.5:1+ contrast)
 
   // --- ROYAL SAPPHIRE DEPTH TOKENS ---
-  static const Color cardNavyStart = Color(0xFF296DE8);
-  static const Color cardNavyEnd = Color(0xFF1D4ED8);
-  static const Color navyGlassStart = Color(0xFF1D4ED8);
+  static const Color cardNavyStart = Color(0xFF2563EB);
+  static const Color cardNavyEnd = Color(0xFF1E40AF);
+  static const Color navyGlassStart = Color(0xFF1E40AF);
   static const Color navyGlassMid = Color(0xFF2563EB);
   static const Color navyGlassEnd = Color(0xFF296DE8);
 
@@ -42,16 +42,21 @@ class AppColors {
   static const Color statusGreen = Color(0xFF059669);
   static const Color statusRed = Color(0xFFDC2626);
 
-  /// Kartu kaca frosted terang dengan rim putih bersinar & bayangan safir lembut
+  /// Kartu kaca frosted terang dengan rim struktural crisp & dual-layer shadow
   static BoxDecoration liquidGlassCard({
     Color? tint,
     double radius = 20,
     Color? borderColor,
-    double borderWidth = 1.4,
+    double borderWidth = 1.2,
   }) {
     final Color midTint = tint != null
         ? Color.alphaBlend(tint.withValues(alpha: 0.06), const Color(0xFFF3F7FF))
         : const Color(0xFFF3F7FF);
+
+    final Color resolvedBorder = borderColor ??
+        (tint != null
+            ? Color.alphaBlend(tint.withValues(alpha: 0.28), const Color(0xFFCBD5E1))
+            : const Color(0xFFD0DDF0));
 
     return BoxDecoration(
       gradient: LinearGradient(
@@ -66,14 +71,19 @@ class AppColors {
       ),
       borderRadius: BorderRadius.circular(radius),
       border: Border.all(
-        color: borderColor ?? const Color(0xFFFFFFFF),
+        color: resolvedBorder,
         width: borderWidth,
       ),
       boxShadow: const [
         BoxShadow(
-          color: Color(0x101E3A8A),
-          blurRadius: 10,
+          color: Color(0x0E0F172A),
+          blurRadius: 12,
           offset: Offset(0, 4),
+        ),
+        BoxShadow(
+          color: Color(0x061D4ED8),
+          blurRadius: 2,
+          offset: Offset(0, 1),
         ),
       ],
     );

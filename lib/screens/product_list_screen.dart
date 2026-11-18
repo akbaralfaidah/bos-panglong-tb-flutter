@@ -910,6 +910,7 @@ class _ProductListScreenState extends State<ProductListScreen>
               onPressed: _showDeleteStockSheet,
             ),
           IconButton(
+            tooltip: "Cari Produk",
             icon: Icon(_isSearching ? LucideIcons.x : LucideIcons.search, size: 21),
             onPressed: () {
               setState(() {
@@ -1712,6 +1713,35 @@ class _ProductListScreenState extends State<ProductListScreen>
                         ),
                         const SizedBox(width: 6),
                         Flexible(child: stockWidget),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: AppColors.menuBlueBg,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFBFDBFE)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          LucideIcons.tag,
+                          size: 12.5,
+                          color: AppColors.primaryNavy,
+                        ),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            "Jual: ${_formatRp(p.sellPriceUnit)} / $unitShort",
+                            style: const TextStyle(
+                              color: AppColors.primaryNavy,
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),

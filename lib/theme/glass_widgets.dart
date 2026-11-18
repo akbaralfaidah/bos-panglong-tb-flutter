@@ -60,7 +60,7 @@ class GlassContainer extends StatelessWidget {
     this.isDark = false,
     this.tintColor,
     this.borderColor,
-    this.borderWidth = 1.5,
+    this.borderWidth = 1.2,
     this.boxShadow,
     this.onTap,
     this.showSheen = true,
@@ -91,7 +91,12 @@ class GlassContainer extends StatelessWidget {
     final Color resolvedBorder = borderColor ??
         (isDark
             ? const Color(0xFF93C5FD).withValues(alpha: 0.42)
-            : Colors.white);
+            : (tintColor != null
+                ? Color.alphaBlend(
+                    tintColor!.withValues(alpha: 0.26),
+                    const Color(0xFFCBD5E1),
+                  )
+                : const Color(0xFFD0DDF0)));
 
     final Widget card = Container(
       margin: margin,
@@ -163,7 +168,7 @@ class GlassDock extends StatelessWidget {
                   colors: [Color(0xFFFFFFFF), Color(0xFFF4F8FF)],
                 ),
                 borderRadius: br,
-                border: Border.all(color: Colors.white, width: 1.5),
+                border: Border.all(color: const Color(0xFFCBD5E1), width: 1.2),
                 boxShadow: const [
                   BoxShadow(
                     color: Color(0x141E3A8A),
@@ -397,7 +402,13 @@ class AnimatedMoneyText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final String formatted = _currencyFmt.format(value.round());
-    return Text('$prefix$symbol$formatted', style: style);
+    return Text(
+      '$prefix$symbol$formatted',
+      style: style?.copyWith(
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ) ??
+          const TextStyle(fontFeatures: [FontFeature.tabularFigures()]),
+    );
   }
 }
 
@@ -427,7 +438,7 @@ class LiquidAmbientBackground extends StatelessWidget {
                   Color(0xFF296DE8),
                 ]
               : const [
-                  Color(0xFFE5EEFD),
+                  Color(0xFFEEF3FB),
                   Color(0xFFF3F7FE),
                   Color(0xFFE8F1FE),
                 ],
@@ -474,8 +485,8 @@ class GlassIconBadge extends StatelessWidget {
         ),
         borderRadius: BorderRadius.circular(radius),
         border: Border.all(
-          color: Colors.white,
-          width: 1.3,
+          color: iconColor.withValues(alpha: 0.22),
+          width: 1.1,
         ),
       ),
       child: Icon(icon, color: iconColor, size: iconSize),

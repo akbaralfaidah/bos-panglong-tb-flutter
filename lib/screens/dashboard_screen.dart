@@ -262,14 +262,44 @@ class _DashboardScreenState extends State<DashboardScreen>
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            "Hi, $_firstName",
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 17,
-                              color: AppColors.primaryNavy,
-                            ),
-                            overflow: TextOverflow.ellipsis,
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  "Hi, $_firstName",
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 17,
+                                    color: AppColors.textDark,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 7,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.menuBlueBg,
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(
+                                    color: const Color(0xFFBFDBFE),
+                                    width: 0.9,
+                                  ),
+                                ),
+                                child: Text(
+                                  _isOwner ? "PEMILIK" : "KASIR",
+                                  style: const TextStyle(
+                                    fontSize: 9.5,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.primaryNavy,
+                                    letterSpacing: 0.4,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                           const SizedBox(height: 2),
                           Row(
@@ -305,6 +335,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                     _headerGlassBtn(
                       icon: LucideIcons.refreshCw,
                       color: AppColors.primaryNavy,
+                      tooltip: "Segarkan Data",
                       onTap: _refreshStats,
                     ),
                     if (_isOwner) ...[
@@ -312,6 +343,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                       _headerGlassBtn(
                         icon: LucideIcons.settings,
                         color: AppColors.primaryNavy,
+                        tooltip: "Pengaturan Toko",
                         onTap: () => _nav(const SettingsScreen()),
                       ),
                     ],
@@ -320,6 +352,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                       icon: LucideIcons.logOut,
                       color: AppColors.statusRed,
                       isDanger: true,
+                      tooltip: "Keluar",
                       onTap: _logout,
                     ),
                   ],
@@ -339,141 +372,199 @@ class _DashboardScreenState extends State<DashboardScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // 1. HERO PROFIT CARD (ROYAL SAPPHIRE FROSTED GLASS + SHIMMER SWEEP)
+                // 1. HERO PROFIT CARD (COBALT-AZURE GRADIENT + GEOMETRIC RINGS)
                 LiquidEntrance(
                   delayMs: 40,
                   child: _isOwner
                       ? LiquidPressWrapper(
                           onTap: () => _nav(const ProfitHistoryScreen()),
-                          child: LiquidShimmerSweep(
-                            borderRadius: 22,
-                            child: GlassContainer(
-                              isDark: true,
-                              borderRadius: 22,
-                              tintColor: const Color(0xFF296DE8),
-                              padding: const EdgeInsets.all(20),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(22),
+                              gradient: const LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                stops: [0.0, 0.55, 1.0],
+                                colors: [
+                                  Color(0xFF1E3A8A),
+                                  Color(0xFF1D4ED8),
+                                  Color(0xFF296DE8),
+                                ],
+                              ),
+                              border: Border.all(
+                                color: const Color(0xFF93C5FD).withValues(alpha: 0.42),
+                                width: 1.2,
+                              ),
+                              boxShadow: const [
+                                BoxShadow(
+                                  color: Color(0x281E3A8A),
+                                  blurRadius: 16,
+                                  offset: Offset(0, 6),
+                                ),
+                              ],
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(22),
+                              child: Stack(
                                 children: [
-                                  Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          Container(
-                                            width: 4,
-                                            height: 16,
-                                            decoration: BoxDecoration(
-                                              color: AppColors.accentAmberBright,
-                                              borderRadius: BorderRadius.circular(
-                                                2,
-                                              ),
-                                            ),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          const Text(
-                                            "PROFIT BERSIH HARI INI",
-                                            style: TextStyle(
-                                              color: Color(0xFFDBEAFE),
-                                              fontWeight: FontWeight.w700,
-                                              fontSize: 11.5,
-                                              letterSpacing: 0.8,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 10,
-                                          vertical: 4,
-                                        ),
+                                  Positioned(
+                                    right: -36,
+                                    top: -36,
+                                    child: IgnorePointer(
+                                      child: Container(
+                                        width: 140,
+                                        height: 140,
                                         decoration: BoxDecoration(
-                                          color: Colors.white.withValues(alpha: 0.16),
-                                          borderRadius: BorderRadius.circular(12),
+                                          shape: BoxShape.circle,
                                           border: Border.all(
-                                            color: Colors.white.withValues(alpha: 0.35),
-                                            width: 1.0,
+                                            color: Colors.white.withValues(alpha: 0.10),
+                                            width: 16,
                                           ),
                                         ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
+                                      ),
+                                    ),
+                                  ),
+                                  Positioned(
+                                    right: 26,
+                                    bottom: -48,
+                                    child: IgnorePointer(
+                                      child: Container(
+                                        width: 110,
+                                        height: 110,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          color: Colors.white.withValues(alpha: 0.06),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  Padding(
+                                    padding: const EdgeInsets.all(20),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
                                           children: [
-                                            Container(
-                                              width: 6,
-                                              height: 6,
-                                              decoration: const BoxDecoration(
-                                                color: Color(0xFF34D399),
-                                                shape: BoxShape.circle,
-                                              ),
+                                            Row(
+                                              children: [
+                                                Container(
+                                                  width: 4,
+                                                  height: 16,
+                                                  decoration: BoxDecoration(
+                                                    color: AppColors.accentAmberBright,
+                                                    borderRadius: BorderRadius.circular(
+                                                      2,
+                                                    ),
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 8),
+                                                const Text(
+                                                  "PROFIT BERSIH HARI INI",
+                                                  style: TextStyle(
+                                                    color: Color(0xFFDBEAFE),
+                                                    fontWeight: FontWeight.w700,
+                                                    fontSize: 11.5,
+                                                    letterSpacing: 0.8,
+                                                  ),
+                                                ),
+                                              ],
                                             ),
-                                            const SizedBox(width: 5),
-                                            const Text(
-                                              "LIVE",
-                                              style: TextStyle(
-                                                color: AppColors.pureWhite,
-                                                fontSize: 10,
-                                                fontWeight: FontWeight.w800,
-                                                letterSpacing: 0.5,
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(
+                                                horizontal: 10,
+                                                vertical: 4,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: Colors.white.withValues(alpha: 0.16),
+                                                borderRadius: BorderRadius.circular(12),
+                                                border: Border.all(
+                                                  color: Colors.white.withValues(alpha: 0.35),
+                                                  width: 1.0,
+                                                ),
+                                              ),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Container(
+                                                    width: 6,
+                                                    height: 6,
+                                                    decoration: const BoxDecoration(
+                                                      color: Color(0xFF34D399),
+                                                      shape: BoxShape.circle,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 5),
+                                                  const Text(
+                                                    "LIVE",
+                                                    style: TextStyle(
+                                                      color: AppColors.pureWhite,
+                                                      fontSize: 10,
+                                                      fontWeight: FontWeight.w800,
+                                                      letterSpacing: 0.5,
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
                                             ),
                                           ],
                                         ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 14),
-                                  FittedBox(
-                                    fit: BoxFit.scaleDown,
-                                    alignment: Alignment.centerLeft,
-                                    child: AnimatedMoneyText(
-                                      value: _profitBersih,
-                                      style: TextStyle(
-                                        fontSize: 32,
-                                        fontWeight: FontWeight.w900,
-                                        color: _profitBersih >= 0
-                                            ? AppColors.pureWhite
-                                            : const Color(0xFFFCA5A5),
-                                        letterSpacing: 0.5,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 8,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withValues(alpha: 0.14),
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(
-                                        color: Colors.white.withValues(alpha: 0.25),
-                                      ),
-                                    ),
-                                    child: Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        const Expanded(
-                                          child: FittedBox(
-                                            fit: BoxFit.scaleDown,
-                                            alignment: Alignment.centerLeft,
-                                            child: Text(
-                                              "Lihat Rincian Profit & Alokasi Modal",
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w700,
-                                                color: Colors.white,
-                                              ),
+                                        const SizedBox(height: 14),
+                                        FittedBox(
+                                          fit: BoxFit.scaleDown,
+                                          alignment: Alignment.centerLeft,
+                                          child: AnimatedMoneyText(
+                                            value: _profitBersih,
+                                            style: TextStyle(
+                                              fontSize: 32,
+                                              fontWeight: FontWeight.w800,
+                                              color: _profitBersih >= 0
+                                                  ? AppColors.pureWhite
+                                                  : const Color(0xFFFCA5A5),
+                                              letterSpacing: 0.3,
                                             ),
                                           ),
                                         ),
-                                        const SizedBox(width: 8),
-                                        const Icon(
-                                          LucideIcons.arrowRight,
-                                          color: AppColors.accentAmberBright,
-                                          size: 16,
+                                        const SizedBox(height: 16),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 8,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white.withValues(alpha: 0.14),
+                                            borderRadius: BorderRadius.circular(12),
+                                            border: Border.all(
+                                              color: Colors.white.withValues(alpha: 0.25),
+                                            ),
+                                          ),
+                                          child: const Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Expanded(
+                                                child: FittedBox(
+                                                  fit: BoxFit.scaleDown,
+                                                  alignment: Alignment.centerLeft,
+                                                  child: Text(
+                                                    "Lihat Rincian Profit & Alokasi Modal",
+                                                    style: TextStyle(
+                                                      fontSize: 12,
+                                                      fontWeight: FontWeight.w700,
+                                                      color: Colors.white,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                              SizedBox(width: 8),
+                                              Icon(
+                                                LucideIcons.arrowRight,
+                                                color: AppColors.accentAmberBright,
+                                                size: 16,
+                                              ),
+                                            ],
+                                          ),
                                         ),
                                       ],
                                     ),
@@ -760,98 +851,112 @@ class _DashboardScreenState extends State<DashboardScreen>
                 // 4. AKSES CEPAT LAINNYA (FROSTED GLASS DOCK)
                 LiquidEntrance(
                   delayMs: 260,
-                  child: GlassContainer(
-                    borderRadius: 22,
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 16,
-                      horizontal: 8,
-                    ),
-                    child: _isOwner
-                        ? Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                child: _wondrMenuBtn(
-                                  "Laporan",
-                                  LucideIcons.chartColumn,
-                                  AppColors.menuBlueBg,
-                                  AppColors.menuBlueIcon,
-                                  () => _nav(const ReportScreen()),
-                                ),
-                              ),
-                              Expanded(
-                                child: _wondrMenuBtn(
-                                  "Riwayat",
-                                  LucideIcons.history,
-                                  AppColors.menuIndigoBg,
-                                  AppColors.menuIndigoIcon,
-                                  () => _nav(const CashFlowScreen()),
-                                ),
-                              ),
-                              Expanded(
-                                child: _wondrMenuBtn(
-                                  "Pelanggan",
-                                  LucideIcons.users,
-                                  AppColors.menuTealBg,
-                                  AppColors.menuTealIcon,
-                                  () => _nav(const CustomerScreen()),
-                                ),
-                              ),
-                              Expanded(
-                                child: _wondrMenuBtn(
-                                  "Modal",
-                                  LucideIcons.piggyBank,
-                                  AppColors.menuAmberBg,
-                                  AppColors.menuAmberIcon,
-                                  () => _nav(const CapitalManagementScreen()),
-                                ),
-                              ),
-                            ],
-                          )
-                        : Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                child: _wondrMenuBtn(
-                                  "Riwayat Nota",
-                                  LucideIcons.receiptText,
-                                  AppColors.menuBlueBg,
-                                  AppColors.menuBlueIcon,
-                                  () => _nav(
-                                    const TransactionHistoryScreen(
-                                      initialTabIndex: 0,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "Kelola & Laporan",
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 15.5,
+                          color: AppColors.textDark,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      GlassContainer(
+                        borderRadius: 22,
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 16,
+                          horizontal: 8,
+                        ),
+                        child: _isOwner
+                            ? Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    child: _wondrMenuBtn(
+                                      "Laporan",
+                                      LucideIcons.chartColumn,
+                                      AppColors.menuBlueBg,
+                                      AppColors.menuBlueIcon,
+                                      () => _nav(const ReportScreen()),
                                     ),
                                   ),
-                                ),
-                              ),
-                              Expanded(
-                                child: _wondrMenuBtn(
-                                  "Nota Hutang",
-                                  LucideIcons.bookOpen,
-                                  AppColors.menuIndigoBg,
-                                  AppColors.menuIndigoIcon,
-                                  () => _nav(
-                                    const TransactionHistoryScreen(
-                                      initialTabIndex: 1,
+                                  Expanded(
+                                    child: _wondrMenuBtn(
+                                      "Riwayat",
+                                      LucideIcons.history,
+                                      AppColors.menuIndigoBg,
+                                      AppColors.menuIndigoIcon,
+                                      () => _nav(const CashFlowScreen()),
                                     ),
                                   ),
-                                ),
-                              ),
-                              Expanded(
-                                child: _wondrMenuBtn(
-                                  "Titipan",
-                                  LucideIcons.warehouse,
-                                  AppColors.menuAmberBg,
-                                  AppColors.menuAmberIcon,
-                                  () => _nav(
-                                    const TransactionHistoryScreen(
-                                      initialTabIndex: 2,
+                                  Expanded(
+                                    child: _wondrMenuBtn(
+                                      "Pelanggan",
+                                      LucideIcons.users,
+                                      AppColors.menuTealBg,
+                                      AppColors.menuTealIcon,
+                                      () => _nav(const CustomerScreen()),
                                     ),
                                   ),
-                                ),
+                                  Expanded(
+                                    child: _wondrMenuBtn(
+                                      "Modal",
+                                      LucideIcons.piggyBank,
+                                      AppColors.menuAmberBg,
+                                      AppColors.menuAmberIcon,
+                                      () => _nav(const CapitalManagementScreen()),
+                                    ),
+                                  ),
+                                ],
+                              )
+                            : Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    child: _wondrMenuBtn(
+                                      "Riwayat Nota",
+                                      LucideIcons.receiptText,
+                                      AppColors.menuBlueBg,
+                                      AppColors.menuBlueIcon,
+                                      () => _nav(
+                                        const TransactionHistoryScreen(
+                                          initialTabIndex: 0,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: _wondrMenuBtn(
+                                      "Nota Hutang",
+                                      LucideIcons.bookOpen,
+                                      AppColors.menuIndigoBg,
+                                      AppColors.menuIndigoIcon,
+                                      () => _nav(
+                                        const TransactionHistoryScreen(
+                                          initialTabIndex: 1,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: _wondrMenuBtn(
+                                      "Titipan",
+                                      LucideIcons.warehouse,
+                                      AppColors.menuAmberBg,
+                                      AppColors.menuAmberIcon,
+                                      () => _nav(
+                                        const TransactionHistoryScreen(
+                                          initialTabIndex: 2,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
+                      ),
+                    ],
                   ),
                 ),
 
@@ -1039,27 +1144,28 @@ class _DashboardScreenState extends State<DashboardScreen>
     required Color color,
     required VoidCallback onTap,
     bool isDanger = false,
+    String? tooltip,
   }) {
-    return LiquidPressWrapper(
+    final Widget btn = LiquidPressWrapper(
       pressedScale: 0.90,
       onTap: onTap,
       child: Container(
-        width: 38,
-        height: 38,
+        width: 40,
+        height: 40,
         decoration: BoxDecoration(
           color: isDanger
               ? const Color(0xFFFEF2F2)
-              : Colors.white.withValues(alpha: 0.85),
+              : Colors.white,
           borderRadius: BorderRadius.circular(11),
           border: Border.all(
             color: isDanger
                 ? const Color(0xFFFECACA)
-                : Colors.white.withValues(alpha: 0.95),
+                : const Color(0xFFCBD5E1),
             width: 1.1,
           ),
           boxShadow: const [
             BoxShadow(
-              color: Color(0x0D1E3A8A),
+              color: Color(0x0D0F172A),
               blurRadius: 6,
               offset: Offset(0, 2),
             ),
@@ -1068,6 +1174,10 @@ class _DashboardScreenState extends State<DashboardScreen>
         child: Icon(icon, color: color, size: 19),
       ),
     );
+    if (tooltip != null && tooltip.isNotEmpty) {
+      return Tooltip(message: tooltip, child: btn);
+    }
+    return btn;
   }
 
   Widget _statCardClean(
@@ -1086,15 +1196,6 @@ class _DashboardScreenState extends State<DashboardScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 24,
-            height: 3,
-            decoration: BoxDecoration(
-              color: colorIcon,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const SizedBox(height: 10),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -1102,14 +1203,22 @@ class _DashboardScreenState extends State<DashboardScreen>
                 icon: icon,
                 iconColor: colorIcon,
                 bgColor: bgIcon,
-                size: 36,
+                size: 38,
                 iconSize: 18,
                 radius: 11,
               ),
-              Icon(
-                LucideIcons.arrowUpRight,
-                size: 16,
-                color: colorIcon.withValues(alpha: 0.7),
+              Container(
+                width: 26,
+                height: 26,
+                decoration: BoxDecoration(
+                  color: bgIcon,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  LucideIcons.arrowUpRight,
+                  size: 14,
+                  color: colorIcon,
+                ),
               ),
             ],
           ),
@@ -1122,7 +1231,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               style: const TextStyle(
                 fontSize: 12,
                 color: AppColors.textGrey,
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w500,
               ),
               maxLines: 1,
             ),
@@ -1134,9 +1243,9 @@ class _DashboardScreenState extends State<DashboardScreen>
             child: AnimatedMoneyText(
               value: value,
               style: const TextStyle(
-                fontSize: 16,
+                fontSize: 16.5,
                 fontWeight: FontWeight.w800,
-                color: AppColors.primaryNavy,
+                color: AppColors.textDark,
               ),
             ),
           ),
