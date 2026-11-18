@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../controllers/bulk_stock_controller.dart'; 
 import '../theme/app_colors.dart';
+import '../helpers/stock_cost_calculator.dart';
 import 'product_list_screen.dart'; 
 import 'stock_receipt_screen.dart'; 
 import '../helpers/app_notification.dart';
@@ -851,6 +852,26 @@ class _ReviewStockScreenState extends State<ReviewStockScreen> {
                                   )
                                 ],
                               ),
+
+                              if (StockCostCalculator.isWoodType(item.product.type) && item.finalStockAdd > 0) ...[
+                                const SizedBox(height: 6),
+                                Builder(builder: (_) {
+                                  int estAvg = StockCostCalculator.calculateWeightedAverageCost(
+                                    oldStock: item.product.stock,
+                                    oldCost: item.product.buyPriceUnit,
+                                    addedQty: item.finalStockAdd,
+                                    totalAddedExpense: item.totalExpense,
+                                  );
+                                  return Text(
+                                    "Modal lama ${_formatRp(item.product.buyPriceUnit)}, modal baru (rata-rata) ${_formatRp(estAvg)}",
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.amber.shade900,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  );
+                                }),
+                              ],
 
                               // 🚚 INFO ONGKIR PER ITEM (muncul jika ongkir sudah diterapkan)
                               if (_ongkirApplied && _ongkirPerUnitResult.containsKey(i)) ...[

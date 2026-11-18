@@ -115,6 +115,7 @@ class _CashierScreenState extends State<CashierScreen>
     "A-Z",
     "Baru Ditambahkan",
     "Sering Dibeli",
+    "Ada Titipan",
     "Stok Kosong",
   ];
 
@@ -292,6 +293,14 @@ class _CashierScreenState extends State<CashierScreen>
         int cmp = a.orderIndex.compareTo(b.orderIndex);
         if (cmp == 0) return _naturalCompare(a.name, b.name);
         return cmp;
+      });
+    } else if (sortBy == "Ada Titipan") {
+      list.sort((a, b) {
+        if (a.reservedStock > 0 && b.reservedStock <= 0) return -1;
+        if (a.reservedStock <= 0 && b.reservedStock > 0) return 1;
+        int cmp = b.reservedStock.compareTo(a.reservedStock);
+        if (cmp != 0) return cmp;
+        return _naturalCompare(a.name, b.name);
       });
     } else if (sortBy == "Stok Kosong") {
       list.sort((a, b) {
@@ -547,7 +556,7 @@ class _CashierScreenState extends State<CashierScreen>
                     ),
                     const SizedBox(height: 5),
                     Text(
-                      "Sisa Stok di Rak: ${displayStock == displayStock.roundToDouble() ? displayStock.round().toString() : displayStock.toStringAsFixed(2)}",
+                      "Siap Jual (Sistem): ${displayStock == displayStock.roundToDouble() ? displayStock.round().toString() : displayStock.toStringAsFixed(2)}",
                       style: TextStyle(
                         fontSize: 13,
                         color: displayStock <= 0
@@ -556,6 +565,17 @@ class _CashierScreenState extends State<CashierScreen>
                         fontWeight: FontWeight.bold,
                       ),
                     ),
+                    if (p.reservedStock > 0) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        "Titipan: ${p.reservedStockDisplay}  •  Fisik Gudang: ${p.physicalStockDisplay}",
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          color: AppColors.menuAmberIcon,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 20),
 
                     SingleChildScrollView(
@@ -874,6 +894,210 @@ class _CashierScreenState extends State<CashierScreen>
     return _cart.fold(0, (sum, item) => sum + item.agreedPriceTotal);
   }
 
+  Future<void> _goToReviewTransaction() async {
+    List<Map<String, dynamic>> structuredCart = _cart.map((item) {
+      return {
+        'product_id': item.product.id,
+        'product_name': item.product.name,
+        'product_type': item.product.type,
+        'dimensions': item.product.dimensions, // 🔥 FIX: Sertakan dimensi
+        'quantity': item.stockDeduction,
+        'request_qty': item.qty,
+        'unit_type': item.unitName,
+        'sell_price': item.sellPrice,
+        'agreed_total': item.agreedPriceTotal,
+        'capital_price': item.capitalPrice,
+        // 🔥 FIX BUG PROFIT: MODAL DIKALI QUANTITY PECAHAN! BUKAN DIKALI PEMBULATAN FISIK! 🔥
+        'capital_total': (item.capitalPrice * item.qty).round(),
+        'product_obj': item.product,
+        'is_grosir': item.isGrosir,
+      };
+    }).toList();
+
+    final returnedCart = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ReviewTransactionScreen(
+          cartItems: structuredCart,
+          totalPrice: _cartTotal,
+          discount: 0,
+        ),
+      ),
+    );
+
+    if (returnedCart != null && returnedCart is List<Map<String, dynamic>>) {
+      setState(() {
+        _cart = returnedCart.map((mapItem) {
+          return CartItem(
+            product: mapItem['product_obj'] as Product,
+            qty: (mapItem['request_qty'] as num).toDouble(),
+            isGrosir: mapItem['is_grosir'] ?? false,
+            sellPrice: mapItem['sell_price'] as int,
+            agreedPriceTotal: mapItem['agreed_total'] as int,
+            capitalPrice: mapItem['capital_price'] as int,
+            stockDeduction: (mapItem['quantity'] as num).toDouble(),
+            unitName: mapItem['unit_type'] as String,
+          );
+        }).toList();
+      });
+      _saveCart();
+    } else {
+      // 🔥 PAKSA SINKRONISASI JIKA TRANSAKSI SUKSES ATAU KELUAR 🔥
+      _syncCart();
+      _loadProducts();
+    }
+  }
+
+  void _showCartPreviewSheet() {
+    if (_cart.isEmpty) return;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (sheetCtx, setSheetState) {
+          return DraggableScrollableSheet(
+            initialChildSize: 0.65,
+            minChildSize: 0.4,
+            maxChildSize: 0.9,
+            builder: (_, scrollCtrl) => Container(
+              decoration: const BoxDecoration(
+                color: AppColors.pureWhite,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+              ),
+              child: Column(
+                children: [
+                  Container(
+                    margin: const EdgeInsets.only(top: 10, bottom: 8),
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          "Keranjang Belanja (${_cart.length})",
+                          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: AppColors.primaryNavy),
+                        ),
+                        TextButton.icon(
+                          onPressed: () {
+                            setState(() => _cart.clear());
+                            _saveCart();
+                            Navigator.pop(ctx);
+                          },
+                          icon: const Icon(Icons.delete_sweep, color: AppColors.statusRed, size: 18),
+                          label: const Text("Kosongkan", style: TextStyle(color: AppColors.statusRed, fontWeight: FontWeight.bold, fontSize: 12)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  Expanded(
+                    child: _cart.isEmpty
+                        ? const Center(child: Text("Keranjang kosong.", style: TextStyle(color: AppColors.textGrey)))
+                        : ListView.separated(
+                            controller: scrollCtrl,
+                            padding: const EdgeInsets.all(16),
+                            itemCount: _cart.length,
+                            separatorBuilder: (_, __) => const Divider(height: 12),
+                            itemBuilder: (_, idx) {
+                              final c = _cart[idx];
+                              String qtyStr = c.qty == c.qty.toInt() ? c.qty.toInt().toString() : c.qty.toString();
+                              String pName = c.product.name.replaceAll(RegExp(r'Kelas \d+\s?'), '').replaceAll('()', '').trim();
+
+                              return Row(
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(pName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.primaryNavy)),
+                                        const SizedBox(height: 2),
+                                        Text("$qtyStr ${c.unitName}  •  ${_formatRp(c.sellPrice)}/${c.unitName}", style: const TextStyle(fontSize: 12, color: AppColors.textGrey)),
+                                      ],
+                                    ),
+                                  ),
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      Text(_formatRp(c.agreedPriceTotal), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: AppColors.primaryNavy)),
+                                      const SizedBox(height: 4),
+                                      InkWell(
+                                        onTap: () {
+                                          setState(() => _cart.removeAt(idx));
+                                          _saveCart();
+                                          if (_cart.isEmpty) {
+                                            Navigator.pop(ctx);
+                                          } else {
+                                            setSheetState(() {});
+                                          }
+                                        },
+                                        child: const Padding(
+                                          padding: EdgeInsets.all(4),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(Icons.delete_outline, color: AppColors.statusRed, size: 16),
+                                              SizedBox(width: 2),
+                                              Text("Hapus", style: TextStyle(fontSize: 11, color: AppColors.statusRed, fontWeight: FontWeight.bold)),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              );
+                            },
+                          ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: const BoxDecoration(
+                      color: AppColors.pureWhite,
+                      boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, -3))],
+                    ),
+                    child: SafeArea(
+                      child: Row(
+                        children: [
+                          Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text("Total Tagihan:", style: TextStyle(fontSize: 11, color: AppColors.textGrey, fontWeight: FontWeight.bold)),
+                              Text(_formatRp(_cartTotal), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: AppColors.primaryNavy)),
+                            ],
+                          ),
+                          const Spacer(),
+                          ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primaryNavy,
+                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            ),
+                            onPressed: () {
+                              Navigator.pop(ctx);
+                              _goToReviewTransaction();
+                            },
+                            icon: const Icon(Icons.shopping_cart_checkout, color: AppColors.accentGold),
+                            label: Text("LANJUT BAYAR (${_cart.length})", style: const TextStyle(color: AppColors.accentGold, fontWeight: FontWeight.bold)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     bool isTabKayu = _tabController.index == 0;
@@ -1066,29 +1290,55 @@ class _CashierScreenState extends State<CashierScreen>
               ),
               child: Row(
                 children: [
-                  Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        "Total Tagihan:",
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textGrey,
-                          fontWeight: FontWeight.bold,
-                        ),
+                  Expanded(
+                    child: InkWell(
+                      onTap: _showCartPreviewSheet,
+                      borderRadius: BorderRadius.circular(10),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Text(
+                                "Total Tagihan",
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textGrey,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AppColors.menuBlueBg,
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  "${_cart.length} Item ▴",
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    color: AppColors.menuBlueIcon,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          Text(
+                            _formatRp(_cartTotal),
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w900,
+                              color: AppColors.primaryNavy,
+                            ),
+                          ),
+                        ],
                       ),
-                      Text(
-                        _formatRp(_cartTotal),
-                        style: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w900,
-                          color: AppColors.primaryNavy,
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
-                  const Spacer(),
+                  const SizedBox(width: 10),
                   ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primaryNavy,
@@ -1100,63 +1350,7 @@ class _CashierScreenState extends State<CashierScreen>
                         borderRadius: BorderRadius.circular(15),
                       ),
                     ),
-                    onPressed: () async {
-                      List<Map<String, dynamic>> structuredCart = _cart.map((
-                        item,
-                      ) {
-                        return {
-                          'product_id': item.product.id,
-                          'product_name': item.product.name,
-                          'product_type': item.product.type,
-                          'dimensions': item.product.dimensions, // 🔥 FIX: Sertakan dimensi
-                          'quantity': item.stockDeduction,
-                          'request_qty': item.qty,
-                          'unit_type': item.unitName,
-                          'sell_price': item.sellPrice,
-                          'agreed_total': item.agreedPriceTotal,
-                          'capital_price': item.capitalPrice,
-                          // 🔥 FIX BUG PROFIT: MODAL DIKALI QUANTITY PECAHAN! BUKAN DIKALI PEMBULATAN FISIK! 🔥
-                          'capital_total': (item.capitalPrice * item.qty)
-                              .round(),
-                          'product_obj': item.product,
-                          'is_grosir': item.isGrosir,
-                        };
-                      }).toList();
-
-                      final returnedCart = await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => ReviewTransactionScreen(
-                            cartItems: structuredCart,
-                            totalPrice: _cartTotal,
-                            discount: 0,
-                          ),
-                        ),
-                      );
-
-                      if (returnedCart != null &&
-                          returnedCart is List<Map<String, dynamic>>) {
-                        setState(() {
-                          _cart = returnedCart.map((mapItem) {
-                            return CartItem(
-                              product: mapItem['product_obj'] as Product,
-                              qty: (mapItem['request_qty'] as num).toDouble(),
-                              isGrosir: mapItem['is_grosir'] ?? false,
-                              sellPrice: mapItem['sell_price'] as int,
-                              agreedPriceTotal: mapItem['agreed_total'] as int,
-                              capitalPrice: mapItem['capital_price'] as int,
-                              stockDeduction: (mapItem['quantity'] as num).toDouble(),
-                              unitName: mapItem['unit_type'] as String,
-                            );
-                          }).toList();
-                        });
-                        _saveCart();
-                      } else {
-                        // 🔥 PAKSA SINKRONISASI JIKA TRANSAKSI SUKSES ATAU KELUAR 🔥
-                        _syncCart();
-                        _loadProducts();
-                      }
-                    },
+                    onPressed: _goToReviewTransaction,
                     icon: const Icon(
                       Icons.shopping_cart_checkout,
                       color: AppColors.accentGold,
@@ -1350,6 +1544,10 @@ class _CashierScreenState extends State<CashierScreen>
     int inCartCount = _cart.where((c) => c.product.id == p.id).length;
     String displayStockStr = displayStock == displayStock.roundToDouble() ? displayStock.round().toString() : displayStock.toStringAsFixed(2);
 
+    String unitShort = isBangunan ? (p.dimensions ?? "Pcs") : "Btg";
+    double physicalNow = double.parse((displayStock + p.reservedStock).toStringAsFixed(2));
+    String physicalNowStr = physicalNow == physicalNow.roundToDouble() ? physicalNow.round().toString() : physicalNow.toStringAsFixed(2);
+
     Widget stockWidget;
     if (isBangunan &&
         p.grosirUnit != null &&
@@ -1367,24 +1565,24 @@ class _CashierScreenState extends State<CashierScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              "Sisa: $displayStockStr $dim",
+              "Siap Jual: $displayStockStr $dim",
               style: TextStyle(
                 color: displayStock <= 5
                     ? AppColors.pureWhite
                     : AppColors.accentGold,
-                fontSize: 13,
+                fontSize: 12.5,
                 fontWeight: FontWeight.w900,
-                letterSpacing: 0.5,
+                letterSpacing: 0.3,
               ),
             ),
-            const SizedBox(height: 2),
+            const SizedBox(height: 1),
             Text(
               subText,
               style: TextStyle(
                 color: displayStock <= 5
                     ? Colors.white70
-                    : AppColors.accentGold.withOpacity(0.8),
-                fontSize: 11,
+                    : AppColors.accentGold.withOpacity(0.85),
+                fontSize: 10.5,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -1392,25 +1590,25 @@ class _CashierScreenState extends State<CashierScreen>
         );
       } else {
         stockWidget = Text(
-          "Sisa: $displayStockStr $dim",
+          "Siap Jual: $displayStockStr $dim",
           style: TextStyle(
             color: displayStock <= 5
                 ? AppColors.pureWhite
                 : AppColors.accentGold,
-            fontSize: 13,
+            fontSize: 12.5,
             fontWeight: FontWeight.w900,
-            letterSpacing: 0.5,
+            letterSpacing: 0.3,
           ),
         );
       }
     } else {
       stockWidget = Text(
-        "Sisa: $displayStockStr",
+        "Siap Jual: $displayStockStr $unitShort",
         style: TextStyle(
           color: displayStock <= 5 ? AppColors.pureWhite : AppColors.accentGold,
-          fontSize: 13,
+          fontSize: 12.5,
           fontWeight: FontWeight.w900,
-          letterSpacing: 0.5,
+          letterSpacing: 0.3,
         ),
       );
     }
@@ -1506,37 +1704,91 @@ class _CashierScreenState extends State<CashierScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: displayStock <= 5
-                    ? AppColors.statusRed
-                    : Colors.white.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(8),
-                border: displayStock <= 5
-                    ? Border.all(color: Colors.redAccent.shade100)
-                    : null,
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(top: 1.0),
-                    child: Icon(
-                      displayStock <= 5
-                          ? Icons.warning_amber_rounded
-                          : Icons.inventory,
-                      size: 14,
-                      color: displayStock <= 5
-                          ? AppColors.pureWhite
-                          : AppColors.accentGold,
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: displayStock <= 5
+                        ? AppColors.statusRed
+                        : Colors.white.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(8),
+                    border: displayStock <= 5
+                        ? Border.all(color: Colors.redAccent.shade100)
+                        : null,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(top: 1.0),
+                        child: Icon(
+                          displayStock <= 5
+                              ? Icons.warning_amber_rounded
+                              : Icons.inventory,
+                          size: 14,
+                          color: displayStock <= 5
+                              ? AppColors.pureWhite
+                              : AppColors.accentGold,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      stockWidget,
+                    ],
+                  ),
+                ),
+                if (p.reservedStock > 0) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppColors.accentGold.withOpacity(0.22),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.accentGold.withOpacity(0.7)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.warehouse, size: 13, color: AppColors.accentGold),
+                        const SizedBox(width: 4),
+                        Text(
+                          "Titipan: ${p.reservedStockDisplay} $unitShort",
+                          style: const TextStyle(
+                            color: AppColors.accentGold,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 6),
-                  stockWidget,
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.cyanAccent.withOpacity(0.14),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.cyanAccent.withOpacity(0.35)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.fact_check_outlined, size: 13, color: Colors.cyanAccent),
+                        const SizedBox(width: 4),
+                        Text(
+                          "Fisik: $physicalNowStr $unitShort",
+                          style: const TextStyle(
+                            color: Colors.cyanAccent,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
-              ),
+              ],
             ),
             const SizedBox(height: 8),
             Row(

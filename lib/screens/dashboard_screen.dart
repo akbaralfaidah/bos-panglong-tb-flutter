@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'dart:io';
@@ -38,6 +38,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   int _uangOperasional = 0;
   int _totalPiutang = 0;
   int _totalBeliStok = 0;
+  int _titipanCount = 0;
 
   String _storeName = "Bos Depot & TB";
   String? _logoPath;
@@ -179,7 +180,11 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   Future<void> _refreshStats() async {
-    if (!_isOwner) return;
+    if (!_isOwner) {
+      final tCount = await _controller.getActiveTitipanCount();
+      if (mounted) setState(() => _titipanCount = tCount);
+      return;
+    }
     final stats = await _controller.getTodayStats();
     if (!mounted) return;
     setState(() {
@@ -188,6 +193,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       _uangOperasional = stats.uangOperasional;
       _totalPiutang = stats.totalPiutang;
       _totalBeliStok = stats.totalBeliStok;
+      _titipanCount = stats.titipanCount;
     });
   }
 
@@ -544,67 +550,157 @@ class _DashboardScreenState extends State<DashboardScreen>
                       ),
                     ],
                   ),
-                  const SizedBox(height: 20),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: _wondrMenuBtn(
-                          "Laporan",
-                          Icons.analytics,
-                          AppColors.menuBlueBg,
-                          AppColors.menuBlueIcon,
-                          () {
-                            if (_isOwner)
-                              _nav(const ReportScreen());
-                            else
-                              AppNotification.show(context, message: "Akses Ditolak: Hanya Bos yang bisa buka!", type: AppNotificationType.error);
-                          },
+                  const SizedBox(height: 16),
+                  InkWell(
+                    onTap: () => _nav(const TransactionHistoryScreen(initialTabIndex: 2)),
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: _titipanCount > 0 ? AppColors.menuAmberBg : AppColors.backgroundWhite,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: _titipanCount > 0
+                              ? AppColors.menuAmberIcon.withOpacity(0.45)
+                              : Colors.grey.shade200,
                         ),
                       ),
-                      Expanded(
-                        child: _wondrMenuBtn(
-                          "Riwayat",
-                          Icons.history,
-                          AppColors.menuIndigoBg,
-                          AppColors.menuIndigoIcon,
-                          () => _nav(
-                            _isOwner
-                                ? const CashFlowScreen()
-                                : const TransactionHistoryScreen(),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: _titipanCount > 0
+                                  ? AppColors.menuAmberIcon.withOpacity(0.15)
+                                  : Colors.grey.shade200,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(
+                              Icons.warehouse,
+                              color: _titipanCount > 0 ? AppColors.menuAmberIcon : AppColors.textGrey,
+                              size: 24,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  "Barang Titipan (Belum Diantar)",
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                    color: AppColors.primaryNavy,
+                                  ),
+                                ),
+                                SizedBox(height: 2),
+                                Text(
+                                  "Kontrol pesanan yang masih disimpan di gudang",
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: AppColors.textGrey,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: _titipanCount > 0 ? AppColors.menuAmberIcon : Colors.grey.shade300,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              "$_titipanCount Nota",
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w900,
+                                color: _titipanCount > 0 ? Colors.white : AppColors.textDark,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  if (_isOwner)
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: _wondrMenuBtn(
+                            "Laporan",
+                            Icons.analytics,
+                            AppColors.menuBlueBg,
+                            AppColors.menuBlueIcon,
+                            () => _nav(const ReportScreen()),
                           ),
                         ),
-                      ),
-                      Expanded(
-                        child: _wondrMenuBtn(
-                          "Pelanggan",
-                          Icons.people_alt,
-                          Colors.green.shade50,
-                          Colors.green,
-                          () {
-                            if (_isOwner)
-                              _nav(const CustomerScreen());
-                            else
-                              AppNotification.show(context, message: "Akses Ditolak", type: AppNotificationType.error);
-                          },
+                        Expanded(
+                          child: _wondrMenuBtn(
+                            "Riwayat",
+                            Icons.history,
+                            AppColors.menuIndigoBg,
+                            AppColors.menuIndigoIcon,
+                            () => _nav(const CashFlowScreen()),
+                          ),
                         ),
-                      ),
-                      Expanded(
-                        child: _wondrMenuBtn(
-                          "Modal",
-                          Icons.savings,
-                          Colors.orange.shade50,
-                          Colors.orange.shade800,
-                          () {
-                            if (_isOwner)
-                              _nav(const CapitalManagementScreen());
-                            else
-                              AppNotification.show(context, message: "Akses Ditolak", type: AppNotificationType.error);
-                          },
+                        Expanded(
+                          child: _wondrMenuBtn(
+                            "Pelanggan",
+                            Icons.people_alt,
+                            Colors.green.shade50,
+                            Colors.green,
+                            () => _nav(const CustomerScreen()),
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
+                        Expanded(
+                          child: _wondrMenuBtn(
+                            "Modal",
+                            Icons.savings,
+                            Colors.orange.shade50,
+                            Colors.orange.shade800,
+                            () => _nav(const CapitalManagementScreen()),
+                          ),
+                        ),
+                      ],
+                    )
+                  else
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: _wondrMenuBtn(
+                            "Riwayat Nota",
+                            Icons.receipt_long,
+                            AppColors.menuBlueBg,
+                            AppColors.menuBlueIcon,
+                            () => _nav(const TransactionHistoryScreen(initialTabIndex: 0)),
+                          ),
+                        ),
+                        Expanded(
+                          child: _wondrMenuBtn(
+                            "Nota Hutang",
+                            Icons.menu_book,
+                            AppColors.menuIndigoBg,
+                            AppColors.menuIndigoIcon,
+                            () => _nav(const TransactionHistoryScreen(initialTabIndex: 1)),
+                          ),
+                        ),
+                        Expanded(
+                          child: _wondrMenuBtn(
+                            "Titipan",
+                            Icons.warehouse,
+                            AppColors.menuAmberBg,
+                            AppColors.menuAmberIcon,
+                            () => _nav(const TransactionHistoryScreen(initialTabIndex: 2)),
+                          ),
+                        ),
+                      ],
+                    ),
                   const SizedBox(height: 100),
                 ],
               ),

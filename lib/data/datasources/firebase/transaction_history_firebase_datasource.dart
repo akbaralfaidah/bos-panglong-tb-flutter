@@ -37,6 +37,11 @@ class TransactionHistoryFirebaseDataSource {
 
     if (statusCondition == 'LUNAS') {
       results = results.where((doc) => doc['payment_status'] == 'Lunas').toList();
+    } else if (statusCondition == 'TITIPAN') {
+      results = results.where((doc) {
+        String dStatus = doc['delivery_status']?.toString() ?? 'Selesai';
+        return dStatus != 'Selesai';
+      }).toList();
     } else {
       results = results.where((doc) => doc['payment_status'] != 'Lunas').toList();
     }

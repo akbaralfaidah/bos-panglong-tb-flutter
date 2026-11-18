@@ -188,12 +188,14 @@ class ReviewTransactionController {
     required String paymentStatus,
     required DateTime transactionDate, 
     int cutProfit = 0,
+    String deliveryStatus = 'Selesai',
   }) async {
     return await _reviewDS.saveTransactionToDb(
       cartItems: cartItems, customerName: customerName, customerPhone: customerPhone, 
       customerAddress: customerAddress, totalPrice: totalPrice, operationalCost: operationalCost, 
       discount: discount, paymentMethod: paymentMethod, paymentStatus: paymentStatus,
       transactionDate: transactionDate, cutProfit: cutProfit,
+      deliveryStatus: deliveryStatus,
     );
   }
 

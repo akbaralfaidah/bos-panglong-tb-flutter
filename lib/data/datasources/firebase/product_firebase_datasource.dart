@@ -3,16 +3,18 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import '../../../models/product.dart';
 import '../../../helpers/session_manager.dart';
+import '../../../helpers/stock_cost_calculator.dart';
 
 class ProductFirebaseDataSource {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
   // 🔥 COUNTER UNTUK MENGHINDARI ID COLLISION SAAT RAPID WRITES 🔥
   static int _logCounter = 0;
-  int _uniqueLogId() {
+  static int generateUniqueLogId() {
     _logCounter++;
     return DateTime.now().millisecondsSinceEpoch * 1000 + (_logCounter % 1000);
   }
+  int _uniqueLogId() => generateUniqueLogId();
   CollectionReference _col(String path) => _db
       .collection('stores')
       .doc(SessionManager().uid ?? 'UNKNOWN_STORE')
@@ -64,6 +66,11 @@ class ProductFirebaseDataSource {
 
         if (data['stock'] != null) {
           data['stock'] = (data['stock'] as num).toDouble();
+        }
+        if (data['reserved_stock'] != null) {
+          data['reserved_stock'] = (data['reserved_stock'] as num).toDouble();
+        } else {
+          data['reserved_stock'] = 0.0;
         }
 
         data['woodClass'] = data['woodClass'] ?? data['wood_class'] ?? '';
@@ -183,52 +190,58 @@ class ProductFirebaseDataSource {
     return id;
   }
 
-  Future<void> updateStockQuick(int id, double newStock, int expense) async {
+  Future<void> updateStockQuick(int id, double newStock, int expense, {String? exactDate}) async {
     try {
       final doc = await _col(
         'products',
-      ).doc(id.toString()).get(const GetOptions(source: Source.cache));
-      if (doc.exists) {
+      ).doc(id.toString()).get(const GetOptions(source: Source.server));
+      if (doc.exists && doc.data() != null) {
         Map<String, dynamic> old = doc.data() as Map<String, dynamic>;
-        double oldStk = (old['stock'] as num).toDouble();
+        double oldStk = (old['stock'] as num?)?.toDouble() ?? 0.0;
         double add = newStock - oldStk;
         if (add > 0) {
-          int modal = expense > 0
-              ? (expense / add).round()
-              : (old['buy_price_unit'] as int);
-          // Bulatkan ke kelipatan 5 terdekat
-          modal = ((modal + 2) ~/ 5) * 5;
-          addStockLog(
-            id,
-            old['type'] as String,
-            add,
-            modal,
-            "Tambah Cepat",
-            totalExpense: expense > 0 ? expense : null,
+          int oldBuyUnit = (old['buy_price_unit'] as num?)?.toInt() ?? 0;
+          int oldBuyCubic = (old['buy_price_cubic'] as num?)?.toInt() ?? 0;
+          String pType = old['type'] as String? ?? 'BANGUNAN';
+
+          final calcResult = StockCostCalculator.calculateNewStockModal(
+            productType: pType,
+            oldStock: oldStk,
+            oldBuyPriceUnit: oldBuyUnit,
+            oldBuyPriceCubic: oldBuyCubic,
+            totalAddedStock: add,
+            totalExpense: expense,
           );
 
-          // 🔥 UPDATE MODAL LANGSUNG (REPLACE, BUKAN RATA-RATA) 🔥
-          Map<String, dynamic> updateData = {'stock': newStock};
-          if (expense > 0) {
-            updateData['buy_price_unit'] = modal;
-            // Update buy_price_cubic proporsional
-            int oldBuyUnit = (old['buy_price_unit'] as num?)?.toInt() ?? 0;
-            int oldBuyCubic = (old['buy_price_cubic'] as num?)?.toInt() ?? 0;
-            if (oldBuyUnit > 0 && oldBuyCubic > 0) {
-              double ratio = oldBuyCubic / oldBuyUnit;
-              int rawCubic = (modal * ratio).round();
-              updateData['buy_price_cubic'] = ((rawCubic + 2) ~/ 5) * 5;
-            }
-          }
-          _col('products').doc(id.toString()).update(updateData);
+          await addStockLog(
+            id,
+            pType,
+            add,
+            calcResult.incomingCostUnit,
+            "Tambah Cepat",
+            totalExpense: expense > 0 ? expense : null,
+            exactDate: exactDate,
+            stokSebelum: oldStk,
+            stokSesudah: newStock,
+            modalSebelum: oldBuyUnit,
+            modalMasuk: calcResult.incomingCostUnit,
+            modalSesudah: calcResult.buyPriceUnit,
+          );
+
+          Map<String, dynamic> updateData = {
+            'stock': newStock,
+            'buy_price_unit': calcResult.buyPriceUnit,
+            'buy_price_cubic': calcResult.buyPriceCubic,
+          };
+          await _col('products').doc(id.toString()).update(updateData);
         } else {
-          _col('products').doc(id.toString()).update({'stock': newStock});
+          await _col('products').doc(id.toString()).update({'stock': newStock});
         }
       }
     } catch (_) {}
   }
 
-  // 🔥 UPDATE: MENDUKUNG TANGGAL CUSTOM (exactDate) DARI KALENDER 🔥
+  // 🔥 UPDATE: MENDUKUNG TANGGAL CUSTOM (exactDate) & AUDIT FIELDS (modal/stok sebelum & sesudah) 🔥
   Future<void> addStockLog(
     int pid,
     String type,
@@ -239,12 +252,17 @@ class ProductFirebaseDataSource {
     double? inputQty,
     String? inputUnit,
     String? exactDate,
+    double? stokSebelum,
+    double? stokSesudah,
+    int? modalSebelum,
+    int? modalMasuk,
+    int? modalSesudah,
   }) async {
-    int logId = _uniqueLogId();
+    int logId = generateUniqueLogId();
     String dateNow =
         exactDate ?? DateTime.now().toIso8601String(); // PAKAI TANGGAL KALENDER
 
-    await _col('stock_logs').doc(logId.toString()).set({
+    Map<String, dynamic> logData = {
       'id': logId,
       'product_id': pid,
       'type': type,
@@ -252,11 +270,19 @@ class ProductFirebaseDataSource {
       'price': modal,
       'total_price': totalExpense ?? (qty * modal).round(),
       'input_qty': inputQty ?? qty,
-      'input_unit': inputUnit ?? (type == 'BANGUNAN' ? 'Pcs' : 'Btg'),
+      'input_unit': inputUnit ?? (StockCostCalculator.isWoodType(type) ? 'Btg' : 'Pcs'),
       'note': note,
       'date': dateNow,
       'cashier_name': SessionManager().userName ?? 'Tidak Diketahui',
-    });
+    };
+
+    if (stokSebelum != null) logData['stok_sebelum'] = stokSebelum;
+    if (stokSesudah != null) logData['stok_sesudah'] = stokSesudah;
+    if (modalSebelum != null) logData['modal_sebelum'] = modalSebelum;
+    if (modalMasuk != null) logData['modal_masuk'] = modalMasuk;
+    if (modalSesudah != null) logData['modal_sesudah'] = modalSesudah;
+
+    await _col('stock_logs').doc(logId.toString()).set(logData);
   }
 
   Future<void> voidStockReceipt(String exactDate) async {
@@ -366,6 +392,22 @@ class ProductFirebaseDataSource {
       final chunk = productIds.sublist(i, min(i + 500, productIds.length));
       for (var id in chunk) {
         batch.update(_col('products').doc(id.toString()), {'stock': 0});
+      }
+      await batch.commit();
+    }
+  }
+
+  // 🔥 BATCH UPDATE ORDER INDEX TANPA TRIGGER AUDIT LOG / SCAN TRANSAKSI 🔥
+  Future<void> updateProductOrderBatch(List<Product> products) async {
+    for (int i = 0; i < products.length; i += 450) {
+      WriteBatch batch = _db.batch();
+      final chunk = products.sublist(i, min(i + 450, products.length));
+      for (var p in chunk) {
+        if (p.id != null) {
+          batch.update(_col('products').doc(p.id.toString()), {
+            'order_index': p.orderIndex,
+          });
+        }
       }
       await batch.commit();
     }

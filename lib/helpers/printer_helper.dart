@@ -95,6 +95,7 @@ class PrinterHelper {
     required int grandTotal,
     required String paymentMethod,
     required String paymentStatus, 
+    String deliveryStatus = 'Selesai',
     String? logoPath, // 🔥 PARAMETER LOGO DITAMBAHKAN 🔥
   }) async {
     if (!await _checkPermissions()) {
@@ -190,6 +191,22 @@ class PrinterHelper {
             PosColumn(text: "$qtyStr $unit x Rp ${currency.format(price)}", width: 7, styles: const PosStyles(bold: true)),
             PosColumn(text: "Rp ${currency.format(subItem)}", width: 5, styles: const PosStyles(align: PosAlign.right, bold: true)),
           ]);
+
+          if (deliveryStatus != 'Selesai') {
+            double delReq = item.containsKey('delivered_request_qty') && item['delivered_request_qty'] != null
+                ? (item['delivered_request_qty'] as num).toDouble()
+                : rawQty;
+            double remReq = (rawQty - delReq).clamp(0.0, rawQty);
+            if (remReq > 0.001) {
+              String remStr = remReq == remReq.toInt() ? remReq.toInt().toString() : remReq.toStringAsFixed(2);
+              String delStr = delReq == delReq.toInt() ? delReq.toInt().toString() : delReq.toStringAsFixed(2);
+              if (delReq <= 0.001) {
+                bytes += generator.text("  -> Titip Gudang: $remStr $unit (Belum Diantar)");
+              } else {
+                bytes += generator.text("  -> Ambil: $delStr | Titip Gudang: $remStr $unit");
+              }
+            }
+          }
         }
         bytes += generator.feed(1);
         bytes += generator.hr();
@@ -221,6 +238,12 @@ class PrinterHelper {
         bytes += generator.text("------------------------------------------------", styles: const PosStyles(align: PosAlign.center, bold: true));
         String statusText = paymentStatus.toUpperCase() == "LUNAS" ? "L U N A S" : "BELUM LUNAS";
         bytes += generator.text(statusText, styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2));
+        if (deliveryStatus != 'Selesai') {
+          String delivText = deliveryStatus == 'Belum Diantar'
+              ? "TITIP GUDANG (BELUM DIANTAR)"
+              : "DIANTAR SEBAGIAN";
+          bytes += generator.text(delivText, styles: const PosStyles(align: PosAlign.center, bold: true));
+        }
         bytes += generator.text("------------------------------------------------", styles: const PosStyles(align: PosAlign.center, bold: true));
 
         bytes += generator.feed(1);

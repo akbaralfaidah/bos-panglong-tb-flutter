@@ -32,12 +32,16 @@ class DashboardFirebaseDataSource {
     double todayPengeluaranOperasional = 0; 
 
     double todayBeliStok = 0;
+    double activeTitipanCount = 0;
 
     // 1. SAPU BERSIH TRANSAKSI
     final tDocs = await _safeQuery(_col('transactions'));
     Set<int> unpaidTransIds = {};
     for (var doc in tDocs) {
       var t = doc.data() as Map<String, dynamic>;
+      if ((t['delivery_status']?.toString() ?? 'Selesai') != 'Selesai') {
+        activeTitipanCount += 1;
+      }
       double tp = (t['total_price'] as num?)?.toDouble() ?? 0;
       double op = (t['operational_cost'] as num?)?.toDouble() ?? 0; // Uang Ongkir Masuk
       double disc = (t['discount'] as num?)?.toDouble() ?? 0;
@@ -140,6 +144,14 @@ class DashboardFirebaseDataSource {
       'uangOperasional': saldoOperasionalHarian, 
       'totalPiutang': finalSisaPiutang,
       'totalBeliStok': todayBeliStok,
+      'titipanCount': activeTitipanCount,
     };
+  }
+
+  Future<int> getActiveTitipanCount() async {
+    final docs = await _safeQuery(
+      _col('transactions').where('delivery_status', whereIn: ['Belum Diantar', 'Sebagian']),
+    );
+    return docs.length;
   }
 }

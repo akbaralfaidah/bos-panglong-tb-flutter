@@ -9,11 +9,13 @@ class DashboardStats {
   final int totalBeliStok;
   final int kayuTerjual;
   final int bangunanTerjual;
+  final int titipanCount;
 
   DashboardStats({
     required this.omsetKotor, required this.profitBersih, required this.uangOperasional,
     required this.totalPiutang, required this.totalBeliStok,
     required this.kayuTerjual, required this.bangunanTerjual,
+    this.titipanCount = 0,
   });
 }
 
@@ -34,11 +36,20 @@ class DashboardController {
         totalBeliStok: (data['totalBeliStok'] ?? 0).round(),
         kayuTerjual: 0, 
         bangunanTerjual: 0,
+        titipanCount: (data['titipanCount'] ?? 0).round(),
       );
       
     } catch (e) {
       print("CRITICAL DASHBOARD ERROR: $e");
-      return DashboardStats(omsetKotor: 0, profitBersih: 0, uangOperasional: 0, totalPiutang: 0, totalBeliStok: 0, kayuTerjual: 0, bangunanTerjual: 0);
+      return DashboardStats(omsetKotor: 0, profitBersih: 0, uangOperasional: 0, totalPiutang: 0, totalBeliStok: 0, kayuTerjual: 0, bangunanTerjual: 0, titipanCount: 0);
+    }
+  }
+
+  Future<int> getActiveTitipanCount() async {
+    try {
+      return await _dashboardDS.getActiveTitipanCount();
+    } catch (_) {
+      return 0;
     }
   }
 }

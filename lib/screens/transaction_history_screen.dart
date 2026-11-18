@@ -6,7 +6,8 @@ import '../helpers/search_helper.dart';
 import 'transaction_detail_screen.dart';
 
 class TransactionHistoryScreen extends StatefulWidget {
-  const TransactionHistoryScreen({super.key});
+  final int initialTabIndex;
+  const TransactionHistoryScreen({super.key, this.initialTabIndex = 0});
 
   @override
   State<TransactionHistoryScreen> createState() => _TransactionHistoryScreenState();
@@ -30,16 +31,22 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> wit
   int _omsetBangunan = 0;
   int _totalBensin = 0; 
 
-  String _selectedFilter = 'Hari Ini';
+  late String _selectedFilter;
   
   final List<String> _filters = ['Hari Ini', 'Kemarin', '7 Hari', 'Bulan Ini', 'Semua', 'Pilih Tanggal'];
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _selectedFilter = widget.initialTabIndex == 2 ? 'Semua' : 'Hari Ini';
+    _tabController = TabController(length: 3, vsync: this, initialIndex: widget.initialTabIndex);
     _tabController.addListener(() {
-      if (!_tabController.indexIsChanging) _fetchData();
+      if (!_tabController.indexIsChanging) {
+        if (_tabController.index == 2 && _selectedFilter == 'Hari Ini') {
+          _selectedFilter = 'Semua';
+        }
+        _fetchData();
+      }
     });
     _fetchData();
   }
@@ -54,7 +61,9 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> wit
 
   Future<void> _fetchData() async {
     setState(() => _isLoading = true);
-    String tabType = _tabController.index == 0 ? 'LUNAS' : 'HUTANG';
+    String tabType = 'LUNAS';
+    if (_tabController.index == 1) tabType = 'HUTANG';
+    if (_tabController.index == 2) tabType = 'TITIPAN';
     
     final data = await _controller.getTransactions(tabType, _selectedFilter);
     
@@ -188,8 +197,12 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> wit
     int currentBensin = _searchQuery.isEmpty ? _totalBensin : calcBensin;
     int totalNominal = currentKayu + currentBgn + currentBensin;
 
-    String summaryTitle = _tabController.index == 0 ? "Total Omset Masuk" : "Total Piutang Berjalan";
-    Color summaryColor = _tabController.index == 0 ? AppColors.menuBlueIcon : AppColors.statusRed;
+    String summaryTitle = _tabController.index == 0
+        ? "Total Omset Masuk"
+        : (_tabController.index == 1 ? "Total Piutang Berjalan" : "Total Nilai Titipan");
+    Color summaryColor = _tabController.index == 0
+        ? AppColors.menuBlueIcon
+        : (_tabController.index == 1 ? AppColors.statusRed : AppColors.menuAmberIcon);
 
     return Scaffold(
       backgroundColor: AppColors.backgroundWhite,
@@ -202,8 +215,9 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> wit
           controller: _tabController,
           indicatorColor: AppColors.accentGold, indicatorWeight: 4, labelColor: AppColors.accentGold, unselectedLabelColor: Colors.white60,
           tabs: const [
-            Tab(child: Text("LUNAS (OMSET)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
-            Tab(child: Text("HUTANG", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
+            Tab(child: Text("LUNAS", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+            Tab(child: Text("HUTANG", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+            Tab(child: Text("TITIPAN", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
           ],
         ),
       ),
@@ -366,6 +380,36 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> wit
                             String customer = item['customer_name'] ?? "Pelanggan Umum";
                             int total = (item['total_price'] as num).toInt();
                             String cashierName = item['cashier_name'] ?? "Tidak Diketahui";
+                            bool isLunas = (item['payment_status'] ?? '') == 'Lunas';
+                            String deliveryStatus = item['delivery_status']?.toString() ?? 'Selesai';
+                            bool isTitipan = deliveryStatus != 'Selesai';
+
+                            // Ringkasan barang yang masih dititip di gudang
+                            List<String> titipanSummary = [];
+                            if (isTitipan && item['items'] is List) {
+                              for (var rawIt in item['items']) {
+                                double reqQty = (rawIt['request_qty'] as num?)?.toDouble() ??
+                                    (rawIt['quantity'] as num?)?.toDouble() ??
+                                    1.0;
+                                double delReq = rawIt.containsKey('delivered_request_qty') && rawIt['delivered_request_qty'] != null
+                                    ? (rawIt['delivered_request_qty'] as num).toDouble()
+                                    : reqQty;
+                                double rem = (reqQty - delReq).clamp(0.0, reqQty);
+                                if (rem > 0.001) {
+                                  String pn = (rawIt['product_name'] ?? '').toString()
+                                      .replaceAll(RegExp(r'Kelas \d+\s?'), '')
+                                      .replaceAll('()', '')
+                                      .trim();
+                                  String u = (rawIt['unit_type'] ?? 'Pcs').toString();
+                                  if (u.contains('[PAKET_')) u = u.substring(0, u.indexOf('[PAKET_')).trim();
+                                  if (u.contains('(')) u = u.substring(0, u.indexOf('(')).trim();
+                                  String rStr = (rem - rem.roundToDouble()).abs() < 0.001
+                                      ? rem.round().toString()
+                                      : rem.toStringAsFixed(2);
+                                  titipanSummary.add("$pn ($rStr $u)");
+                                }
+                              }
+                            }
 
                             return Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -383,13 +427,22 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> wit
                                   ),
                                 
                                 InkWell(
-                                  onTap: () {
-                                    Navigator.push(context, MaterialPageRoute(builder: (_) => TransactionDetailScreen(transaction: item)));
+                                  onTap: () async {
+                                    await Navigator.push(context, MaterialPageRoute(builder: (_) => TransactionDetailScreen(transaction: item)));
+                                    _fetchData();
                                   },
                                   borderRadius: BorderRadius.circular(15),
                                   child: Card(
                                     color: AppColors.pureWhite, elevation: 4, shadowColor: AppColors.primaryNavy.withOpacity(0.2),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15), side: BorderSide(color: AppColors.primaryNavy.withOpacity(0.1), width: 1.5)),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(15),
+                                      side: BorderSide(
+                                        color: isTitipan
+                                            ? AppColors.menuAmberIcon.withOpacity(0.45)
+                                            : AppColors.primaryNavy.withOpacity(0.1),
+                                        width: 1.5,
+                                      ),
+                                    ),
                                     margin: const EdgeInsets.only(bottom: 15),
                                     child: Padding(
                                       padding: const EdgeInsets.all(15),
@@ -398,8 +451,15 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> wit
                                         children: [
                                           Container(
                                             padding: const EdgeInsets.all(10),
-                                            decoration: BoxDecoration(color: AppColors.menuBlueBg, borderRadius: BorderRadius.circular(10)),
-                                            child: const Icon(Icons.receipt_long, color: AppColors.menuBlueIcon, size: 24),
+                                            decoration: BoxDecoration(
+                                              color: isTitipan ? AppColors.menuAmberBg : AppColors.menuBlueBg,
+                                              borderRadius: BorderRadius.circular(10),
+                                            ),
+                                            child: Icon(
+                                              isTitipan ? Icons.warehouse : Icons.receipt_long,
+                                              color: isTitipan ? AppColors.menuAmberIcon : AppColors.menuBlueIcon,
+                                              size: 24,
+                                            ),
                                           ),
                                           const SizedBox(width: 12),
                                           Expanded(
@@ -409,12 +469,21 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> wit
                                                 Text("INV-${item['id']}", style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: AppColors.primaryNavy)),
                                                 const SizedBox(height: 4),
                                                 Text("Kpd: $customer", style: const TextStyle(fontSize: 12, color: AppColors.textDark, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
+                                                if (titipanSummary.isNotEmpty) ...[
+                                                  const SizedBox(height: 4),
+                                                  Text(
+                                                    "Titipan: ${titipanSummary.join(', ')}",
+                                                    style: const TextStyle(fontSize: 11, color: AppColors.menuAmberIcon, fontWeight: FontWeight.w700),
+                                                    maxLines: 2,
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                                ],
                                                 const SizedBox(height: 6),
                                                 Row(
                                                   children: [
                                                     const Icon(Icons.person, size: 12, color: AppColors.primaryNavy),
                                                     const SizedBox(width: 4),
-                                                    Text(cashierName, style: const TextStyle(fontSize: 11, color: AppColors.primaryNavy, fontWeight: FontWeight.bold)),
+                                                    Flexible(child: Text(cashierName, style: const TextStyle(fontSize: 11, color: AppColors.primaryNavy, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
                                                     const SizedBox(width: 8),
                                                     const Icon(Icons.access_time, size: 12, color: AppColors.textGrey),
                                                     const SizedBox(width: 4),
@@ -432,9 +501,33 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> wit
                                               const SizedBox(height: 6),
                                               Container(
                                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                                decoration: BoxDecoration(color: summaryColor.withOpacity(0.1), borderRadius: BorderRadius.circular(6)),
-                                                child: Text(_tabController.index == 0 ? 'LUNAS' : 'HUTANG', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: summaryColor)),
-                                              )
+                                                decoration: BoxDecoration(
+                                                  color: (isLunas ? AppColors.statusGreen : AppColors.statusRed).withOpacity(0.1),
+                                                  borderRadius: BorderRadius.circular(6),
+                                                ),
+                                                child: Text(
+                                                  isLunas ? 'LUNAS' : 'HUTANG',
+                                                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isLunas ? AppColors.statusGreen : AppColors.statusRed),
+                                                ),
+                                              ),
+                                              if (isTitipan) ...[
+                                                const SizedBox(height: 4),
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                                  decoration: BoxDecoration(
+                                                    color: deliveryStatus == 'Belum Diantar' ? AppColors.menuAmberBg : AppColors.menuBlueBg,
+                                                    borderRadius: BorderRadius.circular(6),
+                                                  ),
+                                                  child: Text(
+                                                    deliveryStatus == 'Belum Diantar' ? 'BELUM DIANTAR' : 'SEBAGIAN',
+                                                    style: TextStyle(
+                                                      fontSize: 9,
+                                                      fontWeight: FontWeight.w900,
+                                                      color: deliveryStatus == 'Belum Diantar' ? AppColors.menuAmberIcon : AppColors.menuBlueIcon,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
                                             ],
                                           )
                                         ],

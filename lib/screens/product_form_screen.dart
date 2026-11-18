@@ -713,9 +713,11 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
 
       Product product = Product(
         id: widget.product?.id, name: finalName, type: type, woodClass: woodClassToSave, 
-        stock: stockBaru, source: _sourceController.text, dimensions: dim, 
+        stock: stockBaru, reservedStock: widget.product?.reservedStock ?? 0.0,
+        source: _sourceController.text, dimensions: dim, 
         buyPriceUnit: _parseMoney(_modalSatuanController.text), sellPriceUnit: _parseMoney(_jualSatuanController.text),
         buyPriceCubic: _parseMoney(_modalGrosirController.text), sellPriceCubic: _parseMoney(_jualGrosirController.text), packContent: packContent,
+        orderIndex: widget.product?.orderIndex ?? 0,
         barcode: _barcodeController.text.isNotEmpty ? _barcodeController.text : null, 
         category: _selectedCategory, 
         grosirUnit: type == 'BANGUNAN' ? _selectedBangunanGrosirUnit : null, 

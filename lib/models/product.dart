@@ -1,3 +1,5 @@
+import '../helpers/stock_cost_calculator.dart';
+
 class Product {
   final int? id;
   final String name;
@@ -6,11 +8,30 @@ class Product {
   final String source;      
   final String? woodClass;  
   final double stock;
+  final double reservedStock;
   
-  /// Menampilkan stok dalam format bersih (35.75 bukan 35.749999999999)
+  /// Apakah produk ini termasuk kelompok kayu (KAYU, RENG, BULAT)
+  bool get isWood => StockCostCalculator.isWoodType(type);
+  
+  /// Stok fisik aktual di gudang (Siap Jual + Titipan/Belum Diantar)
+  double get physicalStock => double.parse((stock + reservedStock).toStringAsFixed(2));
+
+  /// Menampilkan stok siap jual dalam format bersih (35.75 bukan 35.749999999999)
   String get stockDisplay {
     if (stock == stock.roundToDouble()) return stock.round().toString();
     return stock.toStringAsFixed(2);
+  }
+
+  /// Menampilkan stok titipan (belum diantar) dalam format bersih
+  String get reservedStockDisplay {
+    if (reservedStock == reservedStock.roundToDouble()) return reservedStock.round().toString();
+    return reservedStock.toStringAsFixed(2);
+  }
+
+  /// Menampilkan stok fisik aktual di gudang dalam format bersih
+  String get physicalStockDisplay {
+    if (physicalStock == physicalStock.roundToDouble()) return physicalStock.round().toString();
+    return physicalStock.toStringAsFixed(2);
   }
   
   final int buyPriceUnit;   
@@ -34,6 +55,7 @@ class Product {
     this.source = '',
     this.woodClass, 
     required this.stock,
+    this.reservedStock = 0.0,
     required this.buyPriceUnit,
     this.buyPriceCubic = 0,
     required this.sellPriceUnit,
@@ -53,6 +75,9 @@ class Product {
     source: json['source'] ?? '',
     woodClass: json['wood_class'], 
     stock: double.parse(((json['stock'] as num).toDouble()).toStringAsFixed(2)),
+    reservedStock: json['reserved_stock'] != null
+        ? double.parse(((json['reserved_stock'] as num).toDouble()).toStringAsFixed(2))
+        : 0.0,
     buyPriceUnit: json['buy_price_unit'],
     buyPriceCubic: json['buy_price_cubic'] ?? 0,
     sellPriceUnit: json['sell_price_unit'],
@@ -72,6 +97,7 @@ class Product {
     'source': source,
     'wood_class': woodClass, 
     'stock': double.parse(stock.toStringAsFixed(2)),
+    'reserved_stock': double.parse(reservedStock.toStringAsFixed(2)),
     'buy_price_unit': buyPriceUnit,
     'buy_price_cubic': buyPriceCubic,
     'sell_price_unit': sellPriceUnit,

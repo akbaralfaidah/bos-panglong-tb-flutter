@@ -29,7 +29,12 @@ class TransactionHistoryController {
       startDate = '2000-01-01'; 
     }
 
-    String statusCondition = tabType == 'LUNAS' ? 'LUNAS' : 'HUTANG';
+    String statusCondition = 'HUTANG';
+    if (tabType == 'LUNAS') {
+      statusCondition = 'LUNAS';
+    } else if (tabType == 'TITIPAN') {
+      statusCondition = 'TITIPAN';
+    }
 
     return await _transDS.getFilteredTransactionHistory(
       statusCondition: statusCondition, 

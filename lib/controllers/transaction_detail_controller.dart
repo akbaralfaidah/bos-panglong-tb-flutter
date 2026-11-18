@@ -14,12 +14,22 @@ class TransactionDetailController {
 
     // Konversi Tipe Data Paksa biar UI lu gak meledak
     List<Map<String, dynamic>> itemsList = [];
+    List<Map<String, dynamic>> deliveryLogsList = [];
+    String deliveryStatus = 'Selesai';
     int queueNum = 1;
 
-    if (transData != null && transData['items'] != null) {
-      itemsList = List<Map<String, dynamic>>.from(
-        transData['items'].map((item) => Map<String, dynamic>.from(item)),
-      );
+    if (transData != null) {
+      if (transData['items'] != null) {
+        itemsList = List<Map<String, dynamic>>.from(
+          transData['items'].map((item) => Map<String, dynamic>.from(item)),
+        );
+      }
+      if (transData['delivery_logs'] != null && transData['delivery_logs'] is List) {
+        deliveryLogsList = List<Map<String, dynamic>>.from(
+          (transData['delivery_logs'] as List).map((log) => Map<String, dynamic>.from(log as Map)),
+        );
+      }
+      deliveryStatus = transData['delivery_status']?.toString() ?? 'Selesai';
       queueNum = transData['queue_number'] ?? 1;
     }
 
@@ -38,6 +48,8 @@ class TransactionDetailController {
     return {
       'items': itemsList,
       'payments': paymentsList,
+      'delivery_status': deliveryStatus,
+      'delivery_logs': deliveryLogsList,
       'storeName': storeName,
       'storeAddress': storeAddress,
       'storePhone': storePhone,
@@ -49,6 +61,21 @@ class TransactionDetailController {
   // FUNGSI BARU: Dijahit biar UI bisa manggil fitur bayar cicilan
   Future<void> payDebt(int transId, int amount, String note) async {
     await _transDS.payDebt(transId, amount, note);
+  }
+
+  // 🔥 UPDATE PENGIRIMAN / PENGAMBILAN BARANG TITIPAN 🔥
+  Future<Map<String, dynamic>> updateDeliveryProgress({
+    required int transId,
+    required List<Map<String, dynamic>> updatedItems,
+    required List<Map<String, dynamic>> newlyDeliveredSummary,
+    String note = '',
+  }) async {
+    return await _transDS.updateDeliveryProgress(
+      transId: transId,
+      updatedItems: updatedItems,
+      newlyDeliveredSummary: newlyDeliveredSummary,
+      note: note,
+    );
   }
 
   // 🔥 JEMBATAN VOID TRANSAKSI 🔥

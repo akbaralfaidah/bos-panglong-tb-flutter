@@ -52,6 +52,7 @@ class _ReviewTransactionScreenState extends State<ReviewTransactionScreen> {
   int _cutProfit = 0;
   String _paymentStatus = 'Lunas'; 
   String _paymentMethod = 'Tunai'; 
+  String _deliveryOption = 'Selesai'; // 'Selesai', 'Belum Diantar', 'Sebagian'
 
 
   @override
@@ -655,6 +656,10 @@ class _ReviewTransactionScreenState extends State<ReviewTransactionScreen> {
                               _editableCart[index]['unit_type'] = getUnitLabel(unitMode) + (existingTag.isNotEmpty ? ' $existingTag' : ''); 
                               _editableCart[index]['capital_price'] = finalCapitalPrice; 
                               _editableCart[index]['is_grosir'] = unitMode > 0;
+                              if (_editableCart[index].containsKey('delivered_request_qty')) {
+                                double prevDel = (_editableCart[index]['delivered_request_qty'] as num?)?.toDouble() ?? 0.0;
+                                _editableCart[index]['delivered_request_qty'] = prevDel.clamp(0.0, finalQty);
+                              }
                               
                               _editableCart = _controller.recalculateAllPackages(_editableCart);
                               _isManualTotalEdited = false;
@@ -722,6 +727,25 @@ class _ReviewTransactionScreenState extends State<ReviewTransactionScreen> {
       AppNotification.show(context, message: "Keranjang kosong!", type: AppNotificationType.error);
       return;
     }
+
+    // Siapkan status pengantaran per item sebelum simpan
+    for (var item in _editableCart) {
+      double qty = (item['quantity'] as num?)?.toDouble() ?? 1.0;
+      double reqQty = (item['request_qty'] as num?)?.toDouble() ?? 1.0;
+      if (_deliveryOption == 'Selesai') {
+        item['delivered_request_qty'] = reqQty;
+        item['delivered_qty'] = qty;
+      } else if (_deliveryOption == 'Belum Diantar') {
+        item['delivered_request_qty'] = 0.0;
+        item['delivered_qty'] = 0.0;
+      } else {
+        double delReq = ((item['delivered_request_qty'] as num?)?.toDouble() ?? 0.0).clamp(0.0, reqQty);
+        item['delivered_request_qty'] = delReq;
+        item['delivered_qty'] = reqQty > 0
+            ? double.parse(((delReq / reqQty) * qty).toStringAsFixed(2))
+            : 0.0;
+      }
+    }
     
     setState(() => _isLoading = true);
     
@@ -738,6 +762,7 @@ class _ReviewTransactionScreenState extends State<ReviewTransactionScreen> {
         paymentStatus: _paymentStatus,
         transactionDate: _transactionDate, 
         cutProfit: _cutProfit,
+        deliveryStatus: _deliveryOption,
       );
 
 
@@ -774,9 +799,8 @@ class _ReviewTransactionScreenState extends State<ReviewTransactionScreen> {
         }
       }
 
-      // 🔥 PERBAIKAN: Selipin nama pelanggan biar Detail Transaksi nggak "Pelanggan Umum" 🔥
+      // 🔥 PERBAIKAN: Selipin nama pelanggan & status titipan biar Detail Transaksi akurat 🔥
       Map<String, dynamic> transDataWithItems = Map.from(savedTransaction);
-      transDataWithItems['items'] = _editableCart;
       transDataWithItems['customer_name'] = _nameController.text.trim().isNotEmpty ? _nameController.text.trim() : 'Pelanggan Umum';
       transDataWithItems['customer_phone'] = _phoneController.text.trim();
       transDataWithItems['customer_address'] = _addressController.text.trim();
@@ -820,6 +844,301 @@ class _ReviewTransactionScreenState extends State<ReviewTransactionScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  String _cleanUnitLabel(dynamic rawUnit) {
+    String u = (rawUnit ?? '').toString();
+    if (u.contains('[PAKET_')) u = u.substring(0, u.indexOf('[PAKET_')).trim();
+    if (u.contains('(')) u = u.substring(0, u.indexOf('(')).trim();
+    return u.isEmpty ? 'Pcs' : u;
+  }
+
+  String _formatQtyClean(double val) {
+    if ((val - val.roundToDouble()).abs() < 0.001) return val.round().toString();
+    return double.parse(val.toStringAsFixed(2)).toString();
+  }
+
+  Future<void> _editPartialDeliveredQty(int index, double maxReqQty, String itemName, String unitLabel) async {
+    double current = ((_editableCart[index]['delivered_request_qty'] as num?)?.toDouble() ?? 0.0).clamp(0.0, maxReqQty);
+    final ctrl = TextEditingController(text: _formatQtyClean(current));
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.pureWhite,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text("Diambil / Diantar Sekarang", style: const TextStyle(color: AppColors.primaryNavy, fontWeight: FontWeight.bold, fontSize: 16)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(itemName, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textDark)),
+            Text("Total dibeli: ${_formatQtyClean(maxReqQty)} $unitLabel", style: const TextStyle(fontSize: 12, color: AppColors.textGrey)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: ctrl,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              autofocus: true,
+              decoration: InputDecoration(
+                labelText: "Jumlah yang diambil sekarang",
+                suffixText: unitLabel,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Batal", style: TextStyle(color: AppColors.textGrey))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryNavy, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+            onPressed: () {
+              double val = double.tryParse(ctrl.text.replaceAll(',', '.')) ?? 0.0;
+              setState(() {
+                _editableCart[index]['delivered_request_qty'] = val.clamp(0.0, maxReqQty);
+              });
+              Navigator.pop(ctx);
+            },
+            child: const Text("SIMPAN", style: TextStyle(color: AppColors.accentGold, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _deliveryOptionCard({
+    required String value,
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Color activeColor,
+    required Color activeBg,
+  }) {
+    bool isSelected = _deliveryOption == value;
+    return InkWell(
+      onTap: () {
+        setState(() {
+          _deliveryOption = value;
+          if (value == 'Sebagian') {
+            for (var item in _editableCart) {
+              if (!item.containsKey('delivered_request_qty') || item['delivered_request_qty'] == null) {
+                item['delivered_request_qty'] = 0.0;
+              }
+            }
+          }
+        });
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isSelected ? activeBg : AppColors.pureWhite,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? activeColor : Colors.grey.shade300,
+            width: isSelected ? 1.8 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(9),
+              decoration: BoxDecoration(
+                color: isSelected ? activeColor.withOpacity(0.15) : AppColors.backgroundWhite,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: isSelected ? activeColor : AppColors.textGrey, size: 22),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                      color: isSelected ? activeColor : AppColors.textDark,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(fontSize: 11, color: AppColors.textGrey),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
+              color: isSelected ? activeColor : Colors.grey.shade400,
+              size: 20,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDeliveryOptionSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          "Status Pengambilan / Pengantaran Barang",
+          style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryNavy, fontSize: 16),
+        ),
+        const SizedBox(height: 10),
+        _deliveryOptionCard(
+          value: 'Selesai',
+          title: "Diambil / Diantar Langsung",
+          subtitle: "Semua barang langsung keluar dari gudang hari ini",
+          icon: Icons.local_shipping,
+          activeColor: AppColors.statusGreen,
+          activeBg: AppColors.statusGreen.withOpacity(0.08),
+        ),
+        _deliveryOptionCard(
+          value: 'Belum Diantar',
+          title: "Titip Gudang (Belum Diantar)",
+          subtitle: "Pembeli bayar/pesan dulu, seluruh barang masih dititip di gudang",
+          icon: Icons.warehouse,
+          activeColor: AppColors.menuAmberIcon,
+          activeBg: AppColors.menuAmberBg,
+        ),
+        _deliveryOptionCard(
+          value: 'Sebagian',
+          title: "Diambil / Diantar Sebagian",
+          subtitle: "Sebagian dibawa sekarang, sisanya titip di gudang dulu",
+          icon: Icons.call_split,
+          activeColor: AppColors.menuBlueIcon,
+          activeBg: AppColors.menuBlueBg,
+        ),
+        if (_deliveryOption == 'Belum Diantar')
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.menuAmberBg,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.menuAmberIcon.withOpacity(0.4)),
+            ),
+            child: const Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.info_outline, color: AppColors.menuAmberIcon, size: 18),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    "Stok Siap Jual (Sistem) otomatis terpotong agar tidak dijual ke orang lain, namun stok fisik gudang tetap tercatat di kolom Titipan hingga barang selesai diantar.",
+                    style: TextStyle(fontSize: 11.5, color: AppColors.textDark, height: 1.35),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        if (_deliveryOption == 'Sebagian' && _editableCart.isNotEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.pureWhite,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.menuBlueIcon.withOpacity(0.35)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "Atur Jumlah yang Dibawa Sekarang:",
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.primaryNavy),
+                ),
+                const SizedBox(height: 8),
+                ..._editableCart.asMap().entries.map((entry) {
+                  int idx = entry.key;
+                  var item = entry.value;
+                  double reqQty = (item['request_qty'] as num?)?.toDouble() ?? 1.0;
+                  double deliveredNow = ((item['delivered_request_qty'] as num?)?.toDouble() ?? 0.0).clamp(0.0, reqQty);
+                  double remainingHold = double.parse((reqQty - deliveredNow).clamp(0.0, reqQty).toStringAsFixed(2));
+                  String unitLabel = _cleanUnitLabel(item['unit_type']);
+                  String pName = (item['product_name'] ?? '').toString()
+                      .replaceAll(RegExp(r'Kelas \d+\s?'), '')
+                      .replaceAll('()', '')
+                      .trim();
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.backgroundWhite,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(pName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.primaryNavy)),
+                              const SizedBox(height: 3),
+                              Text(
+                                "Beli: ${_formatQtyClean(reqQty)} $unitLabel  •  Titip Gudang: ${_formatQtyClean(remainingHold)} $unitLabel",
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: remainingHold > 0 ? AppColors.menuAmberIcon : AppColors.statusGreen,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            InkWell(
+                              onTap: () {
+                                setState(() {
+                                  double next = (deliveredNow - 1).clamp(0.0, reqQty);
+                                  _editableCart[idx]['delivered_request_qty'] = next;
+                                });
+                              },
+                              child: const Icon(Icons.remove_circle, color: AppColors.statusRed, size: 26),
+                            ),
+                            InkWell(
+                              onTap: () => _editPartialDeliveredQty(idx, reqQty, pName, unitLabel),
+                              child: Container(
+                                margin: const EdgeInsets.symmetric(horizontal: 6),
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: AppColors.pureWhite,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: AppColors.menuBlueIcon.withOpacity(0.4)),
+                                ),
+                                child: Text(
+                                  _formatQtyClean(deliveredNow),
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.primaryNavy),
+                                ),
+                              ),
+                            ),
+                            InkWell(
+                              onTap: () {
+                                setState(() {
+                                  double next = (deliveredNow + 1).clamp(0.0, reqQty);
+                                  _editableCart[idx]['delivered_request_qty'] = next;
+                                });
+                              },
+                              child: const Icon(Icons.add_circle, color: AppColors.statusGreen, size: 26),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ),
+      ],
     );
   }
 
@@ -1379,6 +1698,8 @@ class _ReviewTransactionScreenState extends State<ReviewTransactionScreen> {
                         ),
                       ],
                     ),
+                    const SizedBox(height: 25),
+                    _buildDeliveryOptionSection(),
                     const SizedBox(height: 30),
                   ],
                 ),

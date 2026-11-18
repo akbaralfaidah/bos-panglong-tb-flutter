@@ -14,6 +14,8 @@ import '../theme/app_colors.dart';
 import '../helpers/search_helper.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../helpers/app_notification.dart';
+import '../helpers/stock_cost_calculator.dart';
+import 'transaction_detail_screen.dart';
 
 class StockCartItem {
   final Product product;
@@ -119,6 +121,7 @@ class _ProductListScreenState extends State<ProductListScreen>
     "A-Z",
     "Baru Ditambahkan",
     "Sering Dibeli",
+    "Ada Titipan",
     "Stok Kosong",
   ];
 
@@ -273,6 +276,14 @@ class _ProductListScreenState extends State<ProductListScreen>
         int cmp = a.orderIndex.compareTo(b.orderIndex);
         if (cmp == 0) return _naturalCompare(a.name, b.name);
         return cmp;
+      });
+    } else if (sortBy == "Ada Titipan") {
+      list.sort((a, b) {
+        if (a.reservedStock > 0 && b.reservedStock <= 0) return -1;
+        if (a.reservedStock <= 0 && b.reservedStock > 0) return 1;
+        int cmp = b.reservedStock.compareTo(a.reservedStock);
+        if (cmp != 0) return cmp;
+        return _naturalCompare(a.name, b.name);
       });
     } else if (sortBy == "Stok Kosong") {
       list.sort((a, b) {
@@ -670,6 +681,164 @@ class _ProductListScreenState extends State<ProductListScreen>
     }
   }
 
+  Future<void> _showProductTitipanDialog(Product p, String displayName, String unitShort) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator(color: AppColors.accentGold)),
+    );
+
+    List<Map<String, dynamic>> matchingOrders = [];
+    try {
+      String storeId = SessionManager().uid ?? 'UNKNOWN_STORE';
+      final col = FirebaseFirestore.instance.collection('stores').doc(storeId).collection('transactions');
+      QuerySnapshot snap;
+      try {
+        snap = await col
+            .where('delivery_status', whereIn: ['Belum Diantar', 'Sebagian'])
+            .get(const GetOptions(source: Source.server))
+            .timeout(const Duration(seconds: 4));
+      } catch (_) {
+        snap = await col
+            .where('delivery_status', whereIn: ['Belum Diantar', 'Sebagian'])
+            .get(const GetOptions(source: Source.cache));
+      }
+
+      for (var doc in snap.docs) {
+        var trans = Map<String, dynamic>.from(doc.data() as Map);
+        List<dynamic> items = trans['items'] ?? [];
+        double remBaseQty = 0;
+        double remReqQty = 0;
+        String reqUnit = unitShort;
+
+        for (var rawIt in items) {
+          if (rawIt['product_id'] == p.id) {
+            double qty = (rawIt['quantity'] as num?)?.toDouble() ?? 0.0;
+            double delQty = rawIt.containsKey('delivered_qty') && rawIt['delivered_qty'] != null
+                ? (rawIt['delivered_qty'] as num).toDouble()
+                : qty;
+            double rem = (qty - delQty).clamp(0.0, qty);
+            if (rem > 0.001) {
+              remBaseQty += rem;
+              double rQty = (rawIt['request_qty'] as num?)?.toDouble() ?? qty;
+              double delR = rawIt.containsKey('delivered_request_qty') && rawIt['delivered_request_qty'] != null
+                  ? (rawIt['delivered_request_qty'] as num).toDouble()
+                  : rQty;
+              remReqQty += (rQty - delR).clamp(0.0, rQty);
+              String u = (rawIt['unit_type'] ?? unitShort).toString();
+              if (u.contains('[PAKET_')) u = u.substring(0, u.indexOf('[PAKET_')).trim();
+              if (u.contains('(')) u = u.substring(0, u.indexOf('(')).trim();
+              if (u.isNotEmpty) reqUnit = u;
+            }
+          }
+        }
+
+        if (remBaseQty > 0.001) {
+          matchingOrders.add({
+            'transaction': trans,
+            'rem_base': remBaseQty,
+            'rem_req': remReqQty,
+            'req_unit': reqUnit,
+          });
+        }
+      }
+      matchingOrders.sort((a, b) =>
+          (b['transaction']['transaction_date'] ?? '').toString().compareTo((a['transaction']['transaction_date'] ?? '').toString()));
+    } catch (e) {
+      debugPrint("Gagal muat daftar pemesan titipan: $e");
+    }
+
+    if (!mounted) return;
+    Navigator.pop(context); // tutup loading
+
+    String fmtQty(double v) => (v - v.roundToDouble()).abs() < 0.001 ? v.round().toString() : v.toStringAsFixed(2);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.pureWhite,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            const Icon(Icons.warehouse, color: AppColors.menuAmberIcon),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text("Pemesan Barang Titipan", style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.primaryNavy)),
+                  Text(displayName, style: const TextStyle(fontSize: 12, color: AppColors.textGrey), maxLines: 1, overflow: TextOverflow.ellipsis),
+                ],
+              ),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: matchingOrders.isEmpty
+              ? Text(
+                  "Total titipan tercatat: ${p.reservedStockDisplay} $unitShort.\nDetail nota tidak ditemukan (mungkin sudah diselesaikan atau masih sinkronisasi).",
+                  style: const TextStyle(fontSize: 13, color: AppColors.textGrey),
+                )
+              : ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: matchingOrders.length,
+                  separatorBuilder: (_, __) => const Divider(height: 12),
+                  itemBuilder: (_, idx) {
+                    final entry = matchingOrders[idx];
+                    final t = entry['transaction'] as Map<String, dynamic>;
+                    final double remReq = entry['rem_req'];
+                    final String rUnit = entry['req_unit'];
+                    String dStr = t['transaction_date']?.toString() ?? '';
+                    String dFormatted = dStr.isNotEmpty ? DateFormat('dd MMM yyyy, HH:mm').format(DateTime.parse(dStr)) : '-';
+
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const CircleAvatar(
+                        backgroundColor: AppColors.menuAmberBg,
+                        child: Icon(Icons.person, color: AppColors.menuAmberIcon),
+                      ),
+                      title: Text(
+                        t['customer_name'] ?? 'Pelanggan Umum',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.primaryNavy),
+                      ),
+                      subtitle: Text(
+                        "INV-${t['id']}\n$dFormatted",
+                        style: const TextStyle(fontSize: 11, color: AppColors.textGrey),
+                      ),
+                      trailing: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            "${fmtQty(remReq)} $rUnit",
+                            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: AppColors.menuAmberIcon),
+                          ),
+                          const Text("Ketuk kelola", style: TextStyle(fontSize: 10, color: AppColors.menuBlueIcon)),
+                        ],
+                      ),
+                      onTap: () async {
+                        Navigator.pop(ctx);
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => TransactionDetailScreen(transaction: t)),
+                        );
+                        _loadProducts();
+                      },
+                    );
+                  },
+                ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("TUTUP", style: TextStyle(color: AppColors.primaryNavy, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     int totalModalExpense = _stockCart.fold(
@@ -1044,7 +1213,7 @@ class _ProductListScreenState extends State<ProductListScreen>
         (isTabKayu
             ? _selectedKayuCategory == "Semua"
             : _selectedBangunanCategory == "Semua") &&
-        (isTabKayu ? _sortByKayu == "Default" : _sortByBangunan == "Default");
+        (isTabKayu ? _sortByKayu == "Sering Dibeli" : _sortByBangunan == "Sering Dibeli");
 
     Widget listContent;
     if (canDrag) {
@@ -1152,6 +1321,8 @@ class _ProductListScreenState extends State<ProductListScreen>
       }
     }
 
+    String unitShort = isBangunan ? (p.dimensions ?? "Pcs") : "Btg";
+
     Widget stockWidget;
     if (isBangunan &&
         p.grosirUnit != null &&
@@ -1169,24 +1340,24 @@ class _ProductListScreenState extends State<ProductListScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              "Sisa: ${p.stockDisplay} $dim",
+              "Siap Jual: ${p.stockDisplay} $dim",
               style: TextStyle(
                 color: p.stock <= 5
                     ? AppColors.pureWhite
                     : AppColors.accentGold,
-                fontSize: 13,
+                fontSize: 12.5,
                 fontWeight: FontWeight.w900,
-                letterSpacing: 0.5,
+                letterSpacing: 0.3,
               ),
             ),
-            const SizedBox(height: 2),
+            const SizedBox(height: 1),
             Text(
               subText,
               style: TextStyle(
                 color: p.stock <= 5
                     ? Colors.white70
-                    : AppColors.accentGold.withOpacity(0.8),
-                fontSize: 11,
+                    : AppColors.accentGold.withOpacity(0.85),
+                fontSize: 10.5,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -1194,23 +1365,23 @@ class _ProductListScreenState extends State<ProductListScreen>
         );
       } else {
         stockWidget = Text(
-          "Sisa: ${p.stockDisplay} $dim",
+          "Siap Jual: ${p.stockDisplay} $dim",
           style: TextStyle(
             color: p.stock <= 5 ? AppColors.pureWhite : AppColors.accentGold,
-            fontSize: 13,
+            fontSize: 12.5,
             fontWeight: FontWeight.w900,
-            letterSpacing: 0.5,
+            letterSpacing: 0.3,
           ),
         );
       }
     } else {
       stockWidget = Text(
-        "Sisa: ${p.stockDisplay}",
+        "Siap Jual: ${p.stockDisplay} $unitShort",
         style: TextStyle(
           color: p.stock <= 5 ? AppColors.pureWhite : AppColors.accentGold,
-          fontSize: 13,
+          fontSize: 12.5,
           fontWeight: FontWeight.w900,
-          letterSpacing: 0.5,
+          letterSpacing: 0.3,
         ),
       );
     }
@@ -1270,37 +1441,101 @@ class _ProductListScreenState extends State<ProductListScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: p.stock <= 5
-                    ? AppColors.statusRed
-                    : Colors.white.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(8),
-                border: p.stock <= 5
-                    ? Border.all(color: Colors.redAccent.shade100)
-                    : null,
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(top: 1.0),
-                    child: Icon(
-                      p.stock <= 5
-                          ? Icons.warning_amber_rounded
-                          : Icons.inventory,
-                      size: 14,
-                      color: p.stock <= 5
-                          ? AppColors.pureWhite
-                          : AppColors.accentGold,
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: p.stock <= 5
+                        ? AppColors.statusRed
+                        : Colors.white.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(8),
+                    border: p.stock <= 5
+                        ? Border.all(color: Colors.redAccent.shade100)
+                        : null,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(top: 1.0),
+                        child: Icon(
+                          p.stock <= 5
+                              ? Icons.warning_amber_rounded
+                              : Icons.inventory,
+                          size: 14,
+                          color: p.stock <= 5
+                              ? AppColors.pureWhite
+                              : AppColors.accentGold,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      stockWidget,
+                    ],
+                  ),
+                ),
+                InkWell(
+                  onTap: p.reservedStock > 0 ? () => _showProductTitipanDialog(p, displayName, unitShort) : null,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: p.reservedStock > 0
+                          ? AppColors.accentGold.withOpacity(0.22)
+                          : Colors.white.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(8),
+                      border: p.reservedStock > 0
+                          ? Border.all(color: AppColors.accentGold.withOpacity(0.7))
+                          : null,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.warehouse,
+                          size: 13,
+                          color: p.reservedStock > 0 ? AppColors.accentGold : Colors.white60,
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          "Titipan: ${p.reservedStockDisplay} $unitShort",
+                          style: TextStyle(
+                            color: p.reservedStock > 0 ? AppColors.accentGold : Colors.white70,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 6),
-                  stockWidget,
-                ],
-              ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.cyanAccent.withOpacity(0.14),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.cyanAccent.withOpacity(0.35)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.fact_check_outlined, size: 13, color: Colors.cyanAccent),
+                      const SizedBox(width: 5),
+                      Text(
+                        "Fisik Gudang: ${p.physicalStockDisplay} $unitShort",
+                        style: const TextStyle(
+                          color: Colors.cyanAccent,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 8),
             Row(
@@ -1367,6 +1602,40 @@ class _ProductListScreenState extends State<ProductListScreen>
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
             child: Column(
               children: [
+                if (p.reservedStock > 0) ...[
+                  Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.menuAmberBg,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppColors.menuAmberIcon.withOpacity(0.35)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.warehouse, color: AppColors.menuAmberIcon, size: 20),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            "Ada ${p.reservedStockDisplay} $unitShort pesanan titipan belum diantar.\nAktual Fisik: ${p.physicalStockDisplay} = Sistem ${p.stockDisplay} + Titipan ${p.reservedStockDisplay}",
+                            style: const TextStyle(fontSize: 11.5, color: AppColors.textDark, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        TextButton(
+                          onPressed: () => _showProductTitipanDialog(p, displayName, unitShort),
+                          style: TextButton.styleFrom(
+                            backgroundColor: AppColors.menuAmberIcon,
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            minimumSize: Size.zero,
+                          ),
+                          child: const Text("Lihat Pemesan", style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 if (isReng) ...[
                   Row(
                     children: [
@@ -2138,6 +2407,61 @@ class _ProductListScreenState extends State<ProductListScreen>
                       ],
                     ),
                   ),
+
+                  if (StockCostCalculator.isWoodType(p.type) && calculatedQty > 0) ...[
+                    Builder(builder: (_) {
+                      int previewExpense = uangKeluarRealTime > 0
+                          ? uangKeluarRealTime
+                          : (calculatedQty * parseMoney(modalSatuanCtrl.text)).round();
+                      int previewModalBaru = StockCostCalculator.calculateWeightedAverageCost(
+                        oldStock: p.stock,
+                        oldCost: p.buyPriceUnit,
+                        addedQty: calculatedQty,
+                        totalAddedExpense: previewExpense,
+                      );
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 10),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.amber.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.amber.shade300),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(Icons.calculate_outlined, size: 14, color: Colors.amber.shade900),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    "Estimasi Modal Rata-rata:",
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.amber.shade900,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                "Modal lama ${_formatRp(p.buyPriceUnit)}, modal baru (rata-rata) ${_formatRp(previewModalBaru)}",
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.primaryNavy,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }),
+                  ],
+
                   const SizedBox(height: 15),
 
                   TextField(
@@ -2209,6 +2533,8 @@ class _ProductListScreenState extends State<ProductListScreen>
                     type: p.type,
                     woodClass: p.woodClass,
                     stock: p.stock,
+                    reservedStock: p.reservedStock,
+                    orderIndex: p.orderIndex,
                     source: p.source,
                     dimensions: p.dimensions,
                     buyPriceUnit: newModalSatuan,

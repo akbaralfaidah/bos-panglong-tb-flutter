@@ -23,19 +23,47 @@ class ProductController {
     return await _productDS.deleteProduct(id);
   }
 
-  Future<void> updateStockQuick(int id, double newStock, int expense) async {
-    await _productDS.updateStockQuick(id, newStock, expense);
+  Future<void> updateStockQuick(int id, double newStock, int expense, {String? exactDate}) async {
+    await _productDS.updateStockQuick(id, newStock, expense, exactDate: exactDate);
   }
 
-  // 🔥 UPDATE: MENDUKUNG TANGGAL CUSTOM 🔥
-  Future<void> addStockLog(int pid, String type, double qty, int modal, String note, {int? totalExpense, double? inputQty, String? inputUnit, String? exactDate}) async {
-    await _productDS.addStockLog(pid, type, qty, modal, note, totalExpense: totalExpense, inputQty: inputQty, inputUnit: inputUnit, exactDate: exactDate);
+  // 🔥 UPDATE: MENDUKUNG TANGGAL CUSTOM & AUDIT FIELDS 🔥
+  Future<void> addStockLog(
+    int pid,
+    String type,
+    double qty,
+    int modal,
+    String note, {
+    int? totalExpense,
+    double? inputQty,
+    String? inputUnit,
+    String? exactDate,
+    double? stokSebelum,
+    double? stokSesudah,
+    int? modalSebelum,
+    int? modalMasuk,
+    int? modalSesudah,
+  }) async {
+    await _productDS.addStockLog(
+      pid,
+      type,
+      qty,
+      modal,
+      note,
+      totalExpense: totalExpense,
+      inputQty: inputQty,
+      inputUnit: inputUnit,
+      exactDate: exactDate,
+      stokSebelum: stokSebelum,
+      stokSesudah: stokSesudah,
+      modalSebelum: modalSebelum,
+      modalMasuk: modalMasuk,
+      modalSesudah: modalSesudah,
+    );
   }
 
   Future<void> updateProductOrder(List<Product> products) async {
-    for (var p in products) {
-      await _productDS.updateProduct(p);
-    }
+    await _productDS.updateProductOrderBatch(products);
   }
 
   Future<void> voidStockReceipt(String exactDate) async {

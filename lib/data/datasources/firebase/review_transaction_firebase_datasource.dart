@@ -21,6 +21,7 @@ class ReviewTransactionFirebaseDataSource {
     required int discount, required String paymentMethod, required String paymentStatus,
     required DateTime transactionDate, 
     int cutProfit = 0,
+    String deliveryStatus = 'Selesai',
   }) async {
     
     if (customerName.trim().isEmpty) customerName = "Pelanggan Umum";
@@ -48,7 +49,14 @@ class ReviewTransactionFirebaseDataSource {
     String dateNow = transactionDate.toIso8601String(); // 🔥 SIMPAN TANGGAL CUSTOM
 
     List<Map<String, dynamic>> embeddedItems = [];
+    List<Map<String, dynamic>> initialDeliveredSummary = [];
+    Map<String, double> undeliveredByProduct = {};
+
+    bool allDelivered = true;
+    bool noneDelivered = true;
+
     for (var item in cartItems) {
+      double qty = (item['quantity'] as num?)?.toDouble() ?? 1.0;
       double reqQty = (item['request_qty'] as num?)?.toDouble() ?? 1.0;
       int sellPrice = (item['sell_price'] as num?)?.toInt() ?? 0;
       int dbCapPrice = (item['capital_price'] as num?)?.toInt() ?? 0;
@@ -67,13 +75,44 @@ class ReviewTransactionFirebaseDataSource {
         finalCapitalTotal = (reqQty * dbCapPrice).round(); 
       }
 
+      double deliveredReqQty = reqQty;
+      double deliveredQty = qty;
+      if (deliveryStatus == 'Belum Diantar') {
+        deliveredReqQty = 0.0;
+        deliveredQty = 0.0;
+      } else if (deliveryStatus == 'Sebagian') {
+        deliveredReqQty = ((item['delivered_request_qty'] as num?)?.toDouble() ?? 0.0).clamp(0.0, reqQty);
+        deliveredQty = reqQty > 0
+            ? double.parse(((deliveredReqQty / reqQty) * qty).toStringAsFixed(2))
+            : 0.0;
+      }
+
+      if (deliveredQty < qty - 0.001) allDelivered = false;
+      if (deliveredQty > 0.001) noneDelivered = false;
+
+      double undeliveredQty = double.parse((qty - deliveredQty).clamp(0.0, qty).toStringAsFixed(2));
+      if (undeliveredQty > 0 && item['product_id'] != null) {
+        String pid = item['product_id'].toString();
+        undeliveredByProduct[pid] = (undeliveredByProduct[pid] ?? 0.0) + undeliveredQty;
+      }
+
+      if (deliveredReqQty > 0) {
+        initialDeliveredSummary.add({
+          'product_name': item['product_name'],
+          'delivered_req_qty': deliveredReqQty,
+          'unit_type': item['unit_type'],
+        });
+      }
+
       embeddedItems.add({
         'product_id': item['product_id'], 
         'product_name': item['product_name'], 
         'product_type': item['product_type'],
         'dimensions': item['dimensions'], // 🔥 FIX: Sertakan dimensi
-        'quantity': item['quantity'], 
+        'quantity': qty, 
         'request_qty': reqQty, 
+        'delivered_qty': deliveredQty,
+        'delivered_request_qty': deliveredReqQty,
         'unit_type': item['unit_type'], 
         'capital_price': dbCapPrice, 
         'sell_price': sellPrice,
@@ -82,8 +121,22 @@ class ReviewTransactionFirebaseDataSource {
       });
     }
 
-    WriteBatch batch = _db.batch();
+    String effectiveDeliveryStatus = allDelivered
+        ? 'Selesai'
+        : (noneDelivered ? 'Belum Diantar' : 'Sebagian');
+
     String currentCashier = SessionManager().userName ?? 'Tidak Diketahui';
+    List<Map<String, dynamic>> deliveryLogs = [];
+    if (effectiveDeliveryStatus == 'Sebagian' && initialDeliveredSummary.isNotEmpty) {
+      deliveryLogs.add({
+        'date': dateNow,
+        'cashier_name': currentCashier,
+        'note': 'Pengambilan / pengantaran awal saat transaksi',
+        'items': initialDeliveredSummary,
+      });
+    }
+
+    WriteBatch batch = _db.batch();
 
     Map<String, dynamic> transactionData = {
       'id': transId, 'total_price': totalPrice, 'operational_cost': operationalCost, 'discount': discount,
@@ -91,19 +144,37 @@ class ReviewTransactionFirebaseDataSource {
       'customer_name': customerName, 'customer_phone': customerPhone, 'customer_address': customerAddress,
       'payment_method': paymentMethod, 'payment_status': paymentStatus, 'queue_number': queueNum,
       'transaction_date': dateNow, 'items': embeddedItems,
-      'cashier_name': currentCashier, 
+      'cashier_name': currentCashier,
+      'delivery_status': effectiveDeliveryStatus,
+      'delivery_logs': deliveryLogs,
     };
 
     batch.set(_col('transactions').doc(transId.toString()), transactionData);
 
-
+    // Kelompokkan pengurangan stok & penambahan titipan per product_id
+    Map<String, double> stockDeductByProduct = {};
     for (var item in cartItems) {
-      batch.update(_col('products').doc(item['product_id'].toString()), {
-        'stock': FieldValue.increment(-(item['quantity'] as num).toDouble())
-      });
+      if (item['product_id'] != null) {
+        String pid = item['product_id'].toString();
+        stockDeductByProduct[pid] = (stockDeductByProduct[pid] ?? 0.0) + (item['quantity'] as num).toDouble();
+      }
     }
 
-    batch.commit(); 
+    for (var entry in stockDeductByProduct.entries) {
+      String pid = entry.key;
+      double deductQty = entry.value;
+      double reserveQty = undeliveredByProduct[pid] ?? 0.0;
+
+      Map<String, dynamic> prodUpdate = {
+        'stock': FieldValue.increment(-deductQty),
+      };
+      if (reserveQty > 0) {
+        prodUpdate['reserved_stock'] = FieldValue.increment(reserveQty);
+      }
+      batch.set(_col('products').doc(pid), prodUpdate, SetOptions(merge: true));
+    }
+
+    await batch.commit(); 
     return transactionData;
   }
 }

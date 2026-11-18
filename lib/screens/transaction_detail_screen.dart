@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'dart:io';
@@ -44,9 +44,11 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
   bool _isLoading = true;
   bool _isGeneratingReceipt = false;
   bool _isVoiding = false;
+  bool _isUpdatingDelivery = false;
 
   List<Map<String, dynamic>> _items = [];
   List<Map<String, dynamic>> _payments = [];
+  List<Map<String, dynamic>> _deliveryLogs = [];
   String _storeName = "Bos Depot & TB";
   String _storeAddress = "Alamat belum diatur";
   String _storePhone = "";
@@ -58,6 +60,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
   late int _totalPrice;
   late int _discount;
   late String _status;
+  late String _deliveryStatus;
   late String _dateStr;
   late String _paymentMethod;
   late String _cashierName;
@@ -71,6 +74,12 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
     _totalPrice = widget.transaction['total_price'] ?? 0;
     _discount = widget.transaction['discount'] ?? 0;
     _status = widget.transaction['payment_status'] ?? "Belum Lunas";
+    _deliveryStatus = widget.transaction['delivery_status']?.toString() ?? "Selesai";
+    if (widget.transaction['delivery_logs'] is List) {
+      _deliveryLogs = List<Map<String, dynamic>>.from(
+        (widget.transaction['delivery_logs'] as List).map((e) => Map<String, dynamic>.from(e as Map)),
+      );
+    }
     _dateStr = widget.transaction['transaction_date'];
     _queueNum = widget.transaction['queue_number'] ?? 1;
     _opCost = widget.transaction['operational_cost'] ?? 0;
@@ -104,12 +113,12 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
     if (mounted) {
       setState(() {
         List<dynamic> rawItems = [];
-        if (widget.transaction.containsKey('items') &&
+        if (data['items'] != null && (data['items'] as List).isNotEmpty) {
+          rawItems = data['items'];
+        } else if (widget.transaction.containsKey('items') &&
             widget.transaction['items'] != null &&
             (widget.transaction['items'] as List).isNotEmpty) {
           rawItems = widget.transaction['items'];
-        } else {
-          rawItems = data['items'] ?? [];
         }
 
         _items = rawItems.map<Map<String, dynamic>>((e) {
@@ -132,6 +141,12 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
         }).toList();
 
         _payments = data['payments'] ?? [];
+        if (data['delivery_status'] != null) {
+          _deliveryStatus = data['delivery_status'].toString();
+        }
+        if (data['delivery_logs'] != null && (data['delivery_logs'] as List).isNotEmpty) {
+          _deliveryLogs = List<Map<String, dynamic>>.from(data['delivery_logs']);
+        }
         _storeName = data['storeName'] ?? "Bos Depot & TB";
         _storeAddress = data['storeAddress'] ?? "Alamat belum diatur";
         _storePhone = data['storePhone'] ?? "";
@@ -782,6 +797,571 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
     }
   }
 
+  String _cleanUnitLabel(dynamic rawUnit) {
+    String u = (rawUnit ?? '').toString();
+    if (u.contains('[PAKET_')) u = u.substring(0, u.indexOf('[PAKET_')).trim();
+    if (u.contains('(')) u = u.substring(0, u.indexOf('(')).trim();
+    return u.isEmpty ? 'Pcs' : u;
+  }
+
+  String _formatQtyClean(double val) {
+    if ((val - val.roundToDouble()).abs() < 0.001) return val.round().toString();
+    return double.parse(val.toStringAsFixed(2)).toString();
+  }
+
+  double _getItemQty(Map<String, dynamic> item) {
+    return (item['quantity'] as num?)?.toDouble() ?? 1.0;
+  }
+
+  double _getItemReqQty(Map<String, dynamic> item) {
+    return (item['request_qty'] as num?)?.toDouble() ?? _getItemQty(item);
+  }
+
+  double _getDeliveredReqQty(Map<String, dynamic> item) {
+    double reqQty = _getItemReqQty(item);
+    if (item.containsKey('delivered_request_qty') && item['delivered_request_qty'] != null) {
+      return ((item['delivered_request_qty'] as num).toDouble()).clamp(0.0, reqQty);
+    }
+    return reqQty;
+  }
+
+  double _getDeliveredQty(Map<String, dynamic> item) {
+    double qty = _getItemQty(item);
+    if (item.containsKey('delivered_qty') && item['delivered_qty'] != null) {
+      return ((item['delivered_qty'] as num).toDouble()).clamp(0.0, qty);
+    }
+    return qty;
+  }
+
+  double _getRemainingReqQty(Map<String, dynamic> item) {
+    double reqQty = _getItemReqQty(item);
+    return double.parse((reqQty - _getDeliveredReqQty(item)).clamp(0.0, reqQty).toStringAsFixed(2));
+  }
+
+  Widget? _buildReceiptItemDeliveryNote(Map<String, dynamic> item) {
+    if (_deliveryStatus == 'Selesai') return null;
+    double delReq = _getDeliveredReqQty(item);
+    double remReq = _getRemainingReqQty(item);
+    String unit = _cleanUnitLabel(item['unit_type']);
+
+    if (remReq <= 0.001) {
+      return const Padding(
+        padding: EdgeInsets.only(top: 2),
+        child: Text(
+          "  -> Sudah diambil/diantar semua",
+          style: TextStyle(color: Colors.black54, fontSize: 15, fontStyle: FontStyle.italic),
+        ),
+      );
+    }
+
+    String text = delReq <= 0.001
+        ? "  -> Titip Gudang: ${_formatQtyClean(remReq)} $unit (Belum Diantar)"
+        : "  -> Diambil: ${_formatQtyClean(delReq)} $unit | Titip Gudang: ${_formatQtyClean(remReq)} $unit";
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 2),
+      child: Text(
+        text,
+        style: const TextStyle(color: Colors.black87, fontSize: 15, fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+
+  Future<void> _submitDeliveryUpdate({
+    required Map<int, double> takeNowByIndex,
+    required String note,
+  }) async {
+    setState(() => _isUpdatingDelivery = true);
+    try {
+      List<Map<String, dynamic>> updatedItems = [];
+      List<Map<String, dynamic>> newlyDeliveredSummary = [];
+
+      for (int i = 0; i < _items.length; i++) {
+        var item = Map<String, dynamic>.from(_items[i]);
+        double qty = _getItemQty(item);
+        double reqQty = _getItemReqQty(item);
+        double prevDelReq = _getDeliveredReqQty(item);
+        double prevDelQty = _getDeliveredQty(item);
+
+        double addReq = (takeNowByIndex[i] ?? 0.0).clamp(0.0, reqQty - prevDelReq);
+        if (addReq > 0.001) {
+          double newDelReq = double.parse((prevDelReq + addReq).clamp(0.0, reqQty).toStringAsFixed(2));
+          double newDelQty = reqQty > 0
+              ? double.parse(((newDelReq / reqQty) * qty).clamp(0.0, qty).toStringAsFixed(2))
+              : qty;
+          double newlyDeliveredQty = double.parse((newDelQty - prevDelQty).clamp(0.0, qty).toStringAsFixed(2));
+
+          item['delivered_request_qty'] = newDelReq;
+          item['delivered_qty'] = newDelQty;
+
+          newlyDeliveredSummary.add({
+            'product_id': item['product_id'],
+            'product_name': item['product_name'],
+            'delivered_req_qty': addReq,
+            'newly_delivered_qty': newlyDeliveredQty,
+            'unit_type': _cleanUnitLabel(item['unit_type']),
+          });
+        }
+        updatedItems.add(item);
+      }
+
+      if (newlyDeliveredSummary.isEmpty) {
+        setState(() => _isUpdatingDelivery = false);
+        AppNotification.show(context, message: "Belum ada jumlah pengantaran yang dipilih.", type: AppNotificationType.warning);
+        return;
+      }
+
+      final updatedTrans = await _controller.updateDeliveryProgress(
+        transId: _transId,
+        updatedItems: updatedItems,
+        newlyDeliveredSummary: newlyDeliveredSummary,
+        note: note,
+      );
+
+      if (mounted) {
+        setState(() {
+          _items = List<Map<String, dynamic>>.from(
+            (updatedTrans['items'] as List).map((e) => Map<String, dynamic>.from(e as Map)),
+          );
+          _deliveryStatus = updatedTrans['delivery_status']?.toString() ?? 'Selesai';
+          _deliveryLogs = List<Map<String, dynamic>>.from(
+            (updatedTrans['delivery_logs'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)),
+          );
+          widget.transaction['items'] = _items;
+          widget.transaction['delivery_status'] = _deliveryStatus;
+          widget.transaction['delivery_logs'] = _deliveryLogs;
+          _isUpdatingDelivery = false;
+        });
+        AppNotification.show(
+          context,
+          message: _deliveryStatus == 'Selesai'
+              ? "Semua barang selesai diantar / diambil!"
+              : "Pengantaran bertahap berhasil dicatat!",
+          type: AppNotificationType.success,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isUpdatingDelivery = false);
+        AppNotification.show(context, message: "Gagal update pengantaran: $e", type: AppNotificationType.error);
+      }
+    }
+  }
+
+  void _showPartialDeliveryDialog() {
+    Map<int, double> takeNowMap = {};
+    for (int i = 0; i < _items.length; i++) {
+      double rem = _getRemainingReqQty(_items[i]);
+      if (rem > 0.001) {
+        takeNowMap[i] = 0.0;
+      }
+    }
+    if (takeNowMap.isEmpty) return;
+
+    final TextEditingController noteCtrl = TextEditingController();
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            backgroundColor: AppColors.pureWhite,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: const Row(
+              children: [
+                Icon(Icons.local_shipping, color: AppColors.primaryNavy),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    "Antar / Ambil Bertahap",
+                    style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryNavy, fontSize: 17),
+                  ),
+                ),
+              ],
+            ),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      "Masukkan jumlah barang yang keluar gudang hari ini:",
+                      style: TextStyle(fontSize: 12, color: AppColors.textGrey),
+                    ),
+                    const SizedBox(height: 12),
+                    ...takeNowMap.keys.map((idx) {
+                      var item = _items[idx];
+                      double remMax = _getRemainingReqQty(item);
+                      double takeNow = takeNowMap[idx] ?? 0.0;
+                      String unit = _cleanUnitLabel(item['unit_type']);
+                      String pName = (item['product_name'] ?? '').toString()
+                          .replaceAll(RegExp(r'Kelas \d+\s?'), '')
+                          .replaceAll('()', '')
+                          .trim();
+
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 10),
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: AppColors.backgroundWhite,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.grey.shade200),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(pName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.primaryNavy)),
+                            const SizedBox(height: 3),
+                            Text("Sisa Titipan di Gudang: ${_formatQtyClean(remMax)} $unit", style: const TextStyle(fontSize: 11, color: AppColors.menuAmberIcon, fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 8),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: [
+                                    IconButton(
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                      icon: const Icon(Icons.remove_circle, color: AppColors.statusRed, size: 28),
+                                      onPressed: () {
+                                        setDialogState(() {
+                                          takeNowMap[idx] = (takeNow - 1).clamp(0.0, remMax);
+                                        });
+                                      },
+                                    ),
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                                      child: Text(
+                                        "${_formatQtyClean(takeNow)} $unit",
+                                        style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: AppColors.primaryNavy),
+                                      ),
+                                    ),
+                                    IconButton(
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                      icon: const Icon(Icons.add_circle, color: AppColors.statusGreen, size: 28),
+                                      onPressed: () {
+                                        setDialogState(() {
+                                          takeNowMap[idx] = (takeNow + 1).clamp(0.0, remMax);
+                                        });
+                                      },
+                                    ),
+                                  ],
+                                ),
+                                TextButton(
+                                  onPressed: () {
+                                    setDialogState(() {
+                                      takeNowMap[idx] = remMax;
+                                    });
+                                  },
+                                  style: TextButton.styleFrom(
+                                    backgroundColor: AppColors.menuTealBg,
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    minimumSize: Size.zero,
+                                  ),
+                                  child: const Text("Maks", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.menuTealIcon)),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: noteCtrl,
+                      decoration: InputDecoration(
+                        labelText: "Catatan (Opsional, misal: Supir / Penerima)",
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                        isDense: true,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text("Batal", style: TextStyle(color: AppColors.textGrey)),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryNavy,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                onPressed: () {
+                  bool hasAny = takeNowMap.values.any((v) => v > 0.001);
+                  if (!hasAny) {
+                    AppNotification.show(context, message: "Pilih minimal 1 barang yang diantar/diambil!", type: AppNotificationType.warning);
+                    return;
+                  }
+                  Navigator.pop(ctx);
+                  _submitDeliveryUpdate(takeNowByIndex: takeNowMap, note: noteCtrl.text);
+                },
+                child: const Text("SIMPAN", style: TextStyle(color: AppColors.accentGold, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  void _confirmMarkAllDelivered() {
+    final TextEditingController noteCtrl = TextEditingController();
+    Map<int, double> takeAllMap = {};
+    for (int i = 0; i < _items.length; i++) {
+      double rem = _getRemainingReqQty(_items[i]);
+      if (rem > 0.001) {
+        takeAllMap[i] = rem;
+      }
+    }
+    if (takeAllMap.isEmpty) return;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.pureWhite,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Row(
+          children: [
+            Icon(Icons.check_circle, color: AppColors.statusGreen, size: 26),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text("Antar / Ambil Semua Sisa?", style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryNavy, fontSize: 16)),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text("Semua sisa barang titipan berikut akan ditandai keluar dari gudang:", style: TextStyle(fontSize: 12, color: AppColors.textDark)),
+            const SizedBox(height: 10),
+            ...takeAllMap.entries.map((entry) {
+              var item = _items[entry.key];
+              String pName = (item['product_name'] ?? '').toString().replaceAll(RegExp(r'Kelas \d+\s?'), '').replaceAll('()', '').trim();
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text("• $pName: ${_formatQtyClean(entry.value)} ${_cleanUnitLabel(item['unit_type'])}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.primaryNavy)),
+              );
+            }),
+            const SizedBox(height: 12),
+            TextField(
+              controller: noteCtrl,
+              decoration: InputDecoration(
+                labelText: "Catatan Pengiriman (Opsional)",
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                isDense: true,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Batal", style: TextStyle(color: AppColors.textGrey))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.statusGreen, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+            onPressed: () {
+              Navigator.pop(ctx);
+              _submitDeliveryUpdate(
+                takeNowByIndex: takeAllMap,
+                note: noteCtrl.text.trim().isEmpty ? "Pelunasan pengantaran sisa barang" : noteCtrl.text.trim(),
+              );
+            },
+            child: const Text("YA, SELESAI DIANTAR", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDeliveryControlSection() {
+    if (_deliveryStatus == 'Selesai' && _deliveryLogs.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    Color badgeColor = _deliveryStatus == 'Selesai'
+        ? AppColors.statusGreen
+        : (_deliveryStatus == 'Belum Diantar' ? AppColors.menuAmberIcon : AppColors.menuBlueIcon);
+    Color badgeBg = _deliveryStatus == 'Selesai'
+        ? AppColors.statusGreen.withOpacity(0.1)
+        : (_deliveryStatus == 'Belum Diantar' ? AppColors.menuAmberBg : AppColors.menuBlueBg);
+    String badgeText = _deliveryStatus == 'Selesai'
+        ? "SUDAH DIANTAR SEMUA"
+        : (_deliveryStatus == 'Belum Diantar' ? "TITIP GUDANG (BELUM DIANTAR)" : "DIANTAR SEBAGIAN");
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.pureWhite,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: badgeColor.withOpacity(0.35), width: 1.5),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.warehouse, color: badgeColor, size: 22),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  "Kontrol Barang Titipan",
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.primaryNavy),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(color: badgeBg, borderRadius: BorderRadius.circular(8)),
+                child: Text(badgeText, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: badgeColor)),
+              ),
+            ],
+          ),
+          const Divider(height: 20),
+          ..._items.map((item) {
+            double reqQty = _getItemReqQty(item);
+            double delReq = _getDeliveredReqQty(item);
+            double remReq = _getRemainingReqQty(item);
+            double progress = reqQty > 0 ? (delReq / reqQty).clamp(0.0, 1.0) : 1.0;
+            String unit = _cleanUnitLabel(item['unit_type']);
+            String pName = (item['product_name'] ?? '').toString()
+                .replaceAll(RegExp(r'Kelas \d+\s?'), '')
+                .replaceAll('()', '')
+                .trim();
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(pName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textDark)),
+                      ),
+                      Text(
+                        remReq > 0.001 ? "Sisa Gudang: ${_formatQtyClean(remReq)} $unit" : "Selesai",
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: remReq > 0.001 ? AppColors.menuAmberIcon : AppColors.statusGreen,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: LinearProgressIndicator(
+                      value: progress,
+                      minHeight: 7,
+                      backgroundColor: Colors.grey.shade200,
+                      color: remReq > 0.001 ? AppColors.menuBlueIcon : AppColors.statusGreen,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    "Sudah keluar gudang: ${_formatQtyClean(delReq)} / ${_formatQtyClean(reqQty)} $unit",
+                    style: const TextStyle(fontSize: 11, color: AppColors.textGrey),
+                  ),
+                ],
+              ),
+            );
+          }),
+          if (_deliveryStatus != 'Selesai') ...[
+            const SizedBox(height: 6),
+            if (_isUpdatingDelivery)
+              const Center(child: Padding(padding: EdgeInsets.all(8), child: CircularProgressIndicator(color: AppColors.primaryNavy)))
+            else
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.local_shipping, size: 18, color: AppColors.menuBlueIcon),
+                      label: const Text("Antar Bertahap", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.menuBlueIcon)),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: AppColors.menuBlueIcon, width: 1.5),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      onPressed: _showPartialDeliveryDialog,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.check_circle, size: 18, color: Colors.white),
+                      label: const Text("Antar Semua", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.white)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.statusGreen,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      onPressed: _confirmMarkAllDelivered,
+                    ),
+                  ),
+                ],
+              ),
+          ],
+          if (_deliveryLogs.isNotEmpty) ...[
+            const Divider(height: 24),
+            const Text("Riwayat Pengantaran / Pengambilan:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.primaryNavy)),
+            const SizedBox(height: 8),
+            ..._deliveryLogs.reversed.map((log) {
+              String dStr = log['date']?.toString() ?? '';
+              String timeLabel = dStr.isNotEmpty ? DateFormat('dd MMM yyyy, HH:mm').format(DateTime.parse(dStr)) : '-';
+              String cashier = log['cashier_name']?.toString() ?? '-';
+              String note = log['note']?.toString() ?? '';
+              List<dynamic> logItems = log['items'] is List ? log['items'] : [];
+
+              return Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.backgroundWhite,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(timeLabel, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primaryNavy)),
+                        Text("Oleh: $cashier", style: const TextStyle(fontSize: 10, color: AppColors.textGrey)),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    ...logItems.map((li) {
+                      double q = (li['delivered_req_qty'] as num?)?.toDouble() ?? 0.0;
+                      String u = (li['unit_type'] ?? '').toString();
+                      String pn = (li['product_name'] ?? '').toString().replaceAll(RegExp(r'Kelas \d+\s?'), '').replaceAll('()', '').trim();
+                      return Text("• $pn: ${_formatQtyClean(q)} $u", style: const TextStyle(fontSize: 11, color: AppColors.textDark, fontWeight: FontWeight.w600));
+                    }),
+                    if (note.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 3),
+                        child: Text("Catatan: $note", style: const TextStyle(fontSize: 11, color: AppColors.textGrey, fontStyle: FontStyle.italic)),
+                      ),
+                  ],
+                ),
+              );
+            }),
+          ],
+        ],
+      ),
+    );
+  }
+
   Future<Uint8List?> _generateImageBytes({required double pixelRatio}) async {
     setState(() => _isGeneratingReceipt = true);
     await Future.delayed(const Duration(milliseconds: 300));
@@ -842,6 +1422,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
           grandTotal: _totalPrice,
           paymentMethod: _paymentMethod,
           paymentStatus: _status,
+          deliveryStatus: _deliveryStatus,
           logoPath: _logoPath, // 🔥 INI DIA KUNCI LOGONYA 🔥
         );
       } else {
@@ -1365,6 +1946,8 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                                                       ),
                                                     ],
                                                   ),
+                                                  if (_buildReceiptItemDeliveryNote(item) != null)
+                                                    _buildReceiptItemDeliveryNote(item)!,
                                                 ],
                                               ),
                                             );
@@ -1631,6 +2214,8 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                                               ),
                                             ],
                                           ),
+                                          if (_buildReceiptItemDeliveryNote(item) != null)
+                                            _buildReceiptItemDeliveryNote(item)!,
                                         ],
                                       ),
                                     );
@@ -1766,6 +2351,31 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                               ),
                             ),
 
+                            if (_deliveryStatus != 'Selesai') ...[
+                              const SizedBox(height: 10),
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: Colors.black87, width: 1.5),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    _deliveryStatus == 'Belum Diantar'
+                                        ? "BARANG TITIP GUDANG (BELUM DIANTAR)"
+                                        : "BARANG DIANTAR SEBAGIAN",
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 15,
+                                      color: Colors.black,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+
                             const SizedBox(height: 30),
 
                             SizedBox(
@@ -1800,6 +2410,8 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                     ),
 
                     const SizedBox(height: 25),
+
+                    _buildDeliveryControlSection(),
 
                     if (!widget.isNewTransaction &&
                         (_payments.isNotEmpty || !isLunas)) ...[
