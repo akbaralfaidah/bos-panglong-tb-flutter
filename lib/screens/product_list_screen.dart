@@ -866,17 +866,19 @@ class _ProductListScreenState extends State<ProductListScreen>
     return Scaffold(
       backgroundColor: AppColors.liquidBackground,
       appBar: AppBar(
+        systemOverlayStyle: SystemUiOverlayStyle.light,
         title: _isSearching
             ? TextField(
                 controller: _searchController,
                 autofocus: true,
+                cursorColor: Colors.white,
                 style: const TextStyle(
-                  color: AppColors.primaryNavy,
+                  color: Colors.white,
                   fontWeight: FontWeight.bold,
                 ),
                 decoration: const InputDecoration(
                   hintText: "Cari Produk...",
-                  hintStyle: TextStyle(color: AppColors.textGrey),
+                  hintStyle: TextStyle(color: Color(0xFFDBEAFE)),
                   border: InputBorder.none,
                   filled: false,
                 ),
@@ -885,33 +887,53 @@ class _ProductListScreenState extends State<ProductListScreen>
                   _applyFilters();
                 }),
               )
-            : const Text("Gudang Stok"),
-        backgroundColor: Colors.white.withValues(alpha: 0.94),
+            : const Text(
+                "Gudang Stok",
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                ),
+              ),
+        backgroundColor: AppColors.cobaltCanopyMid,
         surfaceTintColor: Colors.transparent,
-        foregroundColor: AppColors.primaryNavy,
+        foregroundColor: Colors.white,
         elevation: 0,
-        flexibleSpace: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Colors.white.withValues(alpha: 0.96),
-                const Color(0xFFEAF3FC).withValues(alpha: 0.92),
-              ],
-            ),
-          ),
-        ),
+        flexibleSpace: const CobaltAppBarBackdrop(),
         actions: [
           if (_isOwner)
-            IconButton(
-              icon: const Icon(LucideIcons.trash2, color: AppColors.statusRed, size: 20),
-              tooltip: "Hapus Stok",
-              onPressed: _showDeleteStockSheet,
+            Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: Tooltip(
+                message: "Hapus Stok",
+                child: InkWell(
+                  onTap: _showDeleteStockSheet,
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    padding: const EdgeInsets.all(7),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEE2E2),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: const Color(0xFFFCA5A5),
+                        width: 1.0,
+                      ),
+                    ),
+                    child: const Icon(
+                      LucideIcons.trash2,
+                      color: AppColors.statusRed,
+                      size: 18,
+                    ),
+                  ),
+                ),
+              ),
             ),
           IconButton(
             tooltip: "Cari Produk",
-            icon: Icon(_isSearching ? LucideIcons.x : LucideIcons.search, size: 21),
+            icon: Icon(
+              _isSearching ? LucideIcons.x : LucideIcons.search,
+              color: Colors.white,
+              size: 21,
+            ),
             onPressed: () {
               setState(() {
                 _isSearching = !_isSearching;
@@ -926,10 +948,10 @@ class _ProductListScreenState extends State<ProductListScreen>
         ],
         bottom: TabBar(
           controller: _tabController,
-          indicatorColor: AppColors.secondaryNavy,
-          indicatorWeight: 4,
-          labelColor: AppColors.primaryNavy,
-          unselectedLabelColor: AppColors.textGrey,
+          indicatorColor: Colors.white,
+          indicatorWeight: 3.5,
+          labelColor: Colors.white,
+          unselectedLabelColor: const Color(0xFFBFDBFE),
           tabs: [
             Tab(
               child: Column(
@@ -1662,6 +1684,13 @@ class _ProductListScreenState extends State<ProductListScreen>
                 : ((isKayu || isReng || isBulat)
                     ? AppColors.menuTealBg
                     : AppColors.menuBlueBg),
+            accentBarColor: isHabis
+                ? const Color(0xFF94A3B8)
+                : (isLowStock
+                    ? AppColors.statusRed
+                    : ((isKayu || isReng || isBulat)
+                        ? AppColors.menuTealIcon
+                        : AppColors.secondaryNavy)),
             size: 44,
             iconSize: 20,
             radius: 13,

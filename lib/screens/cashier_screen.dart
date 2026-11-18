@@ -1100,17 +1100,19 @@ class _CashierScreenState extends State<CashierScreen>
     return Scaffold(
       backgroundColor: AppColors.liquidBackground,
       appBar: AppBar(
+        systemOverlayStyle: SystemUiOverlayStyle.light,
         title: _isSearching
             ? TextField(
                 controller: _searchController,
                 autofocus: true,
+                cursorColor: Colors.white,
                 style: const TextStyle(
-                  color: AppColors.primaryNavy,
+                  color: Colors.white,
                   fontWeight: FontWeight.bold,
                 ),
                 decoration: const InputDecoration(
                   hintText: "Cari Produk / Scan...",
-                  hintStyle: TextStyle(color: AppColors.textGrey),
+                  hintStyle: TextStyle(color: Color(0xFFDBEAFE)),
                   border: InputBorder.none,
                   filled: false,
                 ),
@@ -1121,30 +1123,22 @@ class _CashierScreenState extends State<CashierScreen>
               )
             : const Text(
                 "Kasir Toko",
-                style: TextStyle(fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                ),
               ),
-        backgroundColor: Colors.white.withValues(alpha: 0.94),
+        backgroundColor: AppColors.cobaltCanopyMid,
         surfaceTintColor: Colors.transparent,
-        foregroundColor: AppColors.primaryNavy,
+        foregroundColor: Colors.white,
         elevation: 0,
-        flexibleSpace: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Colors.white.withValues(alpha: 0.96),
-                const Color(0xFFEAF3FC).withValues(alpha: 0.92),
-              ],
-            ),
-          ),
-        ),
+        flexibleSpace: const CobaltAppBarBackdrop(),
         actions: [
           IconButton(
             tooltip: "Scan Barcode",
             icon: const Icon(
               LucideIcons.scanBarcode,
-              color: AppColors.primaryNavy,
+              color: Colors.white,
               size: 21,
             ),
             onPressed: _scanBarcode,
@@ -1153,6 +1147,7 @@ class _CashierScreenState extends State<CashierScreen>
             tooltip: "Cari Produk",
             icon: Icon(
               _isSearching ? LucideIcons.x : LucideIcons.search,
+              color: Colors.white,
               size: 21,
             ),
             onPressed: () {
@@ -1169,10 +1164,10 @@ class _CashierScreenState extends State<CashierScreen>
         ],
         bottom: TabBar(
           controller: _tabController,
-          indicatorColor: AppColors.secondaryNavy,
-          indicatorWeight: 4,
-          labelColor: AppColors.primaryNavy,
-          unselectedLabelColor: AppColors.textGrey,
+          indicatorColor: Colors.white,
+          indicatorWeight: 3.5,
+          labelColor: Colors.white,
+          unselectedLabelColor: const Color(0xFFBFDBFE),
           tabs: const [
             Tab(
               child: Text(
@@ -1894,6 +1889,11 @@ class _CashierScreenState extends State<CashierScreen>
                     : ((isKayu || isReng || isBulat)
                         ? AppColors.menuTealBg
                         : AppColors.menuBlueBg),
+                accentBarColor: isHabis
+                    ? const Color(0xFF94A3B8)
+                    : (inCartCount > 0 || isKayu || isReng || isBulat)
+                        ? AppColors.menuTealIcon
+                        : AppColors.secondaryNavy,
                 size: 44,
                 iconSize: 20,
                 radius: 13,

@@ -114,9 +114,15 @@ class GlassContainer extends StatelessWidget {
             [
               BoxShadow(
                 color: (tintColor ?? AppColors.primaryNavy)
-                    .withValues(alpha: isDark ? 0.18 : 0.08),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
+                    .withValues(alpha: isDark ? 0.22 : 0.08),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
+              ),
+              BoxShadow(
+                color: const Color(0xFF0F172A)
+                    .withValues(alpha: isDark ? 0.14 : 0.04),
+                blurRadius: 3,
+                offset: const Offset(0, 1),
               ),
             ],
       ),
@@ -228,11 +234,42 @@ class _LiquidPressWrapperState extends State<LiquidPressWrapper> {
       onTapUp: (_) => _setPressed(false),
       onTapCancel: () => _setPressed(false),
       onTap: widget.onTap,
-      child: _isPressed
-          ? Transform.scale(scale: widget.pressedScale, child: widget.child)
-          : widget.child,
+      child: AnimatedScale(
+        scale: _isPressed ? widget.pressedScale : 1.0,
+        duration: const Duration(milliseconds: 110),
+        curve: Curves.easeOutCubic,
+        child: widget.child,
+      ),
     );
   }
+}
+
+/// Transisi navigasi halus (directional slide + fade ringan 120 FPS)
+class GlassPageRoute<T> extends PageRouteBuilder<T> {
+  GlassPageRoute({required WidgetBuilder builder})
+      : super(
+          transitionDuration: const Duration(milliseconds: 220),
+          reverseTransitionDuration: const Duration(milliseconds: 180),
+          pageBuilder: (context, animation, secondaryAnimation) =>
+              builder(context),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            final CurvedAnimation curved = CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOutCubic,
+              reverseCurve: Curves.easeInCubic,
+            );
+            return FadeTransition(
+              opacity: curved,
+              child: SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(0.05, 0),
+                  end: Offset.zero,
+                ).animate(curved),
+                child: child,
+              ),
+            );
+          },
+        );
 }
 
 /// Animasi masuk cepat & halus (Fade + Slide ringan, tanpa overscale hitch)
@@ -412,7 +449,7 @@ class AnimatedMoneyText extends StatelessWidget {
   }
 }
 
-/// Kanvas Ice-Porcelain & Royal Sapphire tunggal ringan (nol Stack/RepaintBoundary berlebih)
+/// Kanvas Ice-Porcelain & Cobalt Architectural Blueprint (di-cache 1x via RepaintBoundary, 120 FPS)
 class LiquidAmbientBackground extends StatelessWidget {
   final Widget child;
   final bool isDark;
@@ -425,31 +462,185 @@ class LiquidAmbientBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          stops: const [0.0, 0.5, 1.0],
-          colors: isDark
-              ? const [
-                  Color(0xFF1E3A8A),
-                  Color(0xFF1D4ED8),
-                  Color(0xFF296DE8),
-                ]
-              : const [
-                  Color(0xFFEEF3FB),
-                  Color(0xFFF3F7FE),
-                  Color(0xFFE8F1FE),
-                ],
+    return RepaintBoundary(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            stops: const [0.0, 0.5, 1.0],
+            colors: isDark
+                ? const [
+                    Color(0xFF1E3A8A),
+                    Color(0xFF1D4ED8),
+                    Color(0xFF296DE8),
+                  ]
+                : const [
+                    Color(0xFFEEF3FB),
+                    Color(0xFFF4F8FF),
+                    Color(0xFFE6F0FD),
+                  ],
+          ),
+        ),
+        child: CustomPaint(
+          isComplex: true,
+          willChange: false,
+          painter: _ArchitecturalBlueprintPainter(isDark: isDark),
+          child: RepaintBoundary(child: child),
         ),
       ),
-      child: child,
     );
   }
 }
 
-/// Squircle ikon Frosted-Ice ringan tunggal (tanpa Stack/BoxShadow berulang)
+class _ArchitecturalBlueprintPainter extends CustomPainter {
+  final bool isDark;
+
+  const _ArchitecturalBlueprintPainter({required this.isDark});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.clipRect(Offset.zero & size);
+
+    const double minorStep = 32.0;
+    const double majorStep = 128.0;
+
+    final Paint minorPaint = Paint()
+      ..color = isDark
+          ? Colors.white.withValues(alpha: 0.045)
+          : AppColors.blueprintGridMinor
+      ..strokeWidth = 0.75
+      ..style = PaintingStyle.stroke;
+
+    final Paint majorPaint = Paint()
+      ..color = isDark
+          ? Colors.white.withValues(alpha: 0.085)
+          : AppColors.blueprintGridMajor
+      ..strokeWidth = 0.95
+      ..style = PaintingStyle.stroke;
+
+    final Path minorPath = Path();
+    final Path majorPath = Path();
+
+    int col = 0;
+    for (double x = 0; x <= size.width; x += minorStep) {
+      final bool isMajor = col % 4 == 0;
+      final Path target = isMajor ? majorPath : minorPath;
+      target.moveTo(x, 0);
+      target.lineTo(x, size.height);
+      col++;
+    }
+
+    int row = 0;
+    for (double y = 0; y <= size.height; y += minorStep) {
+      final bool isMajor = row % 4 == 0;
+      final Path target = isMajor ? majorPath : minorPath;
+      target.moveTo(0, y);
+      target.lineTo(size.width, y);
+      row++;
+    }
+
+    // Penanda (+) presisi & aksen diagonal halus di setiap persimpangan mayor
+    int majorCol = 0;
+    for (double x = majorStep; x < size.width; x += majorStep) {
+      int majorRow = 0;
+      for (double y = majorStep; y < size.height; y += majorStep) {
+        majorPath.moveTo(x - 4, y);
+        majorPath.lineTo(x + 4, y);
+        majorPath.moveTo(x, y - 4);
+        majorPath.lineTo(x, y + 4);
+        if ((majorCol + majorRow).isEven) {
+          minorPath.moveTo(x - 16, y - 16);
+          minorPath.lineTo(x - 6, y - 6);
+        }
+        majorRow++;
+      }
+      majorCol++;
+    }
+
+    canvas.drawPath(minorPath, minorPaint);
+    canvas.drawPath(majorPath, majorPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _ArchitecturalBlueprintPainter oldDelegate) =>
+      oldDelegate.isDark != isDark;
+}
+
+/// Painter motif arsitektur untuk kanopi Cobalt header Dashboard (statis & ringan)
+class ArchitecturalCanopyPainter extends CustomPainter {
+  const ArchitecturalCanopyPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.clipRect(Offset.zero & size);
+
+    final Paint arcPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.085)
+      ..strokeWidth = 1.2
+      ..style = PaintingStyle.stroke;
+
+    final Paint ringFill = Paint()
+      ..color = Colors.white.withValues(alpha: 0.045)
+      ..style = PaintingStyle.fill;
+
+    final Offset rightAnchor = Offset(size.width - 28, 18);
+    canvas.drawCircle(rightAnchor, 76, ringFill);
+    canvas.drawCircle(rightAnchor, 112, arcPaint);
+    canvas.drawCircle(rightAnchor, 152, arcPaint);
+
+    final Paint gridPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.055)
+      ..strokeWidth = 0.7
+      ..style = PaintingStyle.stroke;
+
+    final Path grid = Path();
+    for (double x = 24; x < size.width * 0.65; x += 28) {
+      grid.moveTo(x, 0);
+      grid.lineTo(x, size.height);
+    }
+    for (double y = 24; y < size.height; y += 28) {
+      grid.moveTo(0, y);
+      grid.lineTo(size.width * 0.65, y);
+    }
+    canvas.drawPath(grid, gridPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant ArchitecturalCanopyPainter oldDelegate) => false;
+}
+
+/// Latar belakang AppBar Cobalt Architectural (terisolasi RepaintBoundary, 120 FPS)
+class CobaltAppBarBackdrop extends StatelessWidget {
+  const CobaltAppBarBackdrop({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const RepaintBoundary(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            stops: [0.0, 0.55, 1.0],
+            colors: [
+              AppColors.cobaltCanopyStart,
+              AppColors.cobaltCanopyMid,
+              AppColors.cobaltCanopyEnd,
+            ],
+          ),
+        ),
+        child: CustomPaint(
+          isComplex: true,
+          willChange: false,
+          painter: ArchitecturalCanopyPainter(),
+        ),
+      ),
+    );
+  }
+}
+
+/// Squircle ikon Frosted-Ice ringan tunggal dengan opsi aksen bar vertikal kiri
 class GlassIconBadge extends StatelessWidget {
   final IconData icon;
   final Color iconColor;
@@ -457,6 +648,7 @@ class GlassIconBadge extends StatelessWidget {
   final double size;
   final double iconSize;
   final double radius;
+  final Color? accentBarColor;
 
   const GlassIconBadge({
     super.key,
@@ -466,11 +658,12 @@ class GlassIconBadge extends StatelessWidget {
     this.size = 42,
     this.iconSize = 20,
     this.radius = 12,
+    this.accentBarColor,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final Widget badge = Container(
       height: size,
       width: size,
       alignment: Alignment.center,
@@ -490,6 +683,24 @@ class GlassIconBadge extends StatelessWidget {
         ),
       ),
       child: Icon(icon, color: iconColor, size: iconSize),
+    );
+
+    if (accentBarColor == null) return badge;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 4,
+          height: size * 0.82,
+          decoration: BoxDecoration(
+            color: accentBarColor,
+            borderRadius: BorderRadius.circular(2.5),
+          ),
+        ),
+        const SizedBox(width: 8),
+        badge,
+      ],
     );
   }
 }

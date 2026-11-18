@@ -26,6 +26,15 @@ class AppColors {
   static const Color navyGlassMid = Color(0xFF2563EB);
   static const Color navyGlassEnd = Color(0xFF296DE8);
 
+  // --- ARCHITECTURAL BLUEPRINT & CANOPY TOKENS ---
+  static const Color cobaltCanopyStart = Color(0xFF1E3A8A);
+  static const Color cobaltCanopyMid = Color(0xFF1D4ED8);
+  static const Color cobaltCanopyEnd = Color(0xFF2563EB);
+  static const Color blueprintGridMinor = Color(0x0B2563EB);
+  static const Color blueprintGridMajor = Color(0x141E40AF);
+  static const Color blueprintGridDark = Color(0x10FFFFFF);
+  static const Color menuTealDark = Color(0xFF0F766E);
+
   // --- SEMANTIC MENU TOKENS (ZERO ORANGE — TEAL, LAVENDER-VIOLET, AZURE, INDIGO) ---
   static const Color menuTealBg = Color(0xFFE0F7F4);
   static const Color menuTealIcon = Color(0xFF0D9488);
