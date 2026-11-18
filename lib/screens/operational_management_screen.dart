@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../controllers/operational_management_controller.dart'; 
 import '../theme/app_colors.dart';
+import '../theme/glass_widgets.dart';
 
 class OperationalManagementScreen extends StatefulWidget {
   const OperationalManagementScreen({super.key});
@@ -202,10 +203,19 @@ class _OperationalManagementScreenState extends State<OperationalManagementScree
     int selisih = _totalTerima - _totalKeluar;
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundWhite,
+      backgroundColor: AppColors.liquidBackground,
       appBar: AppBar(
         title: const Text("Manajemen Operasional", style: TextStyle(color: AppColors.pureWhite, fontWeight: FontWeight.bold)),
-        backgroundColor: AppColors.primaryNavy,
+        backgroundColor: AppColors.navyGlassStart,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [AppColors.navyGlassStart, AppColors.navyGlassMid],
+            ),
+          ),
+        ),
         iconTheme: const IconThemeData(color: AppColors.pureWhite),
         elevation: 0,
         bottom: TabBar(
@@ -214,91 +224,89 @@ class _OperationalManagementScreenState extends State<OperationalManagementScree
           tabs: const [Tab(text: "ONGKIR MASUK"), Tab(text: "PENGELUARAN (GAJI DLL)")],
         ),
       ),
-      body: Column(
-        children: [
-          Container(
-            color: AppColors.primaryNavy,
-            width: double.infinity,
-            padding: const EdgeInsets.only(bottom: 10, top: 5),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: _filters.map((filter) {
-                  bool isSelected = false;
-                  String displayLabel = filter;
+      body: LiquidAmbientBackground(
+        child: Column(
+          children: [
+            Container(
+              decoration: AppColors.liquidNavyHeader(bottomRadius: 24),
+              width: double.infinity,
+              padding: const EdgeInsets.only(bottom: 14, top: 8),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: _filters.map((filter) {
+                    bool isSelected = false;
+                    String displayLabel = filter;
 
-                  if (filter == 'Pilih Tanggal') {
-                    if (_selectedFilter.startsWith('CUSTOM|')) {
-                       isSelected = true;
-                       var parts = _selectedFilter.split('|');
-                       displayLabel = "${DateFormat('dd MMM').format(DateTime.parse(parts[1]))} - ${DateFormat('dd MMM').format(DateTime.parse(parts[2]))}";
+                    if (filter == 'Pilih Tanggal') {
+                      if (_selectedFilter.startsWith('CUSTOM|')) {
+                        isSelected = true;
+                        var parts = _selectedFilter.split('|');
+                        displayLabel = "${DateFormat('dd MMM').format(DateTime.parse(parts[1]))} - ${DateFormat('dd MMM').format(DateTime.parse(parts[2]))}";
+                      }
+                    } else {
+                      isSelected = _selectedFilter == filter;
                     }
-                  } else {
-                    isSelected = _selectedFilter == filter;
-                  }
 
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 10),
-                    child: InkWell(
-                      onTap: () {
-                        if (filter == 'Pilih Tanggal') {
-                           _pickDateRange();
-                        } else {
-                           setState(() => _selectedFilter = filter);
-                           _fetchOperationalData();
-                        }
-                      },
-                      borderRadius: BorderRadius.circular(20),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: isSelected ? AppColors.accentGold : Colors.transparent,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: isSelected ? AppColors.accentGold : Colors.white60),
-                        ),
-                        child: Row(
-                          children: [
-                            if (isSelected && filter != 'Pilih Tanggal') const Padding(padding: EdgeInsets.only(right: 6), child: Icon(Icons.check, color: AppColors.primaryNavy, size: 16)),
-                            if (filter == 'Pilih Tanggal') Padding(padding: const EdgeInsets.only(right: 6), child: Icon(Icons.calendar_month, color: isSelected ? AppColors.primaryNavy : Colors.white70, size: 16)),
-                            Text(displayLabel, style: TextStyle(color: isSelected ? AppColors.primaryNavy : Colors.white70, fontWeight: FontWeight.bold, fontSize: 13)),
-                          ],
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 10),
+                      child: InkWell(
+                        onTap: () {
+                          if (filter == 'Pilih Tanggal') {
+                            _pickDateRange();
+                          } else {
+                            setState(() => _selectedFilter = filter);
+                            _fetchOperationalData();
+                          }
+                        },
+                        borderRadius: BorderRadius.circular(22),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          decoration: AppColors.glassFilterPill(isSelected: isSelected),
+                          child: Row(
+                            children: [
+                              if (isSelected && filter != 'Pilih Tanggal') const Padding(padding: EdgeInsets.only(right: 6), child: Icon(Icons.check, color: AppColors.primaryNavy, size: 16)),
+                              if (filter == 'Pilih Tanggal') Padding(padding: const EdgeInsets.only(right: 6), child: Icon(Icons.calendar_month, color: isSelected ? AppColors.primaryNavy : Colors.white70, size: 16)),
+                              Text(displayLabel, style: TextStyle(color: isSelected ? AppColors.primaryNavy : Colors.white70, fontWeight: FontWeight.bold, fontSize: 13)),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                  );
-                }).toList(),
-              ),
-            ),
-          ),
-
-          Container(
-            padding: const EdgeInsets.all(16),
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 20),
-              decoration: BoxDecoration(color: AppColors.pureWhite, borderRadius: BorderRadius.circular(15), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))]),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _buildSummaryItem("Ongkir", _totalTerima, AppColors.statusGreen),
-                  Container(width: 1, height: 40, color: Colors.grey.shade300),
-                  _buildSummaryItem("Keluar", _totalKeluar, AppColors.statusRed),
-                  Container(width: 1, height: 40, color: Colors.grey.shade300),
-                  _buildSummaryItem("Saldo", selisih, selisih >= 0 ? AppColors.statusGreen : AppColors.statusRed),
-                ],
-              ),
-            ),
-          ),
-
-          Expanded(
-            child: _isLoading 
-              ? const Center(child: CircularProgressIndicator(color: AppColors.primaryNavy))
-              : TabBarView(
-                  controller: _tabController,
-                  children: [ _buildList(_pemasukanList, true), _buildList(_pengeluaranList, false) ],
+                    );
+                  }).toList(),
                 ),
-          ),
-        ],
+              ),
+            ),
+
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: GlassContainer(
+                borderRadius: 20,
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _buildSummaryItem("Ongkir", _totalTerima, AppColors.statusGreen),
+                    Container(width: 1, height: 40, color: Colors.grey.shade300),
+                    _buildSummaryItem("Keluar", _totalKeluar, AppColors.statusRed),
+                    Container(width: 1, height: 40, color: Colors.grey.shade300),
+                    _buildSummaryItem("Saldo", selisih, selisih >= 0 ? AppColors.statusGreen : AppColors.statusRed),
+                  ],
+                ),
+              ),
+            ),
+
+            Expanded(
+              child: _isLoading 
+                ? const Center(child: CircularProgressIndicator(color: AppColors.primaryNavy))
+                : TabBarView(
+                    controller: _tabController,
+                    children: [ _buildList(_pemasukanList, true), _buildList(_pengeluaranList, false) ],
+                  ),
+            ),
+          ],
+        ),
       ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: AppColors.primaryNavy,
@@ -345,21 +353,28 @@ class _OperationalManagementScreenState extends State<OperationalManagementScree
             if (showHeader)
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                 margin: const EdgeInsets.only(top: 10, bottom: 10),
-                decoration: BoxDecoration(color: AppColors.primaryNavy.withOpacity(0.05), borderRadius: BorderRadius.circular(6)),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.6),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.9)),
+                ),
                 child: Text(currDateStr, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryNavy, fontSize: 13)),
               ),
 
-            Card(
-              color: AppColors.pureWhite, elevation: 4, shadowColor: AppColors.primaryNavy.withOpacity(0.2),
-              margin: const EdgeInsets.only(bottom: 15),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15), side: BorderSide(color: AppColors.primaryNavy.withOpacity(0.1), width: 1.5)),
+            Container(
+              decoration: AppColors.liquidGlassCard(radius: 18),
+              margin: const EdgeInsets.only(bottom: 14),
               child: ListTile(
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), 
-                leading: CircleAvatar(
-                  backgroundColor: isPemasukan ? AppColors.statusGreen.withOpacity(0.1) : AppColors.statusRed.withOpacity(0.1),
-                  child: Icon(isPemasukan ? Icons.local_shipping : Icons.account_balance_wallet, color: isPemasukan ? AppColors.statusGreen : AppColors.statusRed),
+                leading: GlassIconBadge(
+                  icon: isPemasukan ? Icons.local_shipping : Icons.account_balance_wallet,
+                  iconColor: isPemasukan ? AppColors.statusGreen : AppColors.statusRed,
+                  bgColor: isPemasukan ? AppColors.statusGreen.withValues(alpha: 0.14) : AppColors.statusRed.withValues(alpha: 0.14),
+                  size: 44,
+                  iconSize: 22,
+                  radius: 12,
                 ),
                 title: Text(item['title'] ?? 'Tanpa Nama', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: AppColors.primaryNavy)),
                 subtitle: Padding(

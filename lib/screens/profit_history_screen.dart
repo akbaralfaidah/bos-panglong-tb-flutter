@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../theme/app_colors.dart';
+import '../theme/glass_widgets.dart';
 import '../controllers/profit_history_controller.dart';
 import '../data/datasources/firebase/transaction_firebase_datasource.dart';
 import '../data/datasources/firebase/profit_firebase_datasource.dart';
@@ -121,7 +122,7 @@ class _ProfitHistoryScreenState extends State<ProfitHistoryScreen> {
     int profitBersih = totalLaba - totalPengeluaran - totalReinvestasi;
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundWhite,
+      backgroundColor: AppColors.liquidBackground,
       appBar: AppBar(
         title: const Text(
           "Riwayat Profit & Operasional",
@@ -130,120 +131,110 @@ class _ProfitHistoryScreenState extends State<ProfitHistoryScreen> {
             fontWeight: FontWeight.bold,
           ),
         ),
-        backgroundColor: AppColors.primaryNavy,
+        backgroundColor: AppColors.navyGlassStart,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [AppColors.navyGlassStart, AppColors.navyGlassMid],
+            ),
+          ),
+        ),
         iconTheme: const IconThemeData(color: AppColors.pureWhite),
         elevation: 0,
       ),
-      body: Column(
-        children: [
-          Container(
-            color: AppColors.primaryNavy,
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: _filters.map((filter) {
-                  bool isSelected = false;
-                  String displayLabel = filter;
+      body: LiquidAmbientBackground(
+        child: Column(
+          children: [
+            Container(
+              decoration: AppColors.liquidNavyHeader(bottomRadius: 24),
+              padding: const EdgeInsets.only(top: 8, bottom: 14),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: _filters.map((filter) {
+                    bool isSelected = false;
+                    String displayLabel = filter;
 
-                  if (filter == 'Pilih Tanggal') {
-                    if (_selectedFilter.startsWith('CUSTOM|')) {
-                      isSelected = true;
-                      var parts = _selectedFilter.split('|');
-                      displayLabel =
-                          "${DateFormat('dd MMM').format(DateTime.parse(parts[1]))} - ${DateFormat('dd MMM').format(DateTime.parse(parts[2]))}";
+                    if (filter == 'Pilih Tanggal') {
+                      if (_selectedFilter.startsWith('CUSTOM|')) {
+                        isSelected = true;
+                        var parts = _selectedFilter.split('|');
+                        displayLabel =
+                            "${DateFormat('dd MMM').format(DateTime.parse(parts[1]))} - ${DateFormat('dd MMM').format(DateTime.parse(parts[2]))}";
+                      }
+                    } else {
+                      isSelected = _selectedFilter == filter;
                     }
-                  } else {
-                    isSelected = _selectedFilter == filter;
-                  }
 
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 10),
-                    child: InkWell(
-                      onTap: () {
-                        if (filter == 'Pilih Tanggal') {
-                          _pickDateRange();
-                        } else {
-                          setState(() => _selectedFilter = filter);
-                          _fetchData();
-                        }
-                      },
-                      borderRadius: BorderRadius.circular(20),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? AppColors.accentGold
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: isSelected
-                                ? AppColors.accentGold
-                                : Colors.white60,
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 10),
+                      child: InkWell(
+                        onTap: () {
+                          if (filter == 'Pilih Tanggal') {
+                            _pickDateRange();
+                          } else {
+                            setState(() => _selectedFilter = filter);
+                            _fetchData();
+                          }
+                        },
+                        borderRadius: BorderRadius.circular(22),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
                           ),
-                        ),
-                        child: Row(
-                          children: [
-                            if (isSelected && filter != 'Pilih Tanggal')
-                              const Padding(
-                                padding: EdgeInsets.only(right: 6),
-                                child: Icon(
-                                  Icons.check,
-                                  color: AppColors.primaryNavy,
-                                  size: 16,
+                          decoration: AppColors.glassFilterPill(isSelected: isSelected),
+                          child: Row(
+                            children: [
+                              if (isSelected && filter != 'Pilih Tanggal')
+                                const Padding(
+                                  padding: EdgeInsets.only(right: 6),
+                                  child: Icon(
+                                    Icons.check,
+                                    color: AppColors.primaryNavy,
+                                    size: 16,
+                                  ),
                                 ),
-                              ),
-                            if (filter == 'Pilih Tanggal')
-                              Padding(
-                                padding: const EdgeInsets.only(right: 6),
-                                child: Icon(
-                                  Icons.calendar_month,
+                              if (filter == 'Pilih Tanggal')
+                                Padding(
+                                  padding: const EdgeInsets.only(right: 6),
+                                  child: Icon(
+                                    Icons.calendar_month,
+                                    color: isSelected
+                                        ? AppColors.primaryNavy
+                                        : Colors.white70,
+                                    size: 16,
+                                  ),
+                                ),
+                              Text(
+                                displayLabel,
+                                style: TextStyle(
                                   color: isSelected
                                       ? AppColors.primaryNavy
                                       : Colors.white70,
-                                  size: 16,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
                                 ),
                               ),
-                            Text(
-                              displayLabel,
-                              style: TextStyle(
-                                color: isSelected
-                                    ? AppColors.primaryNavy
-                                    : Colors.white70,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                  );
-                }).toList(),
+                    );
+                  }).toList(),
+                ),
               ),
             ),
-          ),
 
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: AppColors.pureWhite,
-                borderRadius: BorderRadius.circular(15),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Column(
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: GlassContainer(
+                borderRadius: 20,
+                padding: const EdgeInsets.all(20),
+                child: Column(
                 children: [
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -477,15 +468,18 @@ class _ProfitHistoryScreenState extends State<ProfitHistoryScreen> {
                               width: double.infinity,
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 12,
-                                vertical: 6,
+                                vertical: 7,
                               ),
                               margin: const EdgeInsets.only(
                                 top: 10,
                                 bottom: 10,
                               ),
                               decoration: BoxDecoration(
-                                color: AppColors.primaryNavy.withOpacity(0.05),
-                                borderRadius: BorderRadius.circular(6),
+                                color: Colors.white.withValues(alpha: 0.6),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.9),
+                                ),
                               ),
                               child: Text(
                                 currDateStr,
@@ -525,37 +519,22 @@ class _ProfitHistoryScreenState extends State<ProfitHistoryScreen> {
                                 }
                               }
                             },
-                            borderRadius: BorderRadius.circular(15),
-                            child: Card(
-                              color: AppColors.pureWhite,
-                              elevation: 4,
-                              shadowColor: AppColors.primaryNavy.withOpacity(
-                                0.2,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(15),
-                                side: BorderSide(
-                                  color: AppColors.primaryNavy.withOpacity(0.1),
-                                  width: 1.5,
-                                ),
-                              ),
-                              margin: const EdgeInsets.only(bottom: 15),
+                            borderRadius: BorderRadius.circular(18),
+                            child: Container(
+                              decoration: AppColors.liquidGlassCard(radius: 18),
+                              margin: const EdgeInsets.only(bottom: 14),
                               child: Padding(
                                 padding: const EdgeInsets.all(15),
                                 child: Row(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Container(
-                                      padding: const EdgeInsets.all(10),
-                                      decoration: BoxDecoration(
-                                        color: iconColor.withOpacity(0.1),
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                      child: Icon(
-                                        iconData,
-                                        color: iconColor,
-                                        size: 24,
-                                      ),
+                                    GlassIconBadge(
+                                      icon: iconData,
+                                      iconColor: iconColor,
+                                      bgColor: iconColor.withValues(alpha: 0.14),
+                                      size: 44,
+                                      iconSize: 22,
+                                      radius: 12,
                                     ),
                                     const SizedBox(width: 12),
                                     Expanded(
@@ -650,6 +629,7 @@ class _ProfitHistoryScreenState extends State<ProfitHistoryScreen> {
                   ),
           ),
         ],
+      ),
       ),
     );
   }

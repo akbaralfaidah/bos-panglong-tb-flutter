@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart'; 
 import '../controllers/report_controller.dart';
 import '../theme/app_colors.dart';
+import '../theme/glass_widgets.dart';
 import '../helpers/search_helper.dart';
 import 'transaction_detail_screen.dart';
 import '../helpers/app_notification.dart';
@@ -181,47 +182,74 @@ class _CustomerScreenState extends State<CustomerScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.backgroundWhite,
+      backgroundColor: AppColors.liquidBackground,
       appBar: AppBar(
         title: const Text("Buku Pelanggan", style: TextStyle(color: AppColors.pureWhite, fontWeight: FontWeight.bold)),
-        backgroundColor: AppColors.primaryNavy,
+        backgroundColor: AppColors.navyGlassStart,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [AppColors.navyGlassStart, AppColors.navyGlassMid],
+            ),
+          ),
+        ),
         iconTheme: const IconThemeData(color: AppColors.pureWhite),
         elevation: 0,
       ),
-      body: _isLoading 
-        ? const Center(child: CircularProgressIndicator())
-        : Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: TextField(
-                  controller: _searchController, onChanged: _filterCustomers,
-                  decoration: InputDecoration(hintText: "Cari Nama Pelanggan...", prefixIcon: const Icon(Icons.search), border: OutlineInputBorder(borderRadius: BorderRadius.circular(30)), filled: true, fillColor: AppColors.pureWhite),
+      body: LiquidAmbientBackground(
+        child: _isLoading 
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
+              children: [
+                Container(
+                  decoration: AppColors.liquidNavyHeader(bottomRadius: 24),
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 18),
+                  child: TextField(
+                    controller: _searchController, onChanged: _filterCustomers,
+                    decoration: InputDecoration(
+                      hintText: "Cari Nama Pelanggan...",
+                      prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
+                      filled: true,
+                      fillColor: Colors.white.withValues(alpha: 0.92),
+                      contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                    ),
+                  ),
                 ),
-              ),
-              Expanded(
-                child: _filteredCustomers.isEmpty
-                  ? const Center(child: Text("Tidak ada data pelanggan."))
-                  : ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemCount: _filteredCustomers.length,
-                      itemBuilder: (context, i) {
-                        final c = _filteredCustomers[i];
-                        int utang = c['total_debt'] as int;
-                        
-                        return Card(
-                          margin: const EdgeInsets.only(bottom: 12), elevation: 2, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                          child: InkWell( 
-                            onTap: () => _showCustomerTransactions(c['name']),
-                            borderRadius: BorderRadius.circular(15),
-                            child: Padding(
-                              padding: const EdgeInsets.all(15),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      CircleAvatar(backgroundColor: AppColors.menuBlueBg, child: const Icon(Icons.person, color: AppColors.menuBlueIcon)),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: _filteredCustomers.isEmpty
+                    ? const Center(child: Text("Tidak ada data pelanggan."))
+                    : ListView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        itemCount: _filteredCustomers.length,
+                        itemBuilder: (context, i) {
+                          final c = _filteredCustomers[i];
+                          int utang = c['total_debt'] as int;
+                          
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            decoration: AppColors.liquidGlassCard(radius: 18),
+                            child: InkWell( 
+                              onTap: () => _showCustomerTransactions(c['name']),
+                              borderRadius: BorderRadius.circular(18),
+                              child: Padding(
+                                padding: const EdgeInsets.all(15),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        const GlassIconBadge(
+                                          icon: Icons.person,
+                                          iconColor: AppColors.menuBlueIcon,
+                                          bgColor: AppColors.menuBlueBg,
+                                          size: 44,
+                                          iconSize: 22,
+                                          radius: 14,
+                                        ),
                                       const SizedBox(width: 15),
                                       Expanded(
                                         child: Column(
@@ -278,6 +306,7 @@ class _CustomerScreenState extends State<CustomerScreen> {
               ),
             ],
           ),
+      ),
     );
   }
 }

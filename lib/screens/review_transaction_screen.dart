@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart'; 
 import 'package:cloud_firestore/cloud_firestore.dart'; 
 import '../theme/app_colors.dart';
+import '../theme/glass_widgets.dart';
 import 'transaction_detail_screen.dart'; 
 import '../models/product.dart'; 
 import '../controllers/review_transaction_controller.dart';
@@ -828,12 +829,39 @@ class _ReviewTransactionScreenState extends State<ReviewTransactionScreen> {
     return Expanded(
       child: InkWell(
         onTap: () => setState(() => _paymentMethod = title),
+        borderRadius: BorderRadius.circular(14),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
+          padding: const EdgeInsets.symmetric(vertical: 13),
           decoration: BoxDecoration(
-            color: isSelected ? AppColors.menuTealBg : AppColors.backgroundWhite,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: isSelected ? AppColors.menuTealIcon : Colors.grey.shade300)
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: isSelected
+                  ? [
+                      AppColors.menuTealIcon.withValues(alpha: 0.16),
+                      AppColors.menuTealBg.withValues(alpha: 0.9),
+                    ]
+                  : [
+                      Colors.white.withValues(alpha: 0.88),
+                      Colors.white.withValues(alpha: 0.65),
+                    ],
+            ),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: isSelected
+                  ? AppColors.menuTealIcon
+                  : Colors.white.withValues(alpha: 0.9),
+              width: isSelected ? 1.6 : 1.2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: isSelected
+                    ? AppColors.menuTealIcon.withValues(alpha: 0.16)
+                    : AppColors.primaryNavy.withValues(alpha: 0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
           child: Column(
             children: [
@@ -927,27 +955,25 @@ class _ReviewTransactionScreenState extends State<ReviewTransactionScreen> {
           }
         });
       },
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(16),
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: isSelected ? activeBg : AppColors.pureWhite,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected ? activeColor : Colors.grey.shade300,
-            width: isSelected ? 1.8 : 1,
-          ),
+        padding: const EdgeInsets.all(13),
+        decoration: AppColors.liquidGlassCard(
+          tint: isSelected ? activeBg : null,
+          radius: 16,
+          borderColor: isSelected ? activeColor : Colors.white.withValues(alpha: 0.9),
+          borderWidth: isSelected ? 1.8 : 1.2,
         ),
         child: Row(
           children: [
-            Container(
-              padding: const EdgeInsets.all(9),
-              decoration: BoxDecoration(
-                color: isSelected ? activeColor.withOpacity(0.15) : AppColors.backgroundWhite,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, color: isSelected ? activeColor : AppColors.textGrey, size: 22),
+            GlassIconBadge(
+              icon: icon,
+              iconColor: isSelected ? activeColor : AppColors.textGrey,
+              bgColor: isSelected ? activeColor.withValues(alpha: 0.16) : AppColors.backgroundWhite,
+              size: 40,
+              iconSize: 20,
+              radius: 12,
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -1017,11 +1043,11 @@ class _ReviewTransactionScreenState extends State<ReviewTransactionScreen> {
         if (_deliveryOption == 'Belum Diantar')
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColors.menuAmberBg,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.menuAmberIcon.withOpacity(0.4)),
+            padding: const EdgeInsets.all(13),
+            decoration: AppColors.liquidGlassCard(
+              tint: AppColors.menuAmberBg,
+              radius: 14,
+              borderColor: AppColors.menuAmberIcon.withValues(alpha: 0.45),
             ),
             child: const Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1040,11 +1066,10 @@ class _ReviewTransactionScreenState extends State<ReviewTransactionScreen> {
         if (_deliveryOption == 'Sebagian' && _editableCart.isNotEmpty)
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColors.pureWhite,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppColors.menuBlueIcon.withOpacity(0.35)),
+            padding: const EdgeInsets.all(13),
+            decoration: AppColors.liquidGlassCard(
+              radius: 16,
+              borderColor: AppColors.menuBlueIcon.withValues(alpha: 0.4),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1177,7 +1202,7 @@ class _ReviewTransactionScreenState extends State<ReviewTransactionScreen> {
         return false; 
       },
       child: Scaffold(
-        backgroundColor: AppColors.backgroundWhite,
+        backgroundColor: AppColors.liquidBackground,
         appBar: AppBar(
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
@@ -1185,11 +1210,25 @@ class _ReviewTransactionScreenState extends State<ReviewTransactionScreen> {
           ),
           title: const Text("Review & Pembayaran", style: TextStyle(color: AppColors.pureWhite, fontWeight: FontWeight.bold)),
           backgroundColor: AppColors.primaryNavy,
+          flexibleSpace: Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  AppColors.navyGlassStart,
+                  AppColors.navyGlassMid,
+                  AppColors.navyGlassEnd,
+                ],
+              ),
+            ),
+          ),
           iconTheme: const IconThemeData(color: AppColors.pureWhite),
           elevation: 0,
         ),
-        body: Column(
-          children: [
+        body: LiquidAmbientBackground(
+          child: Column(
+            children: [
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(16),
@@ -1221,7 +1260,7 @@ class _ReviewTransactionScreenState extends State<ReviewTransactionScreen> {
                     _editableCart.isEmpty 
                       ? Container(
                           width: double.infinity,
-                          decoration: BoxDecoration(color: AppColors.pureWhite, borderRadius: BorderRadius.circular(15), border: Border.all(color: Colors.grey.shade200)),
+                          decoration: AppColors.liquidGlassCard(radius: 16),
                           padding: const EdgeInsets.all(20), 
                           child: const Center(child: Text("Keranjang kosong, silahkan kembali.", style: TextStyle(color: AppColors.statusRed)))
                         )
@@ -1264,10 +1303,10 @@ class _ReviewTransactionScreenState extends State<ReviewTransactionScreen> {
 
                               return Container(
                                 margin: const EdgeInsets.only(bottom: 15),
-                                decoration: BoxDecoration(
-                                  color: AppColors.pureWhite,
-                                  borderRadius: BorderRadius.circular(15),
-                                  border: Border.all(color: AppColors.menuAmberIcon.withOpacity(0.5), width: 1.5),
+                                decoration: AppColors.liquidGlassCard(
+                                  radius: 18,
+                                  borderColor: AppColors.menuAmberIcon.withValues(alpha: 0.45),
+                                  borderWidth: 1.5,
                                 ),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1275,9 +1314,9 @@ class _ReviewTransactionScreenState extends State<ReviewTransactionScreen> {
                                     Container(
                                       width: double.infinity,
                                       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                                      decoration: const BoxDecoration(
-                                        color: AppColors.menuAmberBg,
-                                        borderRadius: BorderRadius.vertical(top: Radius.circular(13)),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.menuAmberBg.withValues(alpha: 0.9),
+                                        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
                                       ),
                                       child: Text("📦 PAKET KUBIK (${_formatRp(pPrice)}/m³)", style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.menuAmberIcon)),
                                     ),
@@ -1460,7 +1499,7 @@ class _ReviewTransactionScreenState extends State<ReviewTransactionScreen> {
 
                             if (regularItems.isNotEmpty)
                               Container(
-                                decoration: BoxDecoration(color: AppColors.pureWhite, borderRadius: BorderRadius.circular(15), border: Border.all(color: Colors.grey.shade200)),
+                                decoration: AppColors.liquidGlassCard(radius: 18),
                                 child: Column(
                                   children: regularItems.map((item) {
                                     int originalIndex = _editableCart.indexOf(item);
@@ -1534,7 +1573,7 @@ class _ReviewTransactionScreenState extends State<ReviewTransactionScreen> {
                     const SizedBox(height: 10),
                     Container(
                       padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(color: AppColors.pureWhite, borderRadius: BorderRadius.circular(15), border: Border.all(color: Colors.grey.shade200)),
+                      decoration: AppColors.liquidGlassCard(radius: 18),
                       child: Column(
                         children: [
                           TextField(
@@ -1543,13 +1582,13 @@ class _ReviewTransactionScreenState extends State<ReviewTransactionScreen> {
                             decoration: InputDecoration(
                               labelText: "Nama Pelanggan", 
                               prefixIcon: const Icon(Icons.person), 
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10))
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))
                             )
                           ),
                           const SizedBox(height: 15),
-                          TextField(controller: _phoneController, keyboardType: TextInputType.phone, textInputAction: TextInputAction.next, decoration: InputDecoration(labelText: "No. HP / WA", prefixIcon: const Icon(Icons.phone), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)))),
+                          TextField(controller: _phoneController, keyboardType: TextInputType.phone, textInputAction: TextInputAction.next, decoration: InputDecoration(labelText: "No. HP / WA", prefixIcon: const Icon(Icons.phone), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
                           const SizedBox(height: 15),
-                          TextField(controller: _addressController, textInputAction: TextInputAction.done, maxLines: 2, decoration: InputDecoration(labelText: "Alamat Pengiriman", prefixIcon: const Icon(Icons.local_shipping), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)))),
+                          TextField(controller: _addressController, textInputAction: TextInputAction.done, maxLines: 2, decoration: InputDecoration(labelText: "Alamat Pengiriman", prefixIcon: const Icon(Icons.local_shipping), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
                         ],
                       ),
                     ),
@@ -1585,11 +1624,7 @@ class _ReviewTransactionScreenState extends State<ReviewTransactionScreen> {
                       },
                       child: Container(
                         padding: const EdgeInsets.all(15),
-                        decoration: BoxDecoration(
-                          color: AppColors.pureWhite,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: Colors.grey.shade300),
-                        ),
+                        decoration: AppColors.liquidGlassCard(radius: 16),
                         child: Row(
                           children: [
                             const Icon(Icons.calendar_month, color: AppColors.primaryNavy),
@@ -1617,9 +1652,9 @@ class _ReviewTransactionScreenState extends State<ReviewTransactionScreen> {
                         labelText: "Masukkan Nominal Ongkos Bensin",
                         prefixText: "Rp ",
                         prefixIcon: const Icon(Icons.local_gas_station, color: AppColors.menuAmberIcon),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
                         filled: true,
-                        fillColor: AppColors.pureWhite,
+                        fillColor: Colors.white.withValues(alpha: 0.85),
                       ),
                       onChanged: (val) {
                         setState(() {
@@ -1644,9 +1679,9 @@ class _ReviewTransactionScreenState extends State<ReviewTransactionScreen> {
                         labelText: "Masukkan Nominal Potong Profit",
                         prefixText: "Rp ",
                         prefixIcon: const Icon(Icons.money_off, color: AppColors.statusRed),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
                         filled: true,
-                        fillColor: AppColors.pureWhite,
+                        fillColor: Colors.white.withValues(alpha: 0.85),
                       ),
                       onChanged: (val) {
                         setState(() {
@@ -1678,10 +1713,17 @@ class _ReviewTransactionScreenState extends State<ReviewTransactionScreen> {
                         Expanded(
                           child: InkWell(
                             onTap: () => setState(() => _paymentStatus = 'Lunas'),
+                            borderRadius: BorderRadius.circular(14),
                             child: Container(
                               padding: const EdgeInsets.symmetric(vertical: 15),
-                              decoration: BoxDecoration(color: _paymentStatus == 'Lunas' ? AppColors.statusGreen : AppColors.backgroundWhite, borderRadius: BorderRadius.circular(10), border: Border.all(color: _paymentStatus == 'Lunas' ? AppColors.statusGreen : Colors.grey)),
-                              child: Center(child: Text("LUNAS", style: TextStyle(fontWeight: FontWeight.bold, color: _paymentStatus == 'Lunas' ? Colors.white : Colors.grey))),
+                              decoration: _paymentStatus == 'Lunas'
+                                  ? BoxDecoration(
+                                      gradient: const LinearGradient(colors: [Color(0xFF10B981), AppColors.statusGreen]),
+                                      borderRadius: BorderRadius.circular(14),
+                                      boxShadow: [BoxShadow(color: AppColors.statusGreen.withValues(alpha: 0.3), blurRadius: 10, offset: const Offset(0, 4))],
+                                    )
+                                  : AppColors.liquidGlassCard(radius: 14),
+                              child: Center(child: Text("LUNAS", style: TextStyle(fontWeight: FontWeight.bold, color: _paymentStatus == 'Lunas' ? Colors.white : AppColors.textGrey))),
                             ),
                           ),
                         ),
@@ -1689,10 +1731,17 @@ class _ReviewTransactionScreenState extends State<ReviewTransactionScreen> {
                         Expanded(
                           child: InkWell(
                             onTap: () => setState(() => _paymentStatus = 'Belum Lunas'),
+                            borderRadius: BorderRadius.circular(14),
                             child: Container(
                               padding: const EdgeInsets.symmetric(vertical: 15),
-                              decoration: BoxDecoration(color: _paymentStatus == 'Belum Lunas' ? AppColors.statusRed : AppColors.backgroundWhite, borderRadius: BorderRadius.circular(10), border: Border.all(color: _paymentStatus == 'Belum Lunas' ? AppColors.statusRed : Colors.grey)),
-                              child: Center(child: Text("HUTANG", style: TextStyle(fontWeight: FontWeight.bold, color: _paymentStatus == 'Belum Lunas' ? Colors.white : Colors.grey))),
+                              decoration: _paymentStatus == 'Belum Lunas'
+                                  ? BoxDecoration(
+                                      gradient: const LinearGradient(colors: [Color(0xFFEF4444), AppColors.statusRed]),
+                                      borderRadius: BorderRadius.circular(14),
+                                      boxShadow: [BoxShadow(color: AppColors.statusRed.withValues(alpha: 0.3), blurRadius: 10, offset: const Offset(0, 4))],
+                                    )
+                                  : AppColors.liquidGlassCard(radius: 14),
+                              child: Center(child: Text("HUTANG", style: TextStyle(fontWeight: FontWeight.bold, color: _paymentStatus == 'Belum Lunas' ? Colors.white : AppColors.textGrey))),
                             ),
                           ),
                         ),
@@ -1706,63 +1755,68 @@ class _ReviewTransactionScreenState extends State<ReviewTransactionScreen> {
               ),
             ),
 
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: const BoxDecoration(color: AppColors.pureWhite, boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 15, offset: Offset(0, -5))]),
-              child: SafeArea(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(15),
-                      decoration: BoxDecoration(
-                        color: (isOwner && isLoss) ? AppColors.statusRed.withOpacity(0.1) : AppColors.statusGreen.withOpacity(0.1), 
-                        borderRadius: BorderRadius.circular(15), 
-                        border: Border.all(color: (isOwner && isLoss) ? AppColors.statusRed.withOpacity(0.3) : AppColors.statusGreen.withOpacity(0.3))
-                      ), 
-                      child: Column(
-                        children: [
-                          Text("TOTAL BAYAR", style: TextStyle(fontWeight: FontWeight.bold, color: (isOwner && isLoss) ? AppColors.statusRed : AppColors.statusGreen)), 
-                          const SizedBox(height: 5), 
-                          TextField(
-                            controller: _finalTotalController, 
-                            textAlign: TextAlign.center, 
-                            keyboardType: TextInputType.number, 
-                            inputFormatters: [FilteringTextInputFormatter.digitsOnly, CurrencyInputFormatter()], 
-                            style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: (isOwner && isLoss) ? AppColors.statusRed : AppColors.statusGreen), 
-                            decoration: const InputDecoration(prefixText: "Rp ", border: InputBorder.none, hintText: "0"), 
-                            onChanged: _onManualTotalChanged
-                          ),
-                          if (isOwner) ...[
+              GlassDock(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+                child: SafeArea(
+                  top: false,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(15),
+                        decoration: AppColors.liquidGlassCard(
+                          tint: (isOwner && isLoss)
+                              ? AppColors.statusRed.withValues(alpha: 0.1)
+                              : AppColors.statusGreen.withValues(alpha: 0.1),
+                          radius: 16,
+                          borderColor: (isOwner && isLoss)
+                              ? AppColors.statusRed.withValues(alpha: 0.35)
+                              : AppColors.statusGreen.withValues(alpha: 0.35),
+                        ),
+                        child: Column(
+                          children: [
+                            Text("TOTAL BAYAR", style: TextStyle(fontWeight: FontWeight.bold, color: (isOwner && isLoss) ? AppColors.statusRed : AppColors.statusGreen)),
                             const SizedBox(height: 5),
-                            Text(
-                              isLoss ? "AWAS RUGI: ${_formatRp(estimasiUntung)}" : "Estimasi Untung: ${_formatRp(estimasiUntung)}",
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: isLoss ? AppColors.statusRed : AppColors.primaryNavy,
-                                fontSize: 14
-                              )
-                            )
-                          ]
-                        ]
-                      )
-                    ),
-                    const SizedBox(height: 15),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 55,
-                      child: ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryNavy, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
-                        onPressed: _isLoading || _editableCart.isEmpty ? null : _onSaveClicked,
-                        icon: _isLoading ? const CircularProgressIndicator(color: AppColors.accentGold) : const Icon(Icons.print, color: AppColors.accentGold),
-                        label: Text(_isLoading ? "MEMPROSES..." : "CETAK NOTA", style: const TextStyle(color: AppColors.accentGold, fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 1)),
+                            TextField(
+                              controller: _finalTotalController,
+                              textAlign: TextAlign.center,
+                              keyboardType: TextInputType.number,
+                              inputFormatters: [FilteringTextInputFormatter.digitsOnly, CurrencyInputFormatter()],
+                              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: (isOwner && isLoss) ? AppColors.statusRed : AppColors.statusGreen),
+                              decoration: const InputDecoration(prefixText: "Rp ", border: InputBorder.none, filled: false, hintText: "0"),
+                              onChanged: _onManualTotalChanged,
+                            ),
+                            if (isOwner) ...[
+                              const SizedBox(height: 5),
+                              Text(
+                                isLoss ? "AWAS RUGI: ${_formatRp(estimasiUntung)}" : "Estimasi Untung: ${_formatRp(estimasiUntung)}",
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: isLoss ? AppColors.statusRed : AppColors.primaryNavy,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 15),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 55,
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryNavy, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+                          onPressed: _isLoading || _editableCart.isEmpty ? null : _onSaveClicked,
+                          icon: _isLoading ? const CircularProgressIndicator(color: AppColors.accentGold) : const Icon(Icons.print, color: AppColors.accentGold),
+                          label: Text(_isLoading ? "MEMPROSES..." : "CETAK NOTA", style: const TextStyle(color: AppColors.accentGold, fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 1)),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

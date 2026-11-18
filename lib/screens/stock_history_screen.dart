@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/services.dart';
 import 'dart:typed_data';
@@ -11,6 +11,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../helpers/session_manager.dart';
 
 import '../theme/app_colors.dart';
+import '../theme/glass_widgets.dart';
 import '../helpers/search_helper.dart';
 import '../controllers/stock_history_controller.dart';
 import '../models/product.dart';
@@ -258,7 +259,7 @@ class _StockHistoryScreenState extends State<StockHistoryScreen>
     String summaryUnit = _tabController.index == 0 ? "Btg" : "Item";
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundWhite,
+      backgroundColor: AppColors.liquidBackground,
       appBar: AppBar(
         title: const Text(
           "Riwayat Stok Masuk",
@@ -267,7 +268,16 @@ class _StockHistoryScreenState extends State<StockHistoryScreen>
             fontWeight: FontWeight.bold,
           ),
         ),
-        backgroundColor: AppColors.primaryNavy,
+        backgroundColor: AppColors.navyGlassStart,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [AppColors.navyGlassStart, AppColors.navyGlassMid],
+            ),
+          ),
+        ),
         iconTheme: const IconThemeData(color: AppColors.pureWhite),
         elevation: 0,
         bottom: PreferredSize(
@@ -324,139 +334,123 @@ class _StockHistoryScreenState extends State<StockHistoryScreen>
           ),
         ),
       ),
-      body: Column(
-        children: [
-          Container(
-            color: AppColors.primaryNavy,
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: _filters.map((filter) {
-                  bool isSelected = false;
-                  String displayLabel = filter;
+      body: LiquidAmbientBackground(
+        child: Column(
+          children: [
+            Container(
+              decoration: AppColors.liquidNavyHeader(bottomRadius: 26),
+              padding: const EdgeInsets.only(top: 10, bottom: 16),
+              child: Column(
+                children: [
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      children: _filters.map((filter) {
+                        bool isSelected = false;
+                        String displayLabel = filter;
 
-                  if (filter == 'Pilih Tanggal') {
-                    if (_selectedFilter.startsWith('CUSTOM|')) {
-                       isSelected = true;
-                       var parts = _selectedFilter.split('|');
-                       displayLabel = "${DateFormat('dd MMM').format(DateTime.parse(parts[1]))} - ${DateFormat('dd MMM').format(DateTime.parse(parts[2]))}";
-                    }
-                  } else {
-                    isSelected = _selectedFilter == filter;
-                  }
-
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 10),
-                    child: InkWell(
-                      onTap: () {
                         if (filter == 'Pilih Tanggal') {
-                           _pickDateRange();
+                          if (_selectedFilter.startsWith('CUSTOM|')) {
+                            isSelected = true;
+                            var parts = _selectedFilter.split('|');
+                            displayLabel = "${DateFormat('dd MMM').format(DateTime.parse(parts[1]))} - ${DateFormat('dd MMM').format(DateTime.parse(parts[2]))}";
+                          }
                         } else {
-                           setState(() => _selectedFilter = filter);
-                           _fetchData();
+                          isSelected = _selectedFilter == filter;
                         }
-                      },
-                      borderRadius: BorderRadius.circular(20),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? AppColors.accentGold
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: isSelected
-                                ? AppColors.accentGold
-                                : Colors.white60,
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            if (isSelected && filter != 'Pilih Tanggal')
-                              const Padding(
-                                padding: EdgeInsets.only(right: 6),
-                                child: Icon(
-                                  Icons.check,
-                                  color: AppColors.primaryNavy,
-                                  size: 16,
-                                ),
+
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 10),
+                          child: InkWell(
+                            onTap: () {
+                              if (filter == 'Pilih Tanggal') {
+                                _pickDateRange();
+                              } else {
+                                setState(() => _selectedFilter = filter);
+                                _fetchData();
+                              }
+                            },
+                            borderRadius: BorderRadius.circular(22),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 8,
                               ),
-                            if (filter == 'Pilih Tanggal')
-                              Padding(
-                                padding: const EdgeInsets.only(right: 6),
-                                child: Icon(
-                                  Icons.calendar_month,
-                                  color: isSelected ? AppColors.primaryNavy : Colors.white70,
-                                  size: 16,
-                                ),
-                              ),
-                            Text(
-                              displayLabel,
-                              style: TextStyle(
-                                color: isSelected
-                                    ? AppColors.primaryNavy
-                                    : Colors.white70,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
+                              decoration: AppColors.glassFilterPill(isSelected: isSelected),
+                              child: Row(
+                                children: [
+                                  if (isSelected && filter != 'Pilih Tanggal')
+                                    const Padding(
+                                      padding: EdgeInsets.only(right: 6),
+                                      child: Icon(
+                                        Icons.check,
+                                        color: AppColors.primaryNavy,
+                                        size: 16,
+                                      ),
+                                    ),
+                                  if (filter == 'Pilih Tanggal')
+                                    Padding(
+                                      padding: const EdgeInsets.only(right: 6),
+                                      child: Icon(
+                                        Icons.calendar_month,
+                                        color: isSelected ? AppColors.primaryNavy : Colors.white70,
+                                        size: 16,
+                                      ),
+                                    ),
+                                  Text(
+                                    displayLabel,
+                                    style: TextStyle(
+                                      color: isSelected
+                                          ? AppColors.primaryNavy
+                                          : Colors.white70,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                          ],
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // 🔥 KOTAK PENCARIAN (SEARCH BAR) 🔥
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: TextField(
+                      controller: _searchController,
+                      onChanged: (val) {
+                        setState(() {
+                          _searchQuery = val;
+                        });
+                      },
+                      decoration: InputDecoration(
+                        hintText: "Cari nama barang atau sumber/catatan...",
+                        hintStyle: const TextStyle(color: Colors.grey, fontSize: 13),
+                        prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                        filled: true,
+                        fillColor: Colors.white.withValues(alpha: 0.92),
+                        contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide.none,
                         ),
                       ),
                     ),
-                  );
-                }).toList(),
-              ),
-            ),
-          ),
-
-          // 🔥 KOTAK PENCARIAN (SEARCH BAR) 🔥
-          Container(
-            color: AppColors.primaryNavy,
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 15),
-            child: TextField(
-              controller: _searchController,
-              onChanged: (val) {
-                setState(() {
-                  _searchQuery = val;
-                });
-              },
-              decoration: InputDecoration(
-                hintText: "Cari nama barang atau sumber/catatan...",
-                hintStyle: const TextStyle(color: Colors.grey, fontSize: 13),
-                prefixIcon: const Icon(Icons.search, color: Colors.grey),
-                filled: true,
-                fillColor: Colors.white,
-                contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(15),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-            ),
-          ),
-
-          // 櫨 SUMMARY CARD (3 KOLOM DENGAN INFO CM) 櫨
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Container(
-              padding: const EdgeInsets.all(15),
-              decoration: BoxDecoration(
-                color: AppColors.pureWhite,
-                borderRadius: BorderRadius.circular(15),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
                   ),
                 ],
               ),
+            ),
+
+          // 🔥 SUMMARY CARD (3 KOLOM DENGAN INFO CM) 🔥
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: GlassContainer(
+              borderRadius: 20,
+              padding: const EdgeInsets.all(16),
               child: IntrinsicHeight(
                 child: Row(
                   children: [
@@ -670,8 +664,9 @@ class _StockHistoryScreenState extends State<StockHistoryScreen>
                               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                               margin: const EdgeInsets.only(top: 10, bottom: 10),
                               decoration: BoxDecoration(
-                                color: AppColors.primaryNavy.withOpacity(0.05),
-                                borderRadius: BorderRadius.circular(8)
+                                color: Colors.white.withValues(alpha: 0.6),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: Colors.white.withValues(alpha: 0.9)),
                               ),
                               child: Text(currDateStr, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryNavy, fontSize: 13)),
                             ),
@@ -818,19 +813,10 @@ class _StockHistoryScreenState extends State<StockHistoryScreen>
                                   );
                               }
                             },
-                            borderRadius: BorderRadius.circular(15),
-                            child: Card(
-                              color: AppColors.pureWhite,
-                              elevation: 4,
-                              shadowColor: AppColors.primaryNavy.withOpacity(0.2),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(15),
-                                side: BorderSide(
-                                  color: AppColors.primaryNavy.withOpacity(0.1),
-                                  width: 1.5,
-                                ),
-                              ),
-                              margin: const EdgeInsets.only(bottom: 15),
+                            borderRadius: BorderRadius.circular(18),
+                            child: Container(
+                              decoration: AppColors.liquidGlassCard(radius: 18),
+                              margin: const EdgeInsets.only(bottom: 14),
                               child: Padding(
                                 padding: const EdgeInsets.all(15),
                                 child: Column(
@@ -1140,6 +1126,7 @@ class _StockHistoryScreenState extends State<StockHistoryScreen>
                   ),
           ),
         ],
+      ),
       ),
     );
   }

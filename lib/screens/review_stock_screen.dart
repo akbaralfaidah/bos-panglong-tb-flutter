@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../controllers/bulk_stock_controller.dart'; 
 import '../theme/app_colors.dart';
+import '../theme/glass_widgets.dart';
 import '../helpers/stock_cost_calculator.dart';
 import 'product_list_screen.dart'; 
 import 'stock_receipt_screen.dart'; 
@@ -595,12 +596,10 @@ class _ReviewStockScreenState extends State<ReviewStockScreen> {
   Widget _buildOngkirSection() {
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: _ongkirEnabled ? AppColors.menuBlueBg : AppColors.pureWhite,
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(
-          color: _ongkirEnabled ? AppColors.menuBlueIcon.withValues(alpha: 0.3) : Colors.grey.shade200,
-        ),
+      decoration: AppColors.liquidGlassCard(
+        tint: _ongkirEnabled ? AppColors.menuBlueBg : null,
+        radius: 18,
+        borderColor: _ongkirEnabled ? AppColors.menuBlueIcon.withValues(alpha: 0.4) : null,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -608,13 +607,13 @@ class _ReviewStockScreenState extends State<ReviewStockScreen> {
           // Toggle row
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: _ongkirEnabled ? AppColors.menuBlueIcon.withValues(alpha: 0.15) : AppColors.backgroundWhite,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(Icons.local_shipping, color: _ongkirEnabled ? AppColors.menuBlueIcon : AppColors.textGrey, size: 20),
+              GlassIconBadge(
+                icon: Icons.local_shipping,
+                iconColor: _ongkirEnabled ? AppColors.menuBlueIcon : AppColors.textGrey,
+                bgColor: _ongkirEnabled ? AppColors.menuBlueIcon.withValues(alpha: 0.15) : AppColors.backgroundWhite,
+                size: 38,
+                iconSize: 20,
+                radius: 11,
               ),
               const SizedBox(width: 10),
               const Expanded(
@@ -721,7 +720,7 @@ class _ReviewStockScreenState extends State<ReviewStockScreen> {
         return false; 
       },
       child: Scaffold(
-        backgroundColor: AppColors.backgroundWhite,
+        backgroundColor: AppColors.liquidBackground,
         appBar: AppBar(
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
@@ -729,66 +728,78 @@ class _ReviewStockScreenState extends State<ReviewStockScreen> {
           ),
           title: const Text("Review Penambahan Stok", style: TextStyle(color: AppColors.pureWhite, fontWeight: FontWeight.bold)),
           backgroundColor: AppColors.primaryNavy,
+          flexibleSpace: Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  AppColors.navyGlassStart,
+                  AppColors.navyGlassMid,
+                  AppColors.navyGlassEnd,
+                ],
+              ),
+            ),
+          ),
           iconTheme: const IconThemeData(color: AppColors.pureWhite),
           elevation: 0,
         ),
-        body: _items.isEmpty 
-          ? const Center(child: Text("Tidak ada barang untuk di-review", style: TextStyle(color: AppColors.textGrey)))
-          : Column(
-              children: [
-                // 🚚 Ongkir Section (di atas list)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                  child: _buildOngkirSection(),
-                ),
-                // Items List
-                Expanded(
-                  child: ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                    itemCount: _items.length,
-                    itemBuilder: (ctx, i) {
-                      final item = _items[i];
-                      String qtyStr = item.addedQty == item.addedQty.toInt() ? item.addedQty.toInt().toString() : item.addedQty.toString();
+        body: LiquidAmbientBackground(
+          child: _items.isEmpty 
+            ? const Center(child: Text("Tidak ada barang untuk di-review", style: TextStyle(color: AppColors.textGrey)))
+            : Column(
+                children: [
+                  // 🚚 Ongkir Section (di atas list)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                    child: _buildOngkirSection(),
+                  ),
+                  // Items List
+                  Expanded(
+                    child: ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                      itemCount: _items.length,
+                      itemBuilder: (ctx, i) {
+                        final item = _items[i];
+                        String qtyStr = item.addedQty == item.addedQty.toInt() ? item.addedQty.toInt().toString() : item.addedQty.toString();
 
-                      // 🔥 LOGIKA MENGHAPUS NAMA KELAS DAN MEMUNCULKAN DIMENSI SAJA 🔥
-                      String displayName = item.product.name;
-                      
-                      if (item.product.type == 'KAYU') {
-                        displayName = displayName.replaceAll(RegExp(r'Kelas \d+\s?'), '').replaceAll('()', '').trim();
-                        if (item.product.dimensions != null && item.product.dimensions!.isNotEmpty) {
-                           if (!displayName.contains(item.product.dimensions!)) {
-                              displayName = "$displayName ${item.product.dimensions!}";
-                           }
+                        // 🔥 LOGIKA MENGHAPUS NAMA KELAS DAN MEMUNCULKAN DIMENSI SAJA 🔥
+                        String displayName = item.product.name;
+                        
+                        if (item.product.type == 'KAYU') {
+                          displayName = displayName.replaceAll(RegExp(r'Kelas \d+\s?'), '').replaceAll('()', '').trim();
+                          if (item.product.dimensions != null && item.product.dimensions!.isNotEmpty) {
+                             if (!displayName.contains(item.product.dimensions!)) {
+                                displayName = "$displayName ${item.product.dimensions!}";
+                             }
+                          }
+                        } else if (item.product.type == 'BANGUNAN' && item.product.dimensions != null) {
+                          String dimSuffix = "(${item.product.dimensions})";
+                          if (displayName.endsWith(dimSuffix)) {
+                            displayName = displayName.substring(0, displayName.length - dimSuffix.length).trim();
+                          }
                         }
-                      } else if (item.product.type == 'BANGUNAN' && item.product.dimensions != null) {
-                        String dimSuffix = "(${item.product.dimensions})";
-                        if (displayName.endsWith(dimSuffix)) {
-                          displayName = displayName.substring(0, displayName.length - dimSuffix.length).trim();
-                        }
-                      }
 
-                      return Card(
-                        elevation: 0,
-                        color: AppColors.pureWhite,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(15),
-                          side: BorderSide(color: Colors.grey.shade200)
-                        ),
-                        margin: const EdgeInsets.only(bottom: 12),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(10),
-                                    decoration: BoxDecoration(color: AppColors.menuTealBg, borderRadius: BorderRadius.circular(10)),
-                                    child: const Icon(Icons.inventory_2, color: AppColors.menuTealIcon, size: 24)
-                                  ),
-                                  const SizedBox(width: 12),
+                        return Container(
+                          decoration: AppColors.liquidGlassCard(radius: 18),
+                          margin: const EdgeInsets.only(bottom: 12),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    GlassIconBadge(
+                                      icon: Icons.inventory_2,
+                                      iconColor: AppColors.menuTealIcon,
+                                      bgColor: AppColors.menuTealBg,
+                                      size: 44,
+                                      iconSize: 22,
+                                      radius: 12,
+                                    ),
+                                    const SizedBox(width: 12),
                                   Expanded(
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -909,11 +920,12 @@ class _ReviewStockScreenState extends State<ReviewStockScreen> {
                 ),
               ],
             ),
+        ),
             
-        bottomNavigationBar: Container(
-          padding: const EdgeInsets.all(20),
-          decoration: const BoxDecoration(color: AppColors.pureWhite, boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 15, offset: Offset(0, -5))]),
+        bottomNavigationBar: GlassDock(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
           child: SafeArea(
+            top: false,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -939,22 +951,19 @@ class _ReviewStockScreenState extends State<ReviewStockScreen> {
                       }
                     }
                   },
+                  borderRadius: BorderRadius.circular(14),
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: AppColors.backgroundWhite,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: Colors.grey.shade300)
-                    ),
+                    decoration: AppColors.liquidGlassCard(radius: 14),
                     child: Row(
                       children: [
                         const Icon(Icons.calendar_month, color: AppColors.primaryNavy, size: 20),
                         const SizedBox(width: 10),
                         Expanded(child: Text(DateFormat('dd MMM yyyy, HH:mm').format(_transactionDate), style: const TextStyle(fontWeight: FontWeight.bold))),
                         const Text("UBAH", style: TextStyle(color: AppColors.menuBlueIcon, fontWeight: FontWeight.bold, fontSize: 12)),
-                      ]
-                    )
-                  )
+                      ],
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 15),
 

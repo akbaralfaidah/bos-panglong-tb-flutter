@@ -1,8 +1,9 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../controllers/transaction_detail_controller.dart';
 import '../theme/app_colors.dart';
+import '../theme/glass_widgets.dart';
 import 'transaction_detail_screen.dart';
 import '../helpers/app_notification.dart';
 
@@ -339,7 +340,7 @@ class _CustomerDebtListScreenState extends State<CustomerDebtListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.backgroundWhite,
+      backgroundColor: AppColors.liquidBackground,
       appBar: AppBar(
         title: Text(
           widget.customerName,
@@ -348,46 +349,42 @@ class _CustomerDebtListScreenState extends State<CustomerDebtListScreen> {
             fontWeight: FontWeight.bold,
           ),
         ),
-        backgroundColor: AppColors.primaryNavy,
+        backgroundColor: AppColors.navyGlassStart,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [AppColors.navyGlassStart, AppColors.navyGlassMid],
+            ),
+          ),
+        ),
         iconTheme: const IconThemeData(color: AppColors.pureWhite),
         elevation: 0,
       ),
-      body: Column(
-        children: [
-          // HEADER RINGKASAN PELANGGAN
-          Container(
-            padding: const EdgeInsets.all(16),
-            color: AppColors.primaryNavy,
-            width: double.infinity,
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: AppColors.pureWhite,
-                borderRadius: BorderRadius.circular(15),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: AppColors.statusRed.withOpacity(0.1),
-                          shape: BoxShape.circle,
+      body: LiquidAmbientBackground(
+        child: Column(
+          children: [
+            // HEADER RINGKASAN PELANGGAN
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 22),
+              decoration: AppColors.liquidNavyHeader(bottomRadius: 28),
+              width: double.infinity,
+              child: GlassContainer(
+                borderRadius: 20,
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        GlassIconBadge(
+                          icon: Icons.person,
+                          iconColor: AppColors.statusRed,
+                          bgColor: AppColors.statusRed.withValues(alpha: 0.14),
+                          size: 52,
+                          iconSize: 28,
+                          radius: 16,
                         ),
-                        child: const Icon(
-                          Icons.person,
-                          color: AppColors.statusRed,
-                          size: 28,
-                        ),
-                      ),
                       const SizedBox(width: 15),
                       Expanded(
                         child: Column(
@@ -490,22 +487,17 @@ class _CustomerDebtListScreenState extends State<CustomerDebtListScreen> {
                   DateTime.parse(t['transaction_date']),
                 );
 
-                return Card(
-                  color: AppColors.pureWhite,
-                  elevation: 3,
-                  shadowColor: AppColors.primaryNavy.withOpacity(0.15),
-                  margin: const EdgeInsets.only(bottom: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(15),
-                    side: BorderSide(
-                      color: isLunas
-                          ? AppColors.statusGreen.withOpacity(0.3)
-                          : AppColors.primaryNavy.withOpacity(0.1),
-                      width: 1.5,
-                    ),
+                return Container(
+                  decoration: AppColors.liquidGlassCard(
+                    radius: 18,
+                    borderColor: isLunas
+                        ? AppColors.statusGreen.withValues(alpha: 0.35)
+                        : null,
+                    borderWidth: isLunas ? 1.5 : 1.2,
                   ),
+                  margin: const EdgeInsets.only(bottom: 12),
                   child: InkWell(
-                    borderRadius: BorderRadius.circular(15),
+                    borderRadius: BorderRadius.circular(18),
                     onTap: () async {
                       await Navigator.push(
                         context,
@@ -523,18 +515,15 @@ class _CustomerDebtListScreenState extends State<CustomerDebtListScreen> {
                         children: [
                           Row(
                             children: [
-                              Container(
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color: isLunas
-                                      ? AppColors.statusGreen.withOpacity(0.1)
-                                      : AppColors.statusRed.withOpacity(0.1),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(
-                                  isLunas ? Icons.check_circle : Icons.receipt_long,
-                                  color: isLunas ? AppColors.statusGreen : AppColors.statusRed,
-                                ),
+                              GlassIconBadge(
+                                icon: isLunas ? Icons.check_circle : Icons.receipt_long,
+                                iconColor: isLunas ? AppColors.statusGreen : AppColors.statusRed,
+                                bgColor: isLunas
+                                    ? AppColors.statusGreen.withValues(alpha: 0.14)
+                                    : AppColors.statusRed.withValues(alpha: 0.14),
+                                size: 44,
+                                iconSize: 22,
+                                radius: 13,
                               ),
                               const SizedBox(width: 12),
                               Expanded(
@@ -646,21 +635,13 @@ class _CustomerDebtListScreenState extends State<CustomerDebtListScreen> {
           ),
         ],
       ),
+      ),
 
       // TOMBOL CICIL HUTANG DI BAWAH
-      bottomNavigationBar: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.pureWhite,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.08),
-              blurRadius: 10,
-              offset: const Offset(0, -3),
-            ),
-          ],
-        ),
+      bottomNavigationBar: GlassDock(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
         child: SafeArea(
+          top: false,
           child: SizedBox(
             width: double.infinity,
             height: 55,
@@ -678,10 +659,10 @@ class _CustomerDebtListScreenState extends State<CustomerDebtListScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.statusGreen,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(15),
+                  borderRadius: BorderRadius.circular(16),
                 ),
                 elevation: 4,
-                shadowColor: AppColors.statusGreen.withOpacity(0.4),
+                shadowColor: AppColors.statusGreen.withValues(alpha: 0.4),
               ),
               onPressed: _sisaHutang > 0 ? _showCicilDialog : null,
             ),

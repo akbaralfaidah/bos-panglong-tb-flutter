@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../controllers/debt_controller.dart';
 import '../theme/app_colors.dart';
+import '../theme/glass_widgets.dart';
 import '../helpers/app_notification.dart';
 import 'transaction_detail_screen.dart';
 import 'customer_debt_list_screen.dart';
@@ -394,13 +395,22 @@ class _DebtGroupDetailScreenState extends State<DebtGroupDetailScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.backgroundWhite,
+      backgroundColor: AppColors.liquidBackground,
       appBar: AppBar(
         title: Text(
           _groupName,
           style: const TextStyle(color: AppColors.pureWhite, fontWeight: FontWeight.bold),
         ),
-        backgroundColor: AppColors.primaryNavy,
+        backgroundColor: AppColors.navyGlassStart,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [AppColors.navyGlassStart, AppColors.navyGlassMid],
+            ),
+          ),
+        ),
         iconTheme: const IconThemeData(color: AppColors.pureWhite),
         elevation: 0,
         actions: [
@@ -429,23 +439,18 @@ class _DebtGroupDetailScreenState extends State<DebtGroupDetailScreen>
           ),
         ],
       ),
-      body: Column(
-        children: [
-          // KARTU RINGKASAN
-          Container(
-            padding: const EdgeInsets.all(16),
-            color: AppColors.primaryNavy,
-            width: double.infinity,
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: AppColors.pureWhite,
-                borderRadius: BorderRadius.circular(15),
-                boxShadow: [
-                  BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4)),
-                ],
-              ),
-              child: Column(
+      body: LiquidAmbientBackground(
+        child: Column(
+          children: [
+            // KARTU RINGKASAN
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 22),
+              decoration: AppColors.liquidNavyHeader(bottomRadius: 28),
+              width: double.infinity,
+              child: GlassContainer(
+                borderRadius: 20,
+                padding: const EdgeInsets.all(20),
+                child: Column(
                 children: [
                   const Text("Total Uang di Luar (Grup)", style: TextStyle(color: AppColors.textGrey, fontWeight: FontWeight.bold, fontSize: 13)),
                   const SizedBox(height: 8),
@@ -507,17 +512,11 @@ class _DebtGroupDetailScreenState extends State<DebtGroupDetailScreen>
                           int potProfit = (group['potential_profit'] as num?)?.toInt() ?? 0;
                           List<Map<String, dynamic>> transactions = group['transactions'] as List<Map<String, dynamic>>;
 
-                          return Card(
-                            color: AppColors.pureWhite,
-                            elevation: 4,
-                            shadowColor: AppColors.primaryNavy.withOpacity(0.2),
-                            margin: const EdgeInsets.only(bottom: 15),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(15),
-                              side: BorderSide(color: AppColors.primaryNavy.withOpacity(0.1), width: 1.5),
-                            ),
+                          return Container(
+                            decoration: AppColors.liquidGlassCard(radius: 18),
+                            margin: const EdgeInsets.only(bottom: 14),
                             child: InkWell(
-                              borderRadius: BorderRadius.circular(15),
+                              borderRadius: BorderRadius.circular(18),
                               onTap: () async {
                                 if (transCount == 1) {
                                   await Navigator.push(context, MaterialPageRoute(
@@ -541,13 +540,13 @@ class _DebtGroupDetailScreenState extends State<DebtGroupDetailScreen>
                                 padding: const EdgeInsets.all(16),
                                 child: Row(
                                   children: [
-                                    Container(
-                                      padding: const EdgeInsets.all(12),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.statusRed.withOpacity(0.1),
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: const Icon(Icons.person, color: AppColors.statusRed),
+                                    GlassIconBadge(
+                                      icon: Icons.person,
+                                      iconColor: AppColors.statusRed,
+                                      bgColor: AppColors.statusRed.withValues(alpha: 0.14),
+                                      size: 46,
+                                      iconSize: 23,
+                                      radius: 14,
                                     ),
                                     const SizedBox(width: 15),
                                     Expanded(
@@ -603,6 +602,7 @@ class _DebtGroupDetailScreenState extends State<DebtGroupDetailScreen>
           ),
         ],
       ),
+      ),
 
       // TOMBOL LUNASI SEMUA HUTANG (Gradasi Biru)
       bottomNavigationBar: (!_isLoading && _groups.isNotEmpty)
@@ -610,15 +610,10 @@ class _DebtGroupDetailScreenState extends State<DebtGroupDetailScreen>
               animation: _glowAnimation,
               builder: (context, child) {
                 double glowValue = _glowAnimation.value;
-                return Container(
+                return GlassDock(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                  decoration: BoxDecoration(
-                    color: AppColors.pureWhite,
-                    boxShadow: [
-                      BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 10, offset: const Offset(0, -3)),
-                    ],
-                  ),
                   child: SafeArea(
+                    top: false,
                     child: Container(
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(16),

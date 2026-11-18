@@ -3,11 +3,13 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:barcode_scan2/barcode_scan2.dart';
 import 'dart:convert';
+import 'dart:ui';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/product.dart';
 import '../controllers/cashier_controller.dart';
 import 'review_transaction_screen.dart';
 import '../theme/app_colors.dart';
+import '../theme/glass_widgets.dart';
 import '../helpers/session_manager.dart';
 import '../helpers/search_helper.dart';
 import '../helpers/app_notification.dart';
@@ -1054,39 +1056,32 @@ class _CashierScreenState extends State<CashierScreen>
                             },
                           ),
                   ),
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: const BoxDecoration(
-                      color: AppColors.pureWhite,
-                      boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, -3))],
-                    ),
-                    child: SafeArea(
-                      child: Row(
-                        children: [
-                          Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text("Total Tagihan:", style: TextStyle(fontSize: 11, color: AppColors.textGrey, fontWeight: FontWeight.bold)),
-                              Text(_formatRp(_cartTotal), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: AppColors.primaryNavy)),
-                            ],
+                  GlassDock(
+                    child: Row(
+                      children: [
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text("Total Tagihan:", style: TextStyle(fontSize: 11, color: AppColors.textGrey, fontWeight: FontWeight.bold)),
+                            Text(_formatRp(_cartTotal), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: AppColors.primaryNavy)),
+                          ],
+                        ),
+                        const Spacer(),
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primaryNavy,
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                           ),
-                          const Spacer(),
-                          ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.primaryNavy,
-                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                            ),
-                            onPressed: () {
-                              Navigator.pop(ctx);
-                              _goToReviewTransaction();
-                            },
-                            icon: const Icon(Icons.shopping_cart_checkout, color: AppColors.accentGold),
-                            label: Text("LANJUT BAYAR (${_cart.length})", style: const TextStyle(color: AppColors.accentGold, fontWeight: FontWeight.bold)),
-                          ),
-                        ],
-                      ),
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            _goToReviewTransaction();
+                          },
+                          icon: const Icon(Icons.shopping_cart_checkout, color: AppColors.accentGold),
+                          label: Text("LANJUT BAYAR (${_cart.length})", style: const TextStyle(color: AppColors.accentGold, fontWeight: FontWeight.bold)),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -1103,7 +1098,7 @@ class _CashierScreenState extends State<CashierScreen>
     bool isTabKayu = _tabController.index == 0;
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundWhite,
+      backgroundColor: AppColors.liquidBackground,
       appBar: AppBar(
         title: _isSearching
             ? TextField(
@@ -1117,6 +1112,7 @@ class _CashierScreenState extends State<CashierScreen>
                   hintText: "Cari Produk / Scan...",
                   hintStyle: TextStyle(color: AppColors.textGrey),
                   border: InputBorder.none,
+                  filled: false,
                 ),
                 onChanged: (v) => setState(() {
                   _searchQuery = v;
@@ -1127,9 +1123,16 @@ class _CashierScreenState extends State<CashierScreen>
                 "Kasir Toko",
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
-        backgroundColor: AppColors.pureWhite,
+        backgroundColor: Colors.white.withValues(alpha: 0.78),
+        surfaceTintColor: Colors.transparent,
         foregroundColor: AppColors.primaryNavy,
         elevation: 0,
+        flexibleSpace: ClipRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+            child: Container(color: Colors.transparent),
+          ),
+        ),
         actions: [
           IconButton(
             icon: const Icon(
@@ -1174,12 +1177,21 @@ class _CashierScreenState extends State<CashierScreen>
           ],
         ),
       ),
-      body: Column(
-        children: [
-          Container(
-            color: AppColors.pureWhite,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            child: Row(
+      body: LiquidAmbientBackground(
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.65),
+                border: Border(
+                  bottom: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.85),
+                    width: 1,
+                  ),
+                ),
+              ),
+              child: Row(
               children: [
                 Expanded(
                   child: DropdownButtonFormField<String>(
@@ -1263,31 +1275,21 @@ class _CashierScreenState extends State<CashierScreen>
             ),
           ),
 
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                _buildList(_kayuList, _scrollControllerKayu, true),
-                _buildList(_bangunanList, _scrollControllerBangunan, false),
-              ],
+            Expanded(
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildList(_kayuList, _scrollControllerKayu, true),
+                  _buildList(_bangunanList, _scrollControllerBangunan, false),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
       bottomNavigationBar: _cart.isEmpty
           ? null
-          : Container(
-              padding: const EdgeInsets.all(16),
-              decoration: const BoxDecoration(
-                color: AppColors.pureWhite,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black12,
-                    blurRadius: 15,
-                    offset: Offset(0, -5),
-                  ),
-                ],
-              ),
+          : GlassDock(
               child: Row(
                 children: [
                   Expanded(
@@ -1310,10 +1312,13 @@ class _CashierScreenState extends State<CashierScreen>
                               ),
                               const SizedBox(width: 6),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                                 decoration: BoxDecoration(
-                                  color: AppColors.menuBlueBg,
-                                  borderRadius: BorderRadius.circular(6),
+                                  color: AppColors.menuBlueBg.withValues(alpha: 0.9),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: AppColors.menuBlueIcon.withValues(alpha: 0.25),
+                                  ),
                                 ),
                                 child: Text(
                                   "${_cart.length} Item ▴",
@@ -1347,7 +1352,7 @@ class _CashierScreenState extends State<CashierScreen>
                         vertical: 15,
                       ),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(15),
+                        borderRadius: BorderRadius.circular(16),
                       ),
                     ),
                     onPressed: _goToReviewTransaction,
@@ -1613,246 +1618,283 @@ class _CashierScreenState extends State<CashierScreen>
       );
     }
 
-    return Card(
+    return Container(
       key: key,
       margin: const EdgeInsets.only(bottom: 15),
-      elevation: 5,
-      shadowColor: AppColors.primaryNavy.withOpacity(0.3),
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(15),
-        side: inCartCount > 0
-            ? const BorderSide(color: AppColors.menuTealIcon, width: 2)
-            : BorderSide.none,
+      decoration: AppColors.liquidNavyCard(
+        radius: 20,
+        isDimmed: isHabis,
+        borderColor: inCartCount > 0 ? AppColors.menuTealIcon : null,
+        borderWidth: inCartCount > 0 ? 2.0 : 1.2,
       ),
-      child: ExpansionTile(
-        backgroundColor: isHabis ? Colors.grey.shade800 : AppColors.primaryNavy,
-        collapsedBackgroundColor: isHabis
-            ? Colors.grey.shade800
-            : AppColors.primaryNavy,
-        iconColor: AppColors.accentGold,
-        collapsedIconColor: AppColors.pureWhite,
-        tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        trailing: SizedBox(
-          width: 80,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              GestureDetector(
-                onTap: isHabis
-                    ? null
-                    : () => _showQuickAddDialog(p, displayName, displayStock),
-                child: Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: isHabis ? Colors.grey : AppColors.menuTealIcon,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(
-                    Icons.add_shopping_cart,
-                    color: Colors.white,
-                    size: 22,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              const Icon(Icons.keyboard_arrow_down, color: Colors.white54),
-            ],
-          ),
-        ),
-        leading: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            CircleAvatar(
-              backgroundColor: Colors.white.withOpacity(0.15),
-              child: Icon(
-                (isKayu || isReng || isBulat) ? Icons.forest : Icons.home_work,
-                color: isHabis ? Colors.white54 : AppColors.accentGold,
-              ),
-            ),
-            if (inCartCount > 0)
-              Positioned(
-                right: -5,
-                top: -5,
-                child: Container(
-                  padding: const EdgeInsets.all(5),
-                  decoration: const BoxDecoration(
-                    color: AppColors.statusRed,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Text(
-                    inCartCount.toString(),
-                    style: const TextStyle(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: ExpansionTile(
+          backgroundColor: Colors.transparent,
+          collapsedBackgroundColor: Colors.transparent,
+          shape: const Border(),
+          collapsedShape: const Border(),
+          iconColor: AppColors.accentGold,
+          collapsedIconColor: AppColors.pureWhite,
+          tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          trailing: SizedBox(
+            width: 80,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                GestureDetector(
+                  onTap: isHabis
+                      ? null
+                      : () => _showQuickAddDialog(p, displayName, displayStock),
+                  child: Container(
+                    padding: const EdgeInsets.all(7),
+                    decoration: BoxDecoration(
+                      gradient: isHabis
+                          ? null
+                          : const LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [Color(0xFF00A896), AppColors.menuTealIcon],
+                            ),
+                      color: isHabis ? Colors.grey.shade600 : null,
+                      borderRadius: BorderRadius.circular(11),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: isHabis ? 0.15 : 0.35),
+                      ),
+                      boxShadow: isHabis
+                          ? null
+                          : [
+                              BoxShadow(
+                                color: AppColors.menuTealIcon.withValues(alpha: 0.35),
+                                blurRadius: 8,
+                                offset: const Offset(0, 3),
+                              ),
+                            ],
+                    ),
+                    child: const Icon(
+                      Icons.add_shopping_cart,
                       color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
+                      size: 21,
                     ),
                   ),
                 ),
-              ),
-          ],
-        ),
-        title: Text(
-          displayName,
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: isHabis ? Colors.white70 : AppColors.pureWhite,
-            fontSize: 16,
+                const SizedBox(width: 8),
+                const Icon(Icons.keyboard_arrow_down, color: Colors.white54),
+              ],
+            ),
           ),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: displayStock <= 5
-                        ? AppColors.statusRed
-                        : Colors.white.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(8),
-                    border: displayStock <= 5
-                        ? Border.all(color: Colors.redAccent.shade100)
-                        : null,
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.only(top: 1.0),
-                        child: Icon(
-                          displayStock <= 5
-                              ? Icons.warning_amber_rounded
-                              : Icons.inventory,
-                          size: 14,
-                          color: displayStock <= 5
-                              ? AppColors.pureWhite
-                              : AppColors.accentGold,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      stockWidget,
+          leading: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Colors.white.withValues(alpha: 0.22),
+                      Colors.white.withValues(alpha: 0.08),
                     ],
                   ),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.26),
+                  ),
                 ),
-                if (p.reservedStock > 0) ...[
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                child: Icon(
+                  (isKayu || isReng || isBulat) ? Icons.forest : Icons.home_work,
+                  color: isHabis ? Colors.white54 : AppColors.accentGold,
+                  size: 21,
+                ),
+              ),
+              if (inCartCount > 0)
+                Positioned(
+                  right: -5,
+                  top: -5,
+                  child: Container(
+                    padding: const EdgeInsets.all(5),
                     decoration: BoxDecoration(
-                      color: AppColors.accentGold.withOpacity(0.22),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppColors.accentGold.withOpacity(0.7)),
+                      color: AppColors.statusRed,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 1.5),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.warehouse, size: 13, color: AppColors.accentGold),
-                        const SizedBox(width: 4),
-                        Text(
-                          "Titipan: ${p.reservedStockDisplay} $unitShort",
-                          style: const TextStyle(
-                            color: AppColors.accentGold,
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.cyanAccent.withOpacity(0.14),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.cyanAccent.withOpacity(0.35)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.fact_check_outlined, size: 13, color: Colors.cyanAccent),
-                        const SizedBox(width: 4),
-                        Text(
-                          "Fisik: $physicalNowStr $unitShort",
-                          style: const TextStyle(
-                            color: Colors.cyanAccent,
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                if (isKayu && kelas.isNotEmpty) ...[
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.blueAccent.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.blueAccent.shade100),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.category,
-                          size: 12,
-                          color: Colors.blueAccent,
-                        ),
-                        const SizedBox(width: 5),
-                        Text(
-                          kelas,
-                          style: const TextStyle(
-                            color: Colors.blueAccent,
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                ],
-                if (p.source.isNotEmpty) ...[
-                  const Icon(
-                    Icons.local_shipping,
-                    size: 13,
-                    color: Colors.white60,
-                  ),
-                  const SizedBox(width: 4),
-                  Expanded(
                     child: Text(
-                      p.source,
+                      inCartCount.toString(),
                       style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 11,
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
                       ),
-                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                ],
-              ],
+                ),
+            ],
+          ),
+          title: Text(
+            displayName,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: isHabis ? Colors.white70 : AppColors.pureWhite,
+              fontSize: 16,
             ),
-          ],
-        ),
-        children: [
-          Container(
-            width: double.infinity,
-            color: AppColors.pureWhite,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+          ),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: displayStock <= 5
+                          ? AppColors.statusRed
+                          : Colors.white.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: displayStock <= 5
+                            ? Colors.redAccent.shade100
+                            : Colors.white.withValues(alpha: 0.2),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(top: 1.0),
+                          child: Icon(
+                            displayStock <= 5
+                                ? Icons.warning_amber_rounded
+                                : Icons.inventory,
+                            size: 14,
+                            color: displayStock <= 5
+                                ? AppColors.pureWhite
+                                : AppColors.accentGold,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        stockWidget,
+                      ],
+                    ),
+                  ),
+                  if (p.reservedStock > 0) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: AppColors.accentGold.withValues(alpha: 0.22),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppColors.accentGold.withValues(alpha: 0.7)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.warehouse, size: 13, color: AppColors.accentGold),
+                          const SizedBox(width: 4),
+                          Text(
+                            "Titipan: ${p.reservedStockDisplay} $unitShort",
+                            style: const TextStyle(
+                              color: AppColors.accentGold,
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.cyanAccent.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.cyanAccent.withValues(alpha: 0.35)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.fact_check_outlined, size: 13, color: Colors.cyanAccent),
+                          const SizedBox(width: 4),
+                          Text(
+                            "Fisik: $physicalNowStr $unitShort",
+                            style: const TextStyle(
+                              color: Colors.cyanAccent,
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  if (isKayu && kelas.isNotEmpty) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.blueAccent.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.blueAccent.shade100),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.category,
+                            size: 12,
+                            color: Colors.blueAccent,
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            kelas,
+                            style: const TextStyle(
+                              color: Colors.blueAccent,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                  ],
+                  if (p.source.isNotEmpty) ...[
+                    const Icon(
+                      Icons.local_shipping,
+                      size: 13,
+                      color: Colors.white60,
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        p.source,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 11,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ),
+          children: [
+            Container(
+              width: double.infinity,
+              color: Colors.white.withValues(alpha: 0.96),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
             child: Column(
               children: [
                 if (isReng) ...[
@@ -2033,6 +2075,7 @@ class _CashierScreenState extends State<CashierScreen>
           ),
         ],
       ),
+      ),
     );
   }
 
@@ -2085,11 +2128,6 @@ class _CashierScreenState extends State<CashierScreen>
   String _formatRp(dynamic number) => NumberFormat.currency(
     locale: 'id',
     symbol: 'Rp ',
-    decimalDigits: 0,
-  ).format(number);
-  String _formatRpStr(dynamic number) => NumberFormat.currency(
-    locale: 'id',
-    symbol: '',
     decimalDigits: 0,
   ).format(number);
 }

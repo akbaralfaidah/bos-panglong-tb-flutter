@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'dart:convert';
+import 'dart:ui';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/product.dart';
 import '../controllers/product_controller.dart';
@@ -11,6 +12,7 @@ import 'product_form_screen.dart';
 import 'review_stock_screen.dart';
 import 'product_barcode_screen.dart';
 import '../theme/app_colors.dart';
+import '../theme/glass_widgets.dart';
 import '../helpers/search_helper.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../helpers/app_notification.dart';
@@ -848,7 +850,7 @@ class _ProductListScreenState extends State<ProductListScreen>
     bool isTabKayu = _tabController.index == 0;
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundWhite,
+      backgroundColor: AppColors.liquidBackground,
       appBar: AppBar(
         title: _isSearching
             ? TextField(
@@ -862,6 +864,7 @@ class _ProductListScreenState extends State<ProductListScreen>
                   hintText: "Cari Produk...",
                   hintStyle: TextStyle(color: AppColors.textGrey),
                   border: InputBorder.none,
+                  filled: false,
                 ),
                 onChanged: (v) => setState(() {
                   _searchQuery = v;
@@ -869,9 +872,16 @@ class _ProductListScreenState extends State<ProductListScreen>
                 }),
               )
             : const Text("Gudang Stok"),
-        backgroundColor: AppColors.pureWhite,
+        backgroundColor: Colors.white.withValues(alpha: 0.78),
+        surfaceTintColor: Colors.transparent,
         foregroundColor: AppColors.primaryNavy,
         elevation: 0,
+        flexibleSpace: ClipRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+            child: Container(color: Colors.transparent),
+          ),
+        ),
         actions: [
           if (_isOwner)
             IconButton(
@@ -939,12 +949,21 @@ class _ProductListScreenState extends State<ProductListScreen>
           ],
         ),
       ),
-      body: Column(
-        children: [
-          Container(
-            color: AppColors.pureWhite,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            child: Row(
+      body: LiquidAmbientBackground(
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.65),
+                border: Border(
+                  bottom: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.85),
+                    width: 1,
+                  ),
+                ),
+              ),
+              child: Row(
               children: [
                 Expanded(
                   child: DropdownButtonFormField<String>(
@@ -1028,32 +1047,22 @@ class _ProductListScreenState extends State<ProductListScreen>
             ),
           ),
 
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                _buildList(_kayuList, _scrollControllerKayu, true),
-                _buildList(_bangunanList, _scrollControllerBangunan, false),
-              ],
+            Expanded(
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildList(_kayuList, _scrollControllerKayu, true),
+                  _buildList(_bangunanList, _scrollControllerBangunan, false),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
 
       bottomNavigationBar: _stockCart.isEmpty
           ? null
-          : Container(
-              padding: const EdgeInsets.all(16),
-              decoration: const BoxDecoration(
-                color: AppColors.pureWhite,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black12,
-                    blurRadius: 15,
-                    offset: Offset(0, -5),
-                  ),
-                ],
-              ),
+          : GlassDock(
               child: Row(
                 children: [
                   Column(
@@ -1087,7 +1096,7 @@ class _ProductListScreenState extends State<ProductListScreen>
                         vertical: 15,
                       ),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(15),
+                        borderRadius: BorderRadius.circular(16),
                       ),
                     ),
                     onPressed: () async {
@@ -1386,124 +1395,181 @@ class _ProductListScreenState extends State<ProductListScreen>
       );
     }
 
-    return Card(
+    return Container(
       key: key,
       margin: const EdgeInsets.only(bottom: 15),
-      elevation: 5,
-      shadowColor: AppColors.primaryNavy.withOpacity(0.3),
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-      child: ExpansionTile(
-        backgroundColor: isHabis ? Colors.grey.shade800 : AppColors.primaryNavy,
-        collapsedBackgroundColor: isHabis
-            ? Colors.grey.shade800
-            : AppColors.primaryNavy,
-        iconColor: AppColors.accentGold,
-        collapsedIconColor: AppColors.pureWhite,
-        tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        trailing: SizedBox(
-          width: 80,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              GestureDetector(
-                onTap: () => _showQuickAddStock(p, displayName),
-                child: Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: Colors.lightGreen,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(Icons.add, color: Colors.white, size: 22),
-                ),
-              ),
-              const SizedBox(width: 8),
-              const Icon(Icons.keyboard_arrow_down, color: Colors.white54),
-            ],
-          ),
-        ),
-        leading: CircleAvatar(
-          backgroundColor: Colors.white.withOpacity(0.15),
-          child: Icon(
-            (isKayu || isReng || isBulat) ? Icons.forest : Icons.home_work,
-            color: isHabis ? Colors.white54 : AppColors.accentGold,
-          ),
-        ),
-        title: Text(
-          displayName,
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: isHabis ? Colors.white70 : AppColors.pureWhite,
-            fontSize: 16,
-          ),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
+      decoration: AppColors.liquidNavyCard(radius: 20, isDimmed: isHabis),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: ExpansionTile(
+          backgroundColor: Colors.transparent,
+          collapsedBackgroundColor: Colors.transparent,
+          shape: const Border(),
+          collapsedShape: const Border(),
+          iconColor: AppColors.accentGold,
+          collapsedIconColor: AppColors.pureWhite,
+          tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          trailing: SizedBox(
+            width: 80,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: p.stock <= 5
-                        ? AppColors.statusRed
-                        : Colors.white.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(8),
-                    border: p.stock <= 5
-                        ? Border.all(color: Colors.redAccent.shade100)
-                        : null,
+                GestureDetector(
+                  onTap: () => _showQuickAddStock(p, displayName),
+                  child: Container(
+                    padding: const EdgeInsets.all(7),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [Color(0xFF7ED957), Colors.lightGreen],
+                      ),
+                      borderRadius: BorderRadius.circular(11),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.35),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.lightGreen.withValues(alpha: 0.35),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(Icons.add, color: Colors.white, size: 21),
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.only(top: 1.0),
-                        child: Icon(
-                          p.stock <= 5
-                              ? Icons.warning_amber_rounded
-                              : Icons.inventory,
-                          size: 14,
-                          color: p.stock <= 5
-                              ? AppColors.pureWhite
-                              : AppColors.accentGold,
+                ),
+                const SizedBox(width: 8),
+                const Icon(Icons.keyboard_arrow_down, color: Colors.white54),
+              ],
+            ),
+          ),
+          leading: Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.white.withValues(alpha: 0.22),
+                  Colors.white.withValues(alpha: 0.08),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.26),
+              ),
+            ),
+            child: Icon(
+              (isKayu || isReng || isBulat) ? Icons.forest : Icons.home_work,
+              color: isHabis ? Colors.white54 : AppColors.accentGold,
+              size: 21,
+            ),
+          ),
+          title: Text(
+            displayName,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: isHabis ? Colors.white70 : AppColors.pureWhite,
+              fontSize: 16,
+            ),
+          ),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: p.stock <= 5
+                          ? AppColors.statusRed
+                          : Colors.white.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: p.stock <= 5
+                            ? Colors.redAccent.shade100
+                            : Colors.white.withValues(alpha: 0.2),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(top: 1.0),
+                          child: Icon(
+                            p.stock <= 5
+                                ? Icons.warning_amber_rounded
+                                : Icons.inventory,
+                            size: 14,
+                            color: p.stock <= 5
+                                ? AppColors.pureWhite
+                                : AppColors.accentGold,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        stockWidget,
+                      ],
+                    ),
+                  ),
+                  InkWell(
+                    onTap: p.reservedStock > 0 ? () => _showProductTitipanDialog(p, displayName, unitShort) : null,
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: p.reservedStock > 0
+                            ? AppColors.accentGold.withValues(alpha: 0.22)
+                            : Colors.white.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: p.reservedStock > 0
+                              ? AppColors.accentGold.withValues(alpha: 0.7)
+                              : Colors.white.withValues(alpha: 0.15),
                         ),
                       ),
-                      const SizedBox(width: 6),
-                      stockWidget,
-                    ],
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.warehouse,
+                            size: 13,
+                            color: p.reservedStock > 0 ? AppColors.accentGold : Colors.white60,
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            "Titipan: ${p.reservedStockDisplay} $unitShort",
+                            style: TextStyle(
+                              color: p.reservedStock > 0 ? AppColors.accentGold : Colors.white70,
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
-                InkWell(
-                  onTap: p.reservedStock > 0 ? () => _showProductTitipanDialog(p, displayName, unitShort) : null,
-                  borderRadius: BorderRadius.circular(8),
-                  child: Container(
+                  Container(
                     padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
                     decoration: BoxDecoration(
-                      color: p.reservedStock > 0
-                          ? AppColors.accentGold.withOpacity(0.22)
-                          : Colors.white.withOpacity(0.08),
-                      borderRadius: BorderRadius.circular(8),
-                      border: p.reservedStock > 0
-                          ? Border.all(color: AppColors.accentGold.withOpacity(0.7))
-                          : null,
+                      color: Colors.cyanAccent.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.cyanAccent.withValues(alpha: 0.35)),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(
-                          Icons.warehouse,
-                          size: 13,
-                          color: p.reservedStock > 0 ? AppColors.accentGold : Colors.white60,
-                        ),
+                        const Icon(Icons.fact_check_outlined, size: 13, color: Colors.cyanAccent),
                         const SizedBox(width: 5),
                         Text(
-                          "Titipan: ${p.reservedStockDisplay} $unitShort",
-                          style: TextStyle(
-                            color: p.reservedStock > 0 ? AppColors.accentGold : Colors.white70,
+                          "Fisik Gudang: ${p.physicalStockDisplay} $unitShort",
+                          style: const TextStyle(
+                            color: Colors.cyanAccent,
                             fontSize: 11.5,
                             fontWeight: FontWeight.bold,
                           ),
@@ -1511,95 +1577,71 @@ class _ProductListScreenState extends State<ProductListScreen>
                       ],
                     ),
                   ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.cyanAccent.withOpacity(0.14),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.cyanAccent.withOpacity(0.35)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.fact_check_outlined, size: 13, color: Colors.cyanAccent),
-                      const SizedBox(width: 5),
-                      Text(
-                        "Fisik Gudang: ${p.physicalStockDisplay} $unitShort",
-                        style: const TextStyle(
-                          color: Colors.cyanAccent,
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.bold,
-                        ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  if (isKayu && kelas.isNotEmpty) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
                       ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                if (isKayu && kelas.isNotEmpty) ...[
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.blueAccent.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.blueAccent.shade100),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.category,
-                          size: 12,
-                          color: Colors.blueAccent,
-                        ),
-                        const SizedBox(width: 5),
-                        Text(
-                          kelas,
-                          style: const TextStyle(
+                      decoration: BoxDecoration(
+                        color: Colors.blueAccent.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.blueAccent.shade100),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.category,
+                            size: 12,
                             color: Colors.blueAccent,
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
                           ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                ],
-                if (p.source.isNotEmpty) ...[
-                  const Icon(
-                    Icons.local_shipping,
-                    size: 13,
-                    color: Colors.white60,
-                  ),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      p.source,
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 11,
+                          const SizedBox(width: 5),
+                          Text(
+                            kelas,
+                            style: const TextStyle(
+                              color: Colors.blueAccent,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
                       ),
-                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
+                    const SizedBox(width: 10),
+                  ],
+                  if (p.source.isNotEmpty) ...[
+                    const Icon(
+                      Icons.local_shipping,
+                      size: 13,
+                      color: Colors.white60,
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        p.source,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 11,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
                 ],
-              ],
-            ),
-          ],
-        ),
-        children: [
-          Container(
-            width: double.infinity,
-            color: AppColors.pureWhite,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+              ),
+            ],
+          ),
+          children: [
+            Container(
+              width: double.infinity,
+              color: Colors.white.withValues(alpha: 0.96),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
             child: Column(
               children: [
                 if (p.reservedStock > 0) ...[
@@ -1849,6 +1891,7 @@ class _ProductListScreenState extends State<ProductListScreen>
             ),
           ),
         ],
+      ),
       ),
     );
   }

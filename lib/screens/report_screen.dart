@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:fl_chart/fl_chart.dart';
 import '../controllers/report_controller.dart';
 import '../theme/app_colors.dart';
+import '../theme/glass_widgets.dart';
 import '../helpers/app_notification.dart';
 
 class ReportScreen extends StatefulWidget {
@@ -304,13 +305,7 @@ class _ReportScreenState extends State<ReportScreen>
         Container(
           height: 265,
           padding: const EdgeInsets.fromLTRB(10, 20, 15, 10),
-          decoration: BoxDecoration(
-            color: AppColors.pureWhite,
-            borderRadius: BorderRadius.circular(18),
-            boxShadow: [
-              BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 15, offset: const Offset(0, 4)),
-            ],
-          ),
+          decoration: AppColors.liquidGlassCard(radius: 20),
           child: dataMap.isEmpty
               ? const Center(child: Text("Belum ada data grafik", style: TextStyle(color: AppColors.textGrey)))
               : BarChart(
@@ -440,13 +435,7 @@ class _ReportScreenState extends State<ReportScreen>
       return Container(
         width: double.infinity,
         padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: AppColors.pureWhite,
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 15, offset: const Offset(0, 4)),
-          ],
-        ),
+        decoration: AppColors.liquidGlassCard(radius: 20),
         child: const Center(
           child: Text(
             "Belum ada data untuk grafik",
@@ -462,13 +451,7 @@ class _ReportScreenState extends State<ReportScreen>
 
     return Container(
       padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: AppColors.pureWhite,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 15, offset: const Offset(0, 4)),
-        ],
-      ),
+      decoration: AppColors.liquidGlassCard(radius: 20),
       child: Column(
         children: [
           const Text(
@@ -621,7 +604,7 @@ class _ReportScreenState extends State<ReportScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.backgroundWhite,
+      backgroundColor: AppColors.liquidBackground,
       appBar: AppBar(
         title: const Text(
           "Master Laporan",
@@ -630,7 +613,16 @@ class _ReportScreenState extends State<ReportScreen>
             fontWeight: FontWeight.bold,
           ),
         ),
-        backgroundColor: AppColors.primaryNavy,
+        backgroundColor: AppColors.navyGlassStart,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [AppColors.navyGlassStart, AppColors.navyGlassMid],
+            ),
+          ),
+        ),
         iconTheme: const IconThemeData(color: AppColors.pureWhite),
         elevation: 0,
         bottom: TabBar(
@@ -648,9 +640,11 @@ class _ReportScreenState extends State<ReportScreen>
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [_buildDashboardTab(), _buildFinanceTab()],
+      body: LiquidAmbientBackground(
+        child: TabBarView(
+          controller: _tabController,
+          children: [_buildDashboardTab(), _buildFinanceTab()],
+        ),
       ),
     );
   }
@@ -663,20 +657,8 @@ class _ReportScreenState extends State<ReportScreen>
         children: [
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [AppColors.menuIndigoIcon, AppColors.primaryNavy],
-              ),
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: const [
-                BoxShadow(
-                  color: Colors.black12,
-                  blurRadius: 10,
-                  offset: Offset(0, 5),
-                ),
-              ],
-            ),
+            padding: const EdgeInsets.all(22),
+            decoration: AppColors.liquidNavyCard(radius: 22),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -830,13 +812,7 @@ class _ReportScreenState extends State<ReportScreen>
 
           Container(
             padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppColors.pureWhite,
-              borderRadius: BorderRadius.circular(18),
-              boxShadow: [
-                BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 15, offset: const Offset(0, 4)),
-              ],
-            ),
+            decoration: AppColors.liquidGlassCard(radius: 20),
             child: _topProducts.isEmpty
                 ? const Center(
                     child: Padding(
@@ -1114,9 +1090,9 @@ class _ReportScreenState extends State<ReportScreen>
                     const SizedBox(height: 12),
                     Container(
                       padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceGrey,
-                        borderRadius: BorderRadius.circular(12),
+                      decoration: AppColors.liquidGlassCard(
+                        tint: AppColors.surfaceGrey,
+                        radius: 14,
                       ),
                       child: Row(
                         children: [
@@ -1130,15 +1106,9 @@ class _ReportScreenState extends State<ReportScreen>
                     ),
                     const SizedBox(height: 20),
 
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: AppColors.pureWhite,
-                        borderRadius: BorderRadius.circular(15),
-                        boxShadow: const [
-                          BoxShadow(color: Colors.black12, blurRadius: 8),
-                        ],
-                      ),
+                    GlassContainer(
+                      borderRadius: 20,
+                      padding: const EdgeInsets.all(22),
                       child: Column(
                         children: [
                           const Text(
@@ -1247,10 +1217,10 @@ class _ReportScreenState extends State<ReportScreen>
     return Container(
       width: isFullWidth ? double.infinity : null,
       padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withOpacity(0.2)),
+      decoration: AppColors.liquidGlassCard(
+        tint: bgColor,
+        radius: 16,
+        borderColor: color.withValues(alpha: 0.25),
       ),
       child: Column(
         crossAxisAlignment: isFullWidth

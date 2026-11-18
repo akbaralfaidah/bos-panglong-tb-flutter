@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../models/product.dart';
 import '../controllers/edit_transaction_controller.dart';
 import '../theme/app_colors.dart';
+import '../theme/glass_widgets.dart';
 import '../helpers/search_helper.dart';
 import '../helpers/session_manager.dart';
 import '../helpers/app_notification.dart';
@@ -872,10 +873,11 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
       labelText: label,
       prefixText: prefix,
       prefixIcon: Icon(icon, color: AppColors.textGrey),
-      filled: true, fillColor: AppColors.pureWhite,
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
-      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
-      focusedBorder: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12)), borderSide: BorderSide(color: AppColors.primaryNavy, width: 2)),
+      filled: true,
+      fillColor: Colors.white.withValues(alpha: 0.85),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: Colors.grey.shade300)),
+      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: Colors.grey.shade300)),
+      focusedBorder: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(14)), borderSide: BorderSide(color: AppColors.primaryNavy, width: 2)),
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
     );
   }
@@ -886,12 +888,28 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
     return Expanded(
       child: InkWell(
         onTap: () => setState(() => _paymentMethod = title),
+        borderRadius: BorderRadius.circular(14),
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 12),
           decoration: BoxDecoration(
-            color: isSelected ? AppColors.menuTealBg : AppColors.backgroundWhite,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: isSelected ? AppColors.menuTealIcon : Colors.grey.shade300),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: isSelected
+                  ? [
+                      AppColors.menuTealIcon.withValues(alpha: 0.16),
+                      AppColors.menuTealBg.withValues(alpha: 0.9),
+                    ]
+                  : [
+                      Colors.white.withValues(alpha: 0.88),
+                      Colors.white.withValues(alpha: 0.65),
+                    ],
+            ),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: isSelected ? AppColors.menuTealIcon : Colors.white.withValues(alpha: 0.9),
+              width: isSelected ? 1.6 : 1.2,
+            ),
           ),
           child: Column(
             children: [
@@ -908,119 +926,124 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.backgroundWhite,
+      backgroundColor: AppColors.liquidBackground,
       appBar: AppBar(
         title: const Text("Edit Transaksi", style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.pureWhite)),
         backgroundColor: AppColors.primaryNavy,
-        iconTheme: const IconThemeData(color: AppColors.pureWhite),
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                // --- KARTU IDENTITAS PELANGGAN ---
-                const Text("Identitas Pelanggan", style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryNavy, fontSize: 16)),
-                const SizedBox(height: 10),
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: AppColors.pureWhite,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.grey.shade200),
-                  ),
-                  child: Column(
-                    children: [
-                      TextField(
-                        controller: _nameCtrl,
-                        decoration: _inputStyle("Nama Pelanggan", Icons.person),
-                        onChanged: (v) => _customerName = v,
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: _phoneCtrl,
-                        keyboardType: TextInputType.phone,
-                        decoration: _inputStyle("No. HP / WA", Icons.phone),
-                        onChanged: (v) => _customerPhone = v,
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: _addressCtrl,
-                        decoration: _inputStyle("Alamat Pengiriman", Icons.location_on),
-                        onChanged: (v) => _customerAddress = v,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 25),
-
-                // --- HEADER DAFTAR BARANG ---
-                const Text("Daftar Barang Belanjaan", style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryNavy, fontSize: 16)),
-                const SizedBox(height: 10),
-
-                // --- ITEM LIST ---
-                if (_cartItems.isEmpty)
-                  Container(
-                    padding: const EdgeInsets.all(30),
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(color: AppColors.pureWhite, borderRadius: BorderRadius.circular(16)),
-                    child: const Text("Keranjang belanja kosong", style: TextStyle(color: AppColors.textGrey)),
-                  )
-                else
-                  ..._cartItems.asMap().entries.map((entry) {
-                    final index = entry.key;
-                    final item = entry.value;
-                    double qty = (item['request_qty'] as num?)?.toDouble() ?? 1.0;
-                    int agreedTotal = item['agreed_total'] ?? 0;
-                    
-                    String qtyStr = qty == qty.toInt() ? qty.toInt().toString() : qty.toString();
-                    
-                    return Card(
-                      elevation: 2,
-                      color: AppColors.pureWhite,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      margin: const EdgeInsets.only(bottom: 12),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-                        child: ListTile(
-                          title: Text(item['product_name'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold)),
-                          subtitle: Text("Qty: $qtyStr ${item['unit_type'] ?? ''} | Subtotal: ${_formatRp(agreedTotal)}"),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.edit, color: AppColors.menuAmberIcon),
-                                onPressed: () => _editQtyDialog(index),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.delete, color: AppColors.statusRed),
-                                onPressed: () {
-                                  setState(() {
-                                    _cartItems.removeAt(index);
-                                  });
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  }),
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                AppColors.navyGlassStart,
+                AppColors.navyGlassMid,
+                AppColors.navyGlassEnd,
               ],
             ),
           ),
+        ),
+        iconTheme: const IconThemeData(color: AppColors.pureWhite),
+        elevation: 0,
+      ),
+      body: LiquidAmbientBackground(
+        child: Column(
+          children: [
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  // --- KARTU IDENTITAS PELANGGAN ---
+                  const Text("Identitas Pelanggan", style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryNavy, fontSize: 16)),
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: AppColors.liquidGlassCard(radius: 18),
+                    child: Column(
+                      children: [
+                        TextField(
+                          controller: _nameCtrl,
+                          decoration: _inputStyle("Nama Pelanggan", Icons.person),
+                          onChanged: (v) => _customerName = v,
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _phoneCtrl,
+                          keyboardType: TextInputType.phone,
+                          decoration: _inputStyle("No. HP / WA", Icons.phone),
+                          onChanged: (v) => _customerPhone = v,
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _addressCtrl,
+                          decoration: _inputStyle("Alamat Pengiriman", Icons.location_on),
+                          onChanged: (v) => _customerAddress = v,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 25),
 
-          ConstrainedBox(
-            constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.6),
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: const BoxDecoration(
-                color: AppColors.pureWhite,
-                boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, -5))],
-                borderRadius: BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20)),
+                  // --- HEADER DAFTAR BARANG ---
+                  const Text("Daftar Barang Belanjaan", style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryNavy, fontSize: 16)),
+                  const SizedBox(height: 10),
+
+                  // --- ITEM LIST ---
+                  if (_cartItems.isEmpty)
+                    Container(
+                      padding: const EdgeInsets.all(30),
+                      alignment: Alignment.center,
+                      decoration: AppColors.liquidGlassCard(radius: 18),
+                      child: const Text("Keranjang belanja kosong", style: TextStyle(color: AppColors.textGrey)),
+                    )
+                  else
+                    ..._cartItems.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      final item = entry.value;
+                      double qty = (item['request_qty'] as num?)?.toDouble() ?? 1.0;
+                      int agreedTotal = item['agreed_total'] ?? 0;
+                      
+                      String qtyStr = qty == qty.toInt() ? qty.toInt().toString() : qty.toString();
+                      
+                      return Container(
+                        decoration: AppColors.liquidGlassCard(radius: 16),
+                        margin: const EdgeInsets.only(bottom: 12),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                          child: ListTile(
+                            title: Text(item['product_name'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold)),
+                            subtitle: Text("Qty: $qtyStr ${item['unit_type'] ?? ''} | Subtotal: ${_formatRp(agreedTotal)}"),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.edit, color: AppColors.menuAmberIcon),
+                                  onPressed: () => _editQtyDialog(index),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.delete, color: AppColors.statusRed),
+                                  onPressed: () {
+                                    setState(() {
+                                      _cartItems.removeAt(index);
+                                    });
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    }),
+                ],
               ),
-              child: SingleChildScrollView(
+            ),
+
+            ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.6),
+              child: GlassDock(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                topRadius: 24,
+                child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -1238,9 +1261,10 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
                 ),
               ),
             ),
-          )
+          ),
 
         ],
+      ),
       ),
     );
   }

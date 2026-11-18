@@ -1,9 +1,10 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../helpers/session_manager.dart';
 import '../theme/app_colors.dart';
+import '../theme/glass_widgets.dart';
 import 'dashboard_screen.dart';
 import 'login_screen.dart';
 import 'auth_screen.dart';
@@ -76,38 +77,88 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.primaryNavy,
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // Logo Berdetak
-            FadeTransition(
-              opacity: _fadeAnimation,
-              child: Container(
-                padding: const EdgeInsets.all(25),
-                decoration: BoxDecoration(
-                  color: AppColors.pureWhite,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(color: AppColors.accentGold.withOpacity(0.6), blurRadius: 30, spreadRadius: 10)
-                  ]
+      body: LiquidAmbientBackground(
+        isDark: true,
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Logo Berdetak dengan Efek Kaca iOS 26
+              FadeTransition(
+                opacity: _fadeAnimation,
+                child: ClipOval(
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                    child: Container(
+                      padding: const EdgeInsets.all(28),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Colors.white.withValues(alpha: 0.95),
+                            Colors.white.withValues(alpha: 0.80),
+                          ],
+                        ),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: AppColors.accentGold.withValues(alpha: 0.75),
+                          width: 2.2,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.accentGold.withValues(alpha: 0.45),
+                            blurRadius: 34,
+                            spreadRadius: 8,
+                          ),
+                        ],
+                      ),
+                      child: const Icon(Icons.storefront, size: 88, color: AppColors.primaryNavy),
+                    ),
+                  ),
                 ),
-                child: const Icon(Icons.storefront, size: 90, color: AppColors.primaryNavy),
               ),
-            ),
-            const SizedBox(height: 40),
-            
-            // Nama Toko
-            const Text("BOS DEPOT KAYU", style: TextStyle(color: AppColors.pureWhite, fontSize: 28, fontWeight: FontWeight.w900, letterSpacing: 3)),
-            const Text("& TOKO BANGUNAN", style: TextStyle(color: AppColors.accentGold, fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 2)),
-            
-            const SizedBox(height: 60),
-            
-            // Indikator Loading
-            const CircularProgressIndicator(color: AppColors.accentGold),
-            const SizedBox(height: 15),
-            const Text("Menyiapkan Sistem Kasir...", style: TextStyle(color: Colors.white70, fontSize: 12, fontStyle: FontStyle.italic)),
-          ],
+              const SizedBox(height: 40),
+              
+              // Nama Toko
+              const Text("BOS DEPOT KAYU", style: TextStyle(color: AppColors.pureWhite, fontSize: 28, fontWeight: FontWeight.w900, letterSpacing: 3)),
+              const SizedBox(height: 4),
+              const Text("& TOKO BANGUNAN", style: TextStyle(color: AppColors.accentGold, fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 2)),
+              
+              const SizedBox(height: 55),
+              
+              // Indikator Loading dalam Pil Kaca
+              ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(color: AppColors.accentGold, strokeWidth: 2.5),
+                        ),
+                        SizedBox(width: 12),
+                        Text(
+                          "Menyiapkan Sistem Kasir...",
+                          style: TextStyle(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../helpers/session_manager.dart';
 import '../theme/app_colors.dart';
+import '../theme/glass_widgets.dart';
 import '../controllers/capital_management_controller.dart';
 import '../helpers/search_helper.dart';
 import 'capital_history_screen.dart';
@@ -134,10 +135,19 @@ class _CapitalManagementScreenState extends State<CapitalManagementScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.backgroundWhite,
+      backgroundColor: AppColors.liquidBackground,
       appBar: AppBar(
         title: const Text("Informasi Modal & Aset", style: TextStyle(color: AppColors.pureWhite, fontWeight: FontWeight.bold)),
-        backgroundColor: AppColors.primaryNavy,
+        backgroundColor: AppColors.navyGlassStart,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [AppColors.navyGlassStart, AppColors.navyGlassMid],
+            ),
+          ),
+        ),
         iconTheme: const IconThemeData(color: AppColors.pureWhite),
         elevation: 0,
         actions: [
@@ -169,15 +179,13 @@ class _CapitalManagementScreenState extends State<CapitalManagementScreen> {
           )
         ],
       ),
-      body: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
-            decoration: const BoxDecoration(
-              color: AppColors.primaryNavy,
-              borderRadius: BorderRadius.only(bottomLeft: Radius.circular(25), bottomRight: Radius.circular(25)),
-            ),
-            child: Column(
+      body: LiquidAmbientBackground(
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 22),
+              decoration: AppColors.liquidNavyHeader(bottomRadius: 28),
+              child: Column(
               children: [
                 Row(
                   children: [
@@ -216,9 +224,9 @@ class _CapitalManagementScreenState extends State<CapitalManagementScreen> {
                     hintStyle: const TextStyle(color: Colors.grey, fontSize: 13),
                     prefixIcon: const Icon(Icons.search, color: Colors.grey),
                     filled: true,
-                    fillColor: Colors.white,
+                    fillColor: Colors.white.withValues(alpha: 0.92),
                     contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -235,14 +243,10 @@ class _CapitalManagementScreenState extends State<CapitalManagementScreen> {
                             setState(() => _selectedFilterStatus = filter);
                             _applyFilters();
                           },
-                          borderRadius: BorderRadius.circular(20),
+                          borderRadius: BorderRadius.circular(22),
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: isSelected ? AppColors.accentGold : Colors.transparent,
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: isSelected ? AppColors.accentGold : Colors.white60)
-                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                            decoration: AppColors.glassFilterPill(isSelected: isSelected),
                             child: Text(filter, style: TextStyle(color: isSelected ? AppColors.primaryNavy : Colors.white70, fontWeight: FontWeight.bold, fontSize: 12)),
                           ),
                         ),
@@ -297,11 +301,9 @@ class _CapitalManagementScreenState extends State<CapitalManagementScreen> {
                                  }
                               }
 
-                              return Card(
-                                elevation: 2,
-                                color: AppColors.pureWhite,
+                              return Container(
+                                decoration: AppColors.liquidGlassCard(radius: 18),
                                 margin: const EdgeInsets.only(bottom: 12),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15), side: BorderSide(color: Colors.grey.shade200)),
                                 child: Padding(
                                   padding: const EdgeInsets.all(15),
                                   child: Column(
@@ -373,19 +375,24 @@ class _CapitalManagementScreenState extends State<CapitalManagementScreen> {
           )
         ],
       ),
+      ),
     );
   }
 
   Widget _buildSummaryBox(String title, String subtitle, double value, Color bgColor, Color textColor) {
     String prefix = value < 0 ? "-" : "";
     return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: bgColor, borderRadius: BorderRadius.circular(15)),
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: bgColor.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.7), width: 1.2),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: textColor.withOpacity(0.8))),
-          Text(subtitle, style: TextStyle(fontSize: 9, color: textColor.withOpacity(0.8))),
+          Text(title, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: textColor.withValues(alpha: 0.8))),
+          Text(subtitle, style: TextStyle(fontSize: 9, color: textColor.withValues(alpha: 0.8))),
           const SizedBox(height: 8),
           FittedBox(
             child: Text("$prefix${_formatRp(value.abs())}", style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: textColor)),

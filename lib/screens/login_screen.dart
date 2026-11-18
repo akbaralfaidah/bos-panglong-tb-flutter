@@ -1,5 +1,5 @@
-﻿import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'dart:ui';
+import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:local_auth/local_auth.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -12,6 +12,7 @@ import '../data/datasources/firebase/employee_firebase_datasource.dart';
 import '../helpers/session_manager.dart';
 import 'dashboard_screen.dart';
 import '../theme/app_colors.dart';
+import '../theme/glass_widgets.dart';
 import '../helpers/app_notification.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -526,249 +527,297 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.primaryNavy,
-      body: Stack(
-        children: [
-          Positioned(
-            top: -50,
-            right: -50,
-            child: Container(
-              width: 200,
-              height: 200,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withAlpha(13),
-              ),
-            ),
-          ),
-          Positioned(
-            top: 150,
-            left: -100,
-            child: Container(
-              width: 300,
-              height: 300,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withAlpha(8),
-              ),
-            ),
-          ),
-
-          SafeArea(
-            child: Column(
-              children: [
-                Expanded(
-                  flex: 5,
-                  child: Center(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.symmetric(horizontal: 30),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            height: 120,
-                            width: 120,
-                            padding: const EdgeInsets.all(15),
-                            decoration: BoxDecoration(
-                              color: AppColors.pureWhite,
-                              borderRadius: BorderRadius.circular(30),
-                            ),
-                            child:
-                                (_logoPath != null &&
-                                    File(_logoPath!).existsSync())
-                                ? Image.file(
-                                    File(_logoPath!),
-                                    fit: BoxFit.contain,
-                                  )
-                                : const Icon(
-                                    Icons.storefront,
-                                    size: 70,
-                                    color: AppColors.primaryNavy,
-                                  ),
-                          ),
-                          const SizedBox(height: 25),
-                          Text(
-                            _storeName.toUpperCase(),
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.w900,
-                              color: AppColors.pureWhite,
-                              letterSpacing: 1.2,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 15,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withAlpha(38),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: const Text(
-                              "Sistem Manajemen & Kasir",
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+      body: LiquidAmbientBackground(
+        isDark: true,
+        child: Stack(
+          children: [
+            Positioned(
+              top: -50,
+              right: -50,
+              child: Container(
+                width: 200,
+                height: 200,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withValues(alpha: 0.05),
                 ),
+              ),
+            ),
+            Positioned(
+              top: 150,
+              left: -100,
+              child: Container(
+                width: 300,
+                height: 300,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withValues(alpha: 0.03),
+                ),
+              ),
+            ),
 
-                Expanded(
-                  flex: 4,
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.fromLTRB(30, 40, 30, 20),
-                    decoration: const BoxDecoration(
-                      color: AppColors.pureWhite,
-                      borderRadius: BorderRadius.vertical(
-                        top: Radius.circular(40),
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black26,
-                          blurRadius: 20,
-                          offset: Offset(0, -5),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      children: [
-                        const Text(
-                          "Pilih Akses Masuk",
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                            color: AppColors.textDark,
-                          ),
-                        ),
-                        const SizedBox(height: 30),
-
-                        ElevatedButton.icon(
-                          onPressed: _isLoading
-                              ? null
-                              : _showEmployeeLoginDialog,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFE0F2F1),
-                            foregroundColor: const Color(0xFF00695C),
-                            elevation: 0,
-                            minimumSize: const Size(double.infinity, 55),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(15),
-                            ),
-                          ),
-                          icon: const Icon(Icons.badge, size: 24),
-                          label: const Text(
-                            "Login Karyawan",
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-
-                        const SizedBox(height: 15),
-
-                        Row(
+            SafeArea(
+              bottom: false,
+              child: Column(
+                children: [
+                  Expanded(
+                    flex: 5,
+                    child: Center(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.symmetric(horizontal: 30),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Expanded(
-                              child: ElevatedButton.icon(
-                                onPressed: _isLoading
-                                    ? null
-                                    : _onOwnerLoginButtonPressed,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.primaryNavy,
-                                  foregroundColor: AppColors.pureWhite,
-                                  elevation: 5,
-                                  shadowColor: AppColors.primaryNavy.withAlpha(
-                                    102,
+                            GlassContainer(
+                              borderRadius: 32,
+                              blur: 18,
+                              padding: const EdgeInsets.all(16),
+                              borderColor: Colors.white.withValues(alpha: 0.9),
+                              borderWidth: 1.5,
+                              child: SizedBox(
+                                height: 92,
+                                width: 92,
+                                child: (_logoPath != null &&
+                                        File(_logoPath!).existsSync())
+                                    ? ClipRRect(
+                                        borderRadius: BorderRadius.circular(18),
+                                        child: Image.file(
+                                          File(_logoPath!),
+                                          fit: BoxFit.contain,
+                                        ),
+                                      )
+                                    : const Icon(
+                                        Icons.storefront,
+                                        size: 68,
+                                        color: AppColors.primaryNavy,
+                                      ),
+                              ),
+                            ),
+                            const SizedBox(height: 25),
+                            Text(
+                              _storeName.toUpperCase(),
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w900,
+                                color: AppColors.pureWhite,
+                                letterSpacing: 1.2,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(20),
+                              child: BackdropFilter(
+                                filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 7,
                                   ),
-                                  minimumSize: const Size(0, 55),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(15),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.14),
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: Colors.white.withValues(alpha: 0.28),
+                                    ),
                                   ),
-                                ),
-                                icon: const Icon(
-                                  Icons.admin_panel_settings,
-                                  size: 24,
-                                ),
-                                label: const Text(
-                                  "Login Pemilik Toko",
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
+                                  child: const Text(
+                                    "Sistem Manajemen & Kasir",
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
-
-                            if (_canCheckBiometrics) ...[
-                              const SizedBox(width: 12),
-                              InkWell(
-                                onTap: _isLoading
-                                    ? null
-                                    : _authenticateBiometric,
-                                borderRadius: BorderRadius.circular(15),
-                                child: Container(
-                                  height: 55,
-                                  width: 55,
-                                  decoration: BoxDecoration(
-                                    color: AppColors.primaryNavy,
-                                    borderRadius: BorderRadius.circular(15),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: AppColors.primaryNavy.withAlpha(
-                                          102,
-                                        ),
-                                        blurRadius: 5,
-                                        offset: const Offset(0, 3),
-                                      ),
-                                    ],
-                                  ),
-                                  child: const Icon(
-                                    Icons.fingerprint,
-                                    color: AppColors.accentGold,
-                                    size: 28,
-                                  ),
-                                ),
-                              ),
-                            ],
                           ],
                         ),
-
-                        const Spacer(),
-                        const Text(
-                          "Versi 2.0",
-                          style: TextStyle(
-                            color: AppColors.textGrey,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ),
-                ),
-              ],
-            ),
-          ),
 
-          if (_isLoading)
-            Container(
-              color: AppColors.primaryNavy.withAlpha(204),
-              child: const Center(
-                child: CircularProgressIndicator(color: AppColors.accentGold),
+                  Expanded(
+                    flex: 4,
+                    child: ClipRRect(
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(38),
+                      ),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.fromLTRB(28, 34, 28, 20),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.white.withValues(alpha: 0.92),
+                                Colors.white.withValues(alpha: 0.98),
+                              ],
+                            ),
+                            borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(38),
+                            ),
+                            border: Border(
+                              top: BorderSide(
+                                color: Colors.white.withValues(alpha: 0.95),
+                                width: 1.5,
+                              ),
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.22),
+                                blurRadius: 24,
+                                offset: const Offset(0, -6),
+                              ),
+                            ],
+                          ),
+                          child: SafeArea(
+                            top: false,
+                            child: Column(
+                              children: [
+                                const Text(
+                                  "Pilih Akses Masuk",
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                    color: AppColors.textDark,
+                                  ),
+                                ),
+                                const SizedBox(height: 26),
+
+                                Container(
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                      colors: [Color(0xFFE0F2F1), Color(0xFFC8EAE6)],
+                                    ),
+                                    borderRadius: BorderRadius.circular(18),
+                                    border: Border.all(
+                                      color: const Color(0xFF00695C).withValues(alpha: 0.25),
+                                    ),
+                                  ),
+                                  child: ElevatedButton.icon(
+                                    onPressed: _isLoading
+                                        ? null
+                                        : _showEmployeeLoginDialog,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.transparent,
+                                      shadowColor: Colors.transparent,
+                                      foregroundColor: const Color(0xFF00695C),
+                                      elevation: 0,
+                                      minimumSize: const Size(double.infinity, 56),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(18),
+                                      ),
+                                    ),
+                                    icon: const Icon(Icons.badge, size: 24),
+                                    label: const Text(
+                                      "Login Karyawan",
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+
+                                const SizedBox(height: 14),
+
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Container(
+                                        decoration: AppColors.liquidNavyCard(radius: 18),
+                                        child: ElevatedButton.icon(
+                                          onPressed: _isLoading
+                                              ? null
+                                              : _onOwnerLoginButtonPressed,
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.transparent,
+                                            shadowColor: Colors.transparent,
+                                            foregroundColor: AppColors.pureWhite,
+                                            elevation: 0,
+                                            minimumSize: const Size(0, 56),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.circular(18),
+                                            ),
+                                          ),
+                                          icon: const Icon(
+                                            Icons.admin_panel_settings,
+                                            size: 24,
+                                          ),
+                                          label: const Text(
+                                            "Login Pemilik Toko",
+                                            style: TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+
+                                    if (_canCheckBiometrics) ...[
+                                      const SizedBox(width: 12),
+                                      InkWell(
+                                        onTap: _isLoading
+                                            ? null
+                                            : _authenticateBiometric,
+                                        borderRadius: BorderRadius.circular(18),
+                                        child: Container(
+                                          height: 56,
+                                          width: 56,
+                                          decoration: AppColors.liquidNavyCard(
+                                            radius: 18,
+                                            borderColor: AppColors.accentGold.withValues(alpha: 0.55),
+                                          ),
+                                          child: const Icon(
+                                            Icons.fingerprint,
+                                            color: AppColors.accentGold,
+                                            size: 28,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+
+                                const Spacer(),
+                                const Text(
+                                  "Versi 2.0",
+                                  style: TextStyle(
+                                    color: AppColors.textGrey,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-        ],
+
+            if (_isLoading)
+              BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                child: Container(
+                  color: AppColors.primaryNavy.withValues(alpha: 0.65),
+                  child: const Center(
+                    child: CircularProgressIndicator(color: AppColors.accentGold),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

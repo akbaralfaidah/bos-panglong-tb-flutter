@@ -8,6 +8,7 @@ import '../models/product.dart';
 import '../controllers/product_controller.dart'; 
 import '../controllers/profit_history_controller.dart'; 
 import '../theme/app_colors.dart';
+import '../theme/glass_widgets.dart';
 import 'new_product_receipt_screen.dart';
 import '../helpers/app_notification.dart';
 
@@ -947,16 +948,13 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
     return Expanded(
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
         child: Container(
           alignment: Alignment.center,
           padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            color: isSelected ? AppColors.primaryNavy : AppColors.backgroundWhite,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: isSelected ? AppColors.primaryNavy : Colors.grey.shade300),
-            boxShadow: isSelected ? [BoxShadow(color: AppColors.primaryNavy.withOpacity(0.3), blurRadius: 4)] : null
-          ),
+          decoration: isSelected
+              ? AppColors.liquidNavyCard(radius: 12)
+              : AppColors.liquidGlassCard(radius: 12),
           child: Text(label, style: TextStyle(
             color: isSelected ? AppColors.pureWhite : AppColors.textGrey, 
             fontWeight: FontWeight.bold,
@@ -982,13 +980,22 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
     }
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundWhite,
+      backgroundColor: AppColors.liquidBackground,
       appBar: AppBar(
         title: Text(
           widget.product == null ? "Tambah Barang" : "Edit Barang", 
           style: const TextStyle(color: AppColors.pureWhite, fontWeight: FontWeight.bold) 
         ),
-        backgroundColor: AppColors.primaryNavy,
+        backgroundColor: AppColors.navyGlassStart,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [AppColors.navyGlassStart, AppColors.navyGlassMid],
+            ),
+          ),
+        ),
         iconTheme: const IconThemeData(color: AppColors.pureWhite),
         elevation: 0,
         bottom: TabBar(
@@ -1001,13 +1008,14 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
           tabs: const [Tab(icon: Icon(Icons.forest), text: "KAYU & RENG"), Tab(icon: Icon(Icons.home_work), text: "TOKO BANGUNAN")]
         ),
       ),
-      body: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(16, 20, 16, 100),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+      body: LiquidAmbientBackground(
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 100),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
               _header("IDENTITAS"),
               _box(Column(children: [
                 if (_previewNamaKayu.isNotEmpty) 
@@ -1346,7 +1354,11 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
               
               Container(
                 padding: const EdgeInsets.all(20), 
-                decoration: BoxDecoration(color: AppColors.statusGreen.withOpacity(0.1), borderRadius: BorderRadius.circular(15), border: Border.all(color: AppColors.statusGreen.withOpacity(0.3))), 
+                decoration: AppColors.liquidGlassCard(
+                  tint: AppColors.statusGreen.withValues(alpha: 0.1),
+                  radius: 18,
+                  borderColor: AppColors.statusGreen.withValues(alpha: 0.35),
+                ), 
                 child: Column(
                   children: [
                     const Text("TOTAL UANG KELUAR (BELI STOK)", style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.statusGreen)), 
@@ -1423,14 +1435,15 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
           ),
         ),
       ),
+      ),
     );
   }
 
   Widget _header(String title) => Padding(padding: const EdgeInsets.only(bottom: 8, left: 4), child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryNavy)));
   
-  Widget _box(Widget child) => Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: AppColors.pureWhite, borderRadius: BorderRadius.circular(15), border: Border.all(color: Colors.grey.shade200)), child: child);
+  Widget _box(Widget child) => Container(padding: const EdgeInsets.all(16), decoration: AppColors.liquidGlassCard(radius: 18), child: child);
   
-  Widget _field(String label, TextEditingController c, {bool isNum = false, bool readOnly = false, String? hint, String? suffix, bool isOptional = false}) => TextFormField(controller: c, readOnly: readOnly, keyboardType: isNum ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text, decoration: InputDecoration(labelText: label, hintText: hint, suffixText: suffix, filled: true, fillColor: readOnly ? AppColors.backgroundWhite : AppColors.pureWhite, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.grey.shade300)), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.grey.shade300)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.primaryNavy, width: 2)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14)), validator: (v) => (!isOptional && v!.isEmpty && !readOnly) ? "Wajib" : null);
+  Widget _field(String label, TextEditingController c, {bool isNum = false, bool readOnly = false, String? hint, String? suffix, bool isOptional = false}) => TextFormField(controller: c, readOnly: readOnly, keyboardType: isNum ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text, decoration: InputDecoration(labelText: label, hintText: hint, suffixText: suffix, filled: true, fillColor: readOnly ? AppColors.backgroundWhite.withValues(alpha: 0.8) : Colors.white.withValues(alpha: 0.85), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primaryNavy, width: 2)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14)), validator: (v) => (!isOptional && v!.isEmpty && !readOnly) ? "Wajib" : null);
   
-  Widget _moneyField(String label, TextEditingController c, {FocusNode? focusNode}) => TextFormField(controller: c, focusNode: focusNode, keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly, CurrencyInputFormatter()], decoration: InputDecoration(labelText: label, prefixText: "Rp ", filled: true, fillColor: AppColors.backgroundWhite, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.grey.shade300)), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.grey.shade300)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.primaryNavy, width: 2)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14)));
+  Widget _moneyField(String label, TextEditingController c, {FocusNode? focusNode}) => TextFormField(controller: c, focusNode: focusNode, keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly, CurrencyInputFormatter()], decoration: InputDecoration(labelText: label, prefixText: "Rp ", filled: true, fillColor: Colors.white.withValues(alpha: 0.85), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primaryNavy, width: 2)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14)));
 }

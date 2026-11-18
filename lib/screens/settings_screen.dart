@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
@@ -11,6 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart'; // 🔥 IMPORT WAJI
 import '../controllers/settings_controller.dart';
 import '../helpers/session_manager.dart';
 import '../theme/app_colors.dart';
+import '../theme/glass_widgets.dart';
 import 'login_screen.dart';
 import 'employee_management_screen.dart';
 import '../data/datasources/firebase/core_firebase_datasource.dart';
@@ -623,49 +624,69 @@ class _SettingsScreenState extends State<SettingsScreen> {
     String userEmail = SessionManager().userEmail ?? "email@tidak.diketahui";
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundWhite,
+      backgroundColor: AppColors.liquidBackground,
       appBar: AppBar(
         title: const Text(
           "Pengaturan & Data",
-          style: TextStyle(color: AppColors.pureWhite),
+          style: TextStyle(color: AppColors.pureWhite, fontWeight: FontWeight.bold),
         ),
-        backgroundColor: AppColors.primaryNavy,
+        backgroundColor: AppColors.navyGlassStart,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [AppColors.navyGlassStart, AppColors.navyGlassMid],
+            ),
+          ),
+        ),
         iconTheme: const IconThemeData(color: AppColors.pureWhite),
+        elevation: 0,
       ),
-      body: _isLoading
-          ? const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircularProgressIndicator(color: AppColors.primaryNavy),
-                  SizedBox(height: 10),
-                  Text(
-                    "Memproses Data...",
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ),
-            )
-          : SingleChildScrollView(
+      body: LiquidAmbientBackground(
+        child: _isLoading
+            ? const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(color: AppColors.primaryNavy),
+                    SizedBox(height: 10),
+                    Text(
+                      "Memproses Data...",
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              )
+            : SingleChildScrollView(
               padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
+                  GlassContainer(
+                    borderRadius: 20,
                     padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: AppColors.pureWhite,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.grey.shade200),
-                    ),
                     child: Row(
                       children: [
-                        const CircleAvatar(
-                          radius: 30,
-                          backgroundColor: AppColors.primaryNavy,
-                          child: Icon(
+                        Container(
+                          width: 60,
+                          height: 60,
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [AppColors.navyGlassStart, AppColors.navyGlassMid],
+                            ),
+                            borderRadius: BorderRadius.circular(18),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.primaryNavy.withValues(alpha: 0.25),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(
                             Icons.person,
-                            size: 35,
+                            size: 32,
                             color: AppColors.pureWhite,
                           ),
                         ),
@@ -744,13 +765,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   const SizedBox(height: 10),
 
-                  Container(
+                  GlassContainer(
+                    borderRadius: 22,
                     padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: AppColors.pureWhite,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.grey.shade200),
-                    ),
                     child: Column(
                       children: [
                         GestureDetector(
@@ -951,6 +968,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ],
               ),
             ),
+      ),
     );
   }
 
@@ -967,20 +985,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
         labelText: label,
         labelStyle: const TextStyle(color: AppColors.textGrey, fontSize: 13),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide(color: Colors.grey.shade300),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide(color: Colors.grey.shade300),
         ),
         focusedBorder: const OutlineInputBorder(
-          borderRadius: BorderRadius.all(Radius.circular(12)),
+          borderRadius: BorderRadius.all(Radius.circular(14)),
           borderSide: BorderSide(color: AppColors.primaryNavy, width: 2),
         ),
         prefixIcon: Icon(icon, color: AppColors.textGrey),
         filled: true,
-        fillColor: AppColors.backgroundWhite,
+        fillColor: Colors.white.withValues(alpha: 0.85),
       ),
     );
   }
@@ -994,26 +1012,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required VoidCallback onTap,
     bool isDestructive = false,
   }) {
-    return Card(
-      elevation: 0,
-      color: AppColors.pureWhite,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(15),
-        side: BorderSide(
-          color: isDestructive
-              ? AppColors.statusRed.withOpacity(0.3)
-              : Colors.grey.shade200,
-        ),
+    return Container(
+      decoration: AppColors.liquidGlassCard(
+        radius: 18,
+        borderColor: isDestructive
+            ? AppColors.statusRed.withValues(alpha: 0.35)
+            : null,
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: bgColor,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Icon(icon, color: iconColor),
+        leading: GlassIconBadge(
+          icon: icon,
+          iconColor: iconColor,
+          bgColor: bgColor,
+          size: 44,
+          iconSize: 22,
+          radius: 12,
         ),
         title: Text(
           title,

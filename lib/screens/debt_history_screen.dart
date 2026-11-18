@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../controllers/debt_controller.dart';
 import '../theme/app_colors.dart';
+import '../theme/glass_widgets.dart';
 import 'transaction_detail_screen.dart';
 import 'customer_debt_list_screen.dart';
 import '../helpers/app_notification.dart';
@@ -624,7 +625,7 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.backgroundWhite,
+      backgroundColor: AppColors.liquidBackground,
       appBar: AppBar(
         title: const Text(
           "Buku Piutang (Hutang)",
@@ -633,31 +634,31 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen>
             fontWeight: FontWeight.bold,
           ),
         ),
-        backgroundColor: AppColors.primaryNavy,
+        backgroundColor: AppColors.navyGlassStart,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [AppColors.navyGlassStart, AppColors.navyGlassMid],
+            ),
+          ),
+        ),
         iconTheme: const IconThemeData(color: AppColors.pureWhite),
         elevation: 0,
       ),
-      body: Column(
-        children: [
-          // 1. KARTU RINGKASAN TOTAL PIUTANG
-          Container(
-            padding: const EdgeInsets.all(16),
-            color: AppColors.primaryNavy,
-            width: double.infinity,
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: AppColors.pureWhite,
-                borderRadius: BorderRadius.circular(15),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Column(
+      body: LiquidAmbientBackground(
+        child: Column(
+          children: [
+            // 1. KARTU RINGKASAN TOTAL PIUTANG
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 22),
+              decoration: AppColors.liquidNavyHeader(bottomRadius: 28),
+              width: double.infinity,
+              child: GlassContainer(
+                borderRadius: 20,
+                padding: const EdgeInsets.all(20),
+                child: Column(
                 children: [
                   const Text(
                     "Total Uang di Luar (Sisa Piutang)",
@@ -798,20 +799,11 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen>
                                 },
                                 child: Container(
                                   padding: const EdgeInsets.all(18),
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      colors: [
-                                        AppColors.primaryNavy.withOpacity(0.08),
-                                        AppColors.primaryNavy.withOpacity(0.03),
-                                      ],
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                    ),
-                                    borderRadius: BorderRadius.circular(18),
-                                    border: Border.all(
-                                      color: AppColors.primaryNavy.withOpacity(0.15),
-                                      width: 1.5,
-                                    ),
+                                  decoration: AppColors.liquidGlassCard(
+                                    tint: AppColors.primaryNavy.withValues(alpha: 0.05),
+                                    radius: 20,
+                                    borderColor: AppColors.primaryNavy.withValues(alpha: 0.16),
+                                    borderWidth: 1.4,
                                   ),
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -819,12 +811,19 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen>
                                       Row(
                                         children: [
                                           Container(
-                                            padding: const EdgeInsets.all(10),
+                                            padding: const EdgeInsets.all(11),
                                             decoration: BoxDecoration(
                                               gradient: const LinearGradient(
                                                 colors: [Color(0xFF0A2647), Color(0xFF205295)],
                                               ),
-                                              borderRadius: BorderRadius.circular(12),
+                                              borderRadius: BorderRadius.circular(13),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: AppColors.primaryNavy.withValues(alpha: 0.25),
+                                                  blurRadius: 8,
+                                                  offset: const Offset(0, 3),
+                                                ),
+                                              ],
                                             ),
                                             child: const Icon(Icons.home_work, color: Colors.white, size: 22),
                                           ),
@@ -975,20 +974,11 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen>
                             group['transactions'] as List<Map<String, dynamic>>;
 
 
-                      return Card(
-                        color: AppColors.pureWhite,
-                        elevation: 4,
-                        shadowColor: AppColors.primaryNavy.withOpacity(0.2),
-                        margin: const EdgeInsets.only(bottom: 15),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(15),
-                          side: BorderSide(
-                            color: AppColors.primaryNavy.withOpacity(0.1),
-                            width: 1.5,
-                          ),
-                        ),
+                      return Container(
+                        decoration: AppColors.liquidGlassCard(radius: 18),
+                        margin: const EdgeInsets.only(bottom: 14),
                         child: InkWell(
-                          borderRadius: BorderRadius.circular(15),
+                          borderRadius: BorderRadius.circular(18),
                           onTap: () async {
                             if (transCount == 1) {
                               // LANGSUNG BUKA NOTA DETAIL
@@ -1023,16 +1013,13 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen>
                             child: Row(
                               children: [
                                 // Ikon pelanggan
-                                Container(
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.statusRed.withOpacity(0.1),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: const Icon(
-                                    Icons.person,
-                                    color: AppColors.statusRed,
-                                  ),
+                                GlassIconBadge(
+                                  icon: Icons.person,
+                                  iconColor: AppColors.statusRed,
+                                  bgColor: AppColors.statusRed.withValues(alpha: 0.14),
+                                  size: 46,
+                                  iconSize: 23,
+                                  radius: 14,
                                 ),
                                 const SizedBox(width: 15),
                                 // Info pelanggan
@@ -1146,6 +1133,7 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen>
           ),
         ],
       ),
+      ),
 
       // FAB BUAT GRUP
       floatingActionButton: (!_isLoading && (_groups.isNotEmpty || _groupSummaries.isNotEmpty))
@@ -1164,19 +1152,10 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen>
               animation: _glowAnimation,
               builder: (context, child) {
                 double glowValue = _glowAnimation.value;
-                return Container(
+                return GlassDock(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                  decoration: BoxDecoration(
-                    color: AppColors.pureWhite,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.08),
-                        blurRadius: 10,
-                        offset: const Offset(0, -3),
-                      ),
-                    ],
-                  ),
                   child: SafeArea(
+                    top: false,
                     child: Container(
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(16),

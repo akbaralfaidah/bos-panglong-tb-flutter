@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'dart:ui' as ui;
 import 'dart:typed_data';
@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 import '../models/product.dart';
 import '../helpers/printer_helper.dart';
 import '../theme/app_colors.dart';
+import '../theme/glass_widgets.dart';
 import '../helpers/app_notification.dart';
 
 class ProductBarcodeScreen extends StatefulWidget {
@@ -110,14 +111,19 @@ class _ProductBarcodeScreenState extends State<ProductBarcodeScreen> {
   Widget build(BuildContext context) {
     if (widget.product.barcode == null || widget.product.barcode!.isEmpty) {
       return Scaffold(
+        backgroundColor: AppColors.liquidBackground,
         appBar: AppBar(
-          title: const Text("Cetak Barcode"),
-          backgroundColor: AppColors.primaryNavy,
+          title: const Text("Cetak Barcode", style: TextStyle(color: AppColors.pureWhite, fontWeight: FontWeight.bold)),
+          backgroundColor: AppColors.navyGlassStart,
+          iconTheme: const IconThemeData(color: AppColors.pureWhite),
+          elevation: 0,
         ),
-        body: const Center(
-          child: Text(
-            "Barang ini belum punya kode Barcode!",
-            style: TextStyle(color: AppColors.textGrey),
+        body: const LiquidAmbientBackground(
+          child: Center(
+            child: Text(
+              "Barang ini belum punya kode Barcode!",
+              style: TextStyle(color: AppColors.textGrey),
+            ),
           ),
         ),
       );
@@ -155,7 +161,7 @@ class _ProductBarcodeScreenState extends State<ProductBarcodeScreen> {
     bool showGrosir = widget.product.sellPriceCubic > 0;
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundWhite,
+      backgroundColor: AppColors.liquidBackground,
       appBar: AppBar(
         title: const Text(
           "Cetak Stiker Barcode",
@@ -164,28 +170,43 @@ class _ProductBarcodeScreenState extends State<ProductBarcodeScreen> {
             fontWeight: FontWeight.bold,
           ),
         ),
-        backgroundColor: AppColors.primaryNavy,
+        backgroundColor: AppColors.navyGlassStart,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [AppColors.navyGlassStart, AppColors.navyGlassMid],
+            ),
+          ),
+        ),
         iconTheme: const IconThemeData(color: AppColors.pureWhite),
         elevation: 0,
       ),
-      body: Center(
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text(
-                "Preview Stiker:",
-                style: TextStyle(
-                  color: AppColors.textGrey,
-                  fontWeight: FontWeight.bold,
+      body: LiquidAmbientBackground(
+        child: Center(
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text(
+                  "Preview Stiker:",
+                  style: TextStyle(
+                    color: AppColors.textGrey,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 20),
+                const SizedBox(height: 20),
 
-              // 🔥 AREA CETAK STIKER 🔥
-              RepaintBoundary(
-                key: _printKey,
-                child: Container(
+                // 🔥 AREA CETAK STIKER 🔥
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: AppColors.liquidGlassCard(radius: 20),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(14),
+                    child: RepaintBoundary(
+                      key: _printKey,
+                      child: Container(
                   width: 360,
                   padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
                   decoration: const BoxDecoration(color: Colors.white),
@@ -262,6 +283,8 @@ class _ProductBarcodeScreenState extends State<ProductBarcodeScreen> {
                   ),
                 ),
               ),
+                  ),
+                ),
 
               const SizedBox(height: 40),
 
@@ -303,6 +326,7 @@ class _ProductBarcodeScreenState extends State<ProductBarcodeScreen> {
             ],
           ),
         ),
+      ),
       ),
     );
   }

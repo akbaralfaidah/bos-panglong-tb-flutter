@@ -1,7 +1,8 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../controllers/cash_flow_controller.dart';
 import '../theme/app_colors.dart';
+import '../theme/glass_widgets.dart';
 import '../models/product.dart';
 import 'product_list_screen.dart';
 
@@ -231,7 +232,7 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
     int saldo = totalIn - totalOut;
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundWhite,
+      backgroundColor: AppColors.liquidBackground,
       appBar: AppBar(
         title: const Text(
           "Riwayat Total & Saldo",
@@ -240,187 +241,198 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
             fontWeight: FontWeight.bold,
           ),
         ),
-        backgroundColor: AppColors.primaryNavy,
+        backgroundColor: AppColors.navyGlassStart,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [AppColors.navyGlassStart, AppColors.navyGlassMid],
+            ),
+          ),
+        ),
         iconTheme: const IconThemeData(color: AppColors.pureWhite),
         elevation: 0,
       ),
-      body: Column(
-        children: [
-          // 🔥 BAGIAN FILTER TANGGAL HORIZONTAL 🔥
-          Container(
-            color: AppColors.primaryNavy,
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: _filters.map((filter) {
-                  bool isSelected = false;
-                  String displayLabel = filter;
+      body: LiquidAmbientBackground(
+        child: Column(
+          children: [
+            // 🔥 BAGIAN FILTER TANGGAL HORIZONTAL + KOTAK REKAP SALDO KAS 🔥
+            Container(
+              decoration: AppColors.liquidNavyHeader(bottomRadius: 30),
+              padding: const EdgeInsets.fromLTRB(0, 8, 0, 26),
+              child: Column(
+                children: [
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      children: _filters.map((filter) {
+                        bool isSelected = false;
+                        String displayLabel = filter;
 
-                  if (filter == 'Pilih Tanggal') {
-                    if (_filterMode.startsWith('CUSTOM|')) {
-                       isSelected = true;
-                       var parts = _filterMode.split('|');
-                       displayLabel = "${DateFormat('dd MMM').format(DateTime.parse(parts[1]))} - ${DateFormat('dd MMM').format(DateTime.parse(parts[2]))}";
-                    }
-                  } else {
-                    isSelected = _filterMode == filter;
-                  }
-
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 10),
-                    child: InkWell(
-                      onTap: () {
                         if (filter == 'Pilih Tanggal') {
-                           _pickDateRange();
+                          if (_filterMode.startsWith('CUSTOM|')) {
+                            isSelected = true;
+                            var parts = _filterMode.split('|');
+                            displayLabel = "${DateFormat('dd MMM').format(DateTime.parse(parts[1]))} - ${DateFormat('dd MMM').format(DateTime.parse(parts[2]))}";
+                          }
                         } else {
-                           setState(() {
-                             _filterMode = filter;
-                             _applyFilter();
-                           });
+                          isSelected = _filterMode == filter;
                         }
-                      },
-                      borderRadius: BorderRadius.circular(20),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: isSelected ? AppColors.accentGold : Colors.transparent, 
-                          borderRadius: BorderRadius.circular(20), 
-                          border: Border.all(color: isSelected ? AppColors.accentGold : Colors.white60)
+
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 10),
+                          child: InkWell(
+                            onTap: () {
+                              if (filter == 'Pilih Tanggal') {
+                                _pickDateRange();
+                              } else {
+                                setState(() {
+                                  _filterMode = filter;
+                                  _applyFilter();
+                                });
+                              }
+                            },
+                            borderRadius: BorderRadius.circular(22),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              decoration: AppColors.glassFilterPill(isSelected: isSelected),
+                              child: Row(
+                                children: [
+                                  if (isSelected && filter != 'Pilih Tanggal') const Padding(padding: EdgeInsets.only(right: 6), child: Icon(Icons.check, color: AppColors.primaryNavy, size: 16)),
+                                  if (filter == 'Pilih Tanggal') Padding(padding: const EdgeInsets.only(right: 6), child: Icon(Icons.calendar_month, color: isSelected ? AppColors.primaryNavy : Colors.white70, size: 16)),
+                                  Text(displayLabel, style: TextStyle(color: isSelected ? AppColors.primaryNavy : Colors.white70, fontWeight: FontWeight.bold, fontSize: 13)),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Column(
+                      children: [
+                        const Text(
+                          "Sisa Saldo Kas (Berdasarkan Filter)",
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                        child: Row(
+                        const SizedBox(height: 5),
+                        Text(
+                          _formatRp(saldo),
+                          style: TextStyle(
+                            color: saldo >= 0
+                                ? AppColors.pureWhite
+                                : AppColors.statusRed,
+                            fontSize: 36,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        Row(
                           children: [
-                            if (isSelected && filter != 'Pilih Tanggal') const Padding(padding: EdgeInsets.only(right: 6), child: Icon(Icons.check, color: AppColors.primaryNavy, size: 16)),
-                            if (filter == 'Pilih Tanggal') Padding(padding: const EdgeInsets.only(right: 6), child: Icon(Icons.calendar_month, color: isSelected ? AppColors.primaryNavy : Colors.white70, size: 16)),
-                            Text(displayLabel, style: TextStyle(color: isSelected ? AppColors.primaryNavy : Colors.white70, fontWeight: FontWeight.bold, fontSize: 13)),
+                            Expanded(
+                              child: Container(
+                                padding: const EdgeInsets.all(13),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: Colors.white.withValues(alpha: 0.22),
+                                  ),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Row(
+                                      children: [
+                                        Icon(
+                                          Icons.arrow_downward,
+                                          color: AppColors.statusGreen,
+                                          size: 16,
+                                        ),
+                                        SizedBox(width: 5),
+                                        Text(
+                                          "Pemasukan",
+                                          style: TextStyle(
+                                            color: Colors.white70,
+                                            fontSize: 11,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 5),
+                                    Text(
+                                      _formatRp(totalIn),
+                                      style: const TextStyle(
+                                        color: AppColors.statusGreen,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Container(
+                                padding: const EdgeInsets.all(13),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: Colors.white.withValues(alpha: 0.22),
+                                  ),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Row(
+                                      children: [
+                                        Icon(
+                                          Icons.arrow_upward,
+                                          color: AppColors.statusRed,
+                                          size: 16,
+                                        ),
+                                        SizedBox(width: 5),
+                                        Text(
+                                          "Pengeluaran",
+                                          style: TextStyle(
+                                            color: Colors.white70,
+                                            fontSize: 11,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 5),
+                                    Text(
+                                      _formatRp(totalOut),
+                                      style: const TextStyle(
+                                        color: AppColors.statusRed,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
                           ],
                         ),
-                      ),
+                      ],
                     ),
-                  );
-                }).toList(),
+                  ),
+                ],
               ),
             ),
-          ),
-
-          // 🔥 KOTAK REKAP SALDO KAS 🔥
-          Container(
-            padding: const EdgeInsets.fromLTRB(20, 15, 20, 30),
-            decoration: const BoxDecoration(
-              color: AppColors.primaryNavy,
-              borderRadius: BorderRadius.vertical(bottom: Radius.circular(30)),
-            ),
-            child: Column(
-              children: [
-                const Text(
-                  "Sisa Saldo Kas (Berdasarkan Filter)",
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  _formatRp(saldo),
-                  style: TextStyle(
-                    color: saldo >= 0
-                        ? AppColors.pureWhite
-                        : AppColors.statusRed,
-                    fontSize: 36,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 25),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withAlpha(26),
-                          borderRadius: BorderRadius.circular(15),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Row(
-                              children: [
-                                Icon(
-                                  Icons.arrow_downward,
-                                  color: AppColors.statusGreen,
-                                  size: 16,
-                                ),
-                                SizedBox(width: 5),
-                                Text(
-                                  "Pemasukan",
-                                  style: TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 11,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 5),
-                            Text(
-                              _formatRp(totalIn),
-                              style: const TextStyle(
-                                color: AppColors.statusGreen,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 15),
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withAlpha(26),
-                          borderRadius: BorderRadius.circular(15),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Row(
-                              children: [
-                                Icon(
-                                  Icons.arrow_upward,
-                                  color: AppColors.statusRed,
-                                  size: 16,
-                                ),
-                                SizedBox(width: 5),
-                                Text(
-                                  "Pengeluaran",
-                                  style: TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 11,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 5),
-                            Text(
-                              _formatRp(totalOut),
-                              style: const TextStyle(
-                                color: AppColors.statusRed,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
 
           Expanded(
             child: _isLoading
@@ -489,43 +501,29 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
                                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                   margin: const EdgeInsets.only(top: 15, bottom: 10),
                                   decoration: BoxDecoration(
-                                    color: AppColors.primaryNavy.withOpacity(0.05),
-                                    borderRadius: BorderRadius.circular(8)
+                                    color: Colors.white.withValues(alpha: 0.6),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(color: Colors.white.withValues(alpha: 0.9)),
                                   ),
                                   child: Text(currDateStr, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryNavy, fontSize: 13)),
                                 ),
 
                               InkWell(
                                 onTap: () => _openDetail(item),
-                                borderRadius: BorderRadius.circular(15),
+                                borderRadius: BorderRadius.circular(18),
                                 child: Container(
                                   margin: const EdgeInsets.only(bottom: 12),
                                   padding: const EdgeInsets.all(15),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.pureWhite,
-                                    borderRadius: BorderRadius.circular(15),
-                                    border: Border.all(color: Colors.grey.shade200),
-                                    boxShadow: const [
-                                      BoxShadow(
-                                        color: Colors.black12,
-                                        blurRadius: 5,
-                                        offset: Offset(0, 2),
-                                      ),
-                                    ],
-                                  ),
+                                  decoration: AppColors.liquidGlassCard(radius: 18),
                                   child: Row(
                                     children: [
-                                      Container(
-                                        padding: const EdgeInsets.all(10),
-                                        decoration: BoxDecoration(
-                                          color: iconColor.withAlpha(26),
-                                          shape: BoxShape.circle,
-                                        ),
-                                        child: Icon(
-                                          iconData,
-                                          color: iconColor,
-                                          size: 24,
-                                        ),
+                                      GlassIconBadge(
+                                        icon: iconData,
+                                        iconColor: iconColor,
+                                        bgColor: iconColor.withValues(alpha: 0.14),
+                                        size: 44,
+                                        iconSize: 22,
+                                        radius: 14,
                                       ),
                                       const SizedBox(width: 15),
                                       Expanded(
@@ -626,6 +624,7 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
                   ),
           ),
         ],
+      ),
       ),
     );
   }

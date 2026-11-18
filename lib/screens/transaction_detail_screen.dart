@@ -15,6 +15,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import '../helpers/printer_helper.dart';
 import '../controllers/transaction_detail_controller.dart';
 import '../theme/app_colors.dart';
+import '../theme/glass_widgets.dart';
 import '../helpers/session_manager.dart';
 import 'edit_transaction_screen.dart';
 import '../helpers/app_notification.dart';
@@ -254,14 +255,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
         }
 
         var connectivityResult = await (Connectivity().checkConnectivity());
-        bool isOffline = false;
-
-        if (connectivityResult is List) {
-          if (connectivityResult.contains(ConnectivityResult.none))
-            isOffline = true;
-        } else if (connectivityResult.toString() == 'ConnectivityResult.none') {
-          isOffline = true;
-        }
+        bool isOffline = connectivityResult.contains(ConnectivityResult.none);
 
         if (isOffline) {
           setState(() {
@@ -1197,13 +1191,10 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.pureWhite,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: badgeColor.withOpacity(0.35), width: 1.5),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4)),
-        ],
+      decoration: AppColors.liquidGlassCard(
+        radius: 18,
+        borderColor: badgeColor.withValues(alpha: 0.4),
+        borderWidth: 1.5,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1516,7 +1507,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
         return !_isGeneratingReceipt && !_isVoiding;
       },
       child: Scaffold(
-        backgroundColor: AppColors.backgroundWhite,
+        backgroundColor: AppColors.liquidBackground,
         appBar: AppBar(
           title: Text(
             widget.isNewTransaction
@@ -1528,6 +1519,19 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
             ),
           ),
           backgroundColor: AppColors.primaryNavy,
+          flexibleSpace: Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  AppColors.navyGlassStart,
+                  AppColors.navyGlassMid,
+                  AppColors.navyGlassEnd,
+                ],
+              ),
+            ),
+          ),
           iconTheme: const IconThemeData(color: AppColors.pureWhite),
           elevation: 0,
           leading: widget.isNewTransaction
@@ -1538,52 +1542,64 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                 )
               : null,
         ),
-        body: _isLoading
-            ? const Center(
-                child: CircularProgressIndicator(color: AppColors.primaryNavy),
-              )
-            : SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    if (widget.isNewTransaction) ...[
-                      ScaleTransition(
-                        scale: _scaleAnimation,
-                        child: Container(
-                          padding: const EdgeInsets.all(20),
-                          decoration: const BoxDecoration(
-                            color: AppColors.statusGreen,
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black12,
-                                blurRadius: 10,
-                                offset: Offset(0, 5),
+        body: LiquidAmbientBackground(
+          child: _isLoading
+              ? const Center(
+                  child: CircularProgressIndicator(color: AppColors.primaryNavy),
+                )
+              : SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      if (widget.isNewTransaction) ...[
+                        ScaleTransition(
+                          scale: _scaleAnimation,
+                          child: Container(
+                            padding: const EdgeInsets.all(20),
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFF10B981), AppColors.statusGreen],
                               ),
-                            ],
-                          ),
-                          child: const Icon(
-                            Icons.check,
-                            color: AppColors.pureWhite,
-                            size: 60,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.7),
+                                width: 2,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppColors.statusGreen.withValues(alpha: 0.35),
+                                  blurRadius: 18,
+                                  offset: const Offset(0, 6),
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              Icons.check,
+                              color: AppColors.pureWhite,
+                              size: 60,
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 15),
-                      const Text(
-                        "Pembayaran Berhasil!",
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w900,
-                          color: AppColors.primaryNavy,
+                        const SizedBox(height: 15),
+                        const Text(
+                          "Pembayaran Berhasil!",
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                            color: AppColors.primaryNavy,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 25),
-                    ],
+                        const SizedBox(height: 25),
+                      ],
 
-                    RepaintBoundary(
-                      key: _printKey,
-                      child: Container(
+                      Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: AppColors.liquidGlassCard(radius: 20),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: RepaintBoundary(
+                            key: _printKey,
+                            child: Container(
                         width: _isGeneratingReceipt ? 576 : double.infinity,
                         padding: EdgeInsets.fromLTRB(
                           _isGeneratingReceipt ? 4 : 16,
@@ -2408,6 +2424,8 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                         ),
                       ),
                     ),
+                    ),
+                    ),
 
                     const SizedBox(height: 25),
 
@@ -2428,11 +2446,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                       ),
                       const SizedBox(height: 10),
                       Container(
-                        decoration: BoxDecoration(
-                          color: AppColors.pureWhite,
-                          borderRadius: BorderRadius.circular(15),
-                          border: Border.all(color: Colors.grey.shade300),
-                        ),
+                        decoration: AppColors.liquidGlassCard(radius: 18),
                         child: Column(
                           children: _payments
                               .map(
@@ -2780,6 +2794,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                   ],
                 ),
               ),
+        ),
       ),
     );
   }

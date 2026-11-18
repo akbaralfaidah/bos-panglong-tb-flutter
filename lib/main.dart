@@ -52,13 +52,50 @@ class BosPanglongApp extends StatelessWidget {
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
           useMaterial3: true,
-          scaffoldBackgroundColor: AppColors.backgroundWhite, 
+          scaffoldBackgroundColor: AppColors.liquidBackground, 
           colorScheme: ColorScheme.fromSeed(seedColor: AppColors.primaryNavy),
           appBarTheme: const AppBarTheme(
             backgroundColor: AppColors.pureWhite,
             elevation: 0,
+            scrolledUnderElevation: 0,
             iconTheme: IconThemeData(color: AppColors.primaryNavy), 
             titleTextStyle: TextStyle(color: AppColors.primaryNavy, fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          cardTheme: CardThemeData(
+            elevation: 0,
+            color: AppColors.pureWhite,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+              side: BorderSide(color: Colors.white.withValues(alpha: 0.8), width: 1.2),
+            ),
+          ),
+          dialogTheme: DialogThemeData(
+            backgroundColor: AppColors.pureWhite,
+            elevation: 16,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24),
+              side: BorderSide(color: Colors.white.withValues(alpha: 0.9), width: 1.2),
+            ),
+          ),
+          bottomSheetTheme: const BottomSheetThemeData(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+          ),
+          inputDecorationTheme: InputDecorationTheme(
+            filled: true,
+            fillColor: Colors.white.withValues(alpha: 0.88),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide(color: AppColors.primaryNavy.withValues(alpha: 0.14)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide(color: AppColors.primaryNavy.withValues(alpha: 0.14)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: AppColors.primaryNavy, width: 1.8),
+            ),
           ),
         ),
         // 🔥 LANGSUNG TEMBAK KE SPLASH SCREEN!
