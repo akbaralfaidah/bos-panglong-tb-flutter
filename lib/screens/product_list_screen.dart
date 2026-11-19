@@ -866,19 +866,19 @@ class _ProductListScreenState extends State<ProductListScreen>
     return Scaffold(
       backgroundColor: AppColors.liquidBackground,
       appBar: AppBar(
-        systemOverlayStyle: SystemUiOverlayStyle.light,
+        systemOverlayStyle: SystemUiOverlayStyle.dark,
         title: _isSearching
             ? TextField(
                 controller: _searchController,
                 autofocus: true,
-                cursorColor: Colors.white,
+                cursorColor: AppColors.menuTealIcon,
                 style: const TextStyle(
-                  color: Colors.white,
+                  color: AppColors.textDark,
                   fontWeight: FontWeight.bold,
                 ),
                 decoration: const InputDecoration(
                   hintText: "Cari Produk...",
-                  hintStyle: TextStyle(color: Color(0xFFDBEAFE)),
+                  hintStyle: TextStyle(color: AppColors.textGrey),
                   border: InputBorder.none,
                   filled: false,
                 ),
@@ -891,114 +891,168 @@ class _ProductListScreenState extends State<ProductListScreen>
                 "Gudang Stok",
                 style: TextStyle(
                   fontWeight: FontWeight.w800,
-                  color: Colors.white,
+                  color: AppColors.textDark,
                 ),
               ),
-        backgroundColor: AppColors.cobaltCanopyMid,
+        backgroundColor: Colors.white,
         surfaceTintColor: Colors.transparent,
-        foregroundColor: Colors.white,
+        foregroundColor: AppColors.textDark,
         elevation: 0,
-        flexibleSpace: const CobaltAppBarBackdrop(),
         actions: [
           if (_isOwner)
             Padding(
-              padding: const EdgeInsets.only(right: 4),
+              padding: const EdgeInsets.only(right: 6),
               child: Tooltip(
                 message: "Hapus Stok",
                 child: InkWell(
                   onTap: _showDeleteStockSheet,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(11),
                   child: Container(
-                    padding: const EdgeInsets.all(7),
+                    padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFEE2E2),
-                      borderRadius: BorderRadius.circular(10),
+                      color: AppColors.menuRoseBg,
+                      borderRadius: BorderRadius.circular(11),
                       border: Border.all(
-                        color: const Color(0xFFFCA5A5),
+                        color: AppColors.menuRoseBorder,
                         width: 1.0,
                       ),
                     ),
                     child: const Icon(
                       LucideIcons.trash2,
-                      color: AppColors.statusRed,
-                      size: 18,
+                      color: AppColors.menuRoseIcon,
+                      size: 19,
                     ),
                   ),
                 ),
               ),
             ),
-          IconButton(
-            tooltip: "Cari Produk",
-            icon: Icon(
-              _isSearching ? LucideIcons.x : LucideIcons.search,
-              color: Colors.white,
-              size: 21,
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: Tooltip(
+              message: "Cari Produk",
+              child: InkWell(
+                onTap: () {
+                  setState(() {
+                    _isSearching = !_isSearching;
+                    if (!_isSearching) {
+                      _searchController.clear();
+                      _searchQuery = "";
+                      _applyFilters();
+                    }
+                  });
+                },
+                borderRadius: BorderRadius.circular(11),
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.menuAmberBg,
+                    borderRadius: BorderRadius.circular(11),
+                    border: Border.all(color: AppColors.menuVioletBorder),
+                  ),
+                  child: Icon(
+                    _isSearching ? LucideIcons.x : LucideIcons.search,
+                    color: AppColors.menuAmberIcon,
+                    size: 19,
+                  ),
+                ),
+              ),
             ),
-            onPressed: () {
-              setState(() {
-                _isSearching = !_isSearching;
-                if (!_isSearching) {
-                  _searchController.clear();
-                  _searchQuery = "";
-                  _applyFilters();
-                }
-              });
-            },
           ),
         ],
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: Colors.white,
-          indicatorWeight: 3.5,
-          labelColor: Colors.white,
-          unselectedLabelColor: const Color(0xFFBFDBFE),
-          tabs: [
-            Tab(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text(
-                    "KAYU & RENG",
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(62),
+          child: Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              border: Border(
+                bottom: BorderSide(color: Color(0xFFECEEF5), width: 1.0),
+              ),
+            ),
+            padding: const EdgeInsets.fromLTRB(16, 2, 16, 10),
+            child: Container(
+              height: 50,
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceGrey,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: TabBar(
+                controller: _tabController,
+                indicator: BoxDecoration(
+                  color: AppColors.menuTealIcon,
+                  borderRadius: BorderRadius.circular(10),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x26059669),
+                      blurRadius: 8,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
+                ),
+                indicatorSize: TabBarIndicatorSize.tab,
+                dividerColor: Colors.transparent,
+                labelColor: Colors.white,
+                unselectedLabelColor: AppColors.textGrey,
+                tabs: [
+                  Tab(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text(
+                          "Kayu & Reng",
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
+                        ),
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            "${NumberFormat('#,###', 'id_ID').format(_calculateTotalStock(_kayuList))} Btg • ${NumberFormat('#,###', 'id_ID').format(_calculateTotalVolume(_kayuList).round())} cm",
+                            style: const TextStyle(fontSize: 10),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      "${NumberFormat('#,###', 'id_ID').format(_calculateTotalStock(_kayuList))} Btg • ${NumberFormat('#,###', 'id_ID').format(_calculateTotalVolume(_kayuList).round())} cm",
-                      style: const TextStyle(fontSize: 10),
+                  Tab(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text(
+                          "Bangunan",
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
+                        ),
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            "${NumberFormat('#,###', 'id_ID').format(_calculateTotalStock(_bangunanList))} Item",
+                            style: const TextStyle(fontSize: 10),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
             ),
-            Tab(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text(
-                    "BANGUNAN",
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                  ),
-                  FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      "${NumberFormat('#,###', 'id_ID').format(_calculateTotalStock(_bangunanList))} Item",
-                      style: const TextStyle(fontSize: 10),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+          ),
         ),
       ),
       body: LiquidAmbientBackground(
         child: Column(
           children: [
-            ResponsiveLayout.constrained(
-              context: context,
-              maxWidth: 1120,
-              child: GlassContainer(
+            LiquidEntrance(
+              delayMs: 30,
+              durationMs: 380,
+              offsetY: 16,
+              child: ResponsiveLayout.constrained(
+                context: context,
+                maxWidth: 1120,
+                child: GlassContainer(
                 borderRadius: 20,
                 margin: const EdgeInsets.fromLTRB(16, 10, 16, 6),
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -1176,6 +1230,7 @@ class _ProductListScreenState extends State<ProductListScreen>
               ),
               ),
             ),
+            ),
 
             Expanded(
               child: TabBarView(
@@ -1314,9 +1369,10 @@ class _ProductListScreenState extends State<ProductListScreen>
 
     Widget getItemWidget(int index) {
       if (index < available.length) {
-        return _buildProductCard(
-          available[index],
+        return StaggeredItemEntrance(
           key: ValueKey("avail_${available[index].id}"),
+          index: index,
+          child: _buildProductCard(available[index]),
         );
       } else if (index == available.length) {
         return Container(
@@ -1339,10 +1395,13 @@ class _ProductListScreenState extends State<ProductListScreen>
         );
       } else {
         int emptyIndex = index - available.length - 1;
-        return _buildProductCard(
-          empty[emptyIndex],
+        return StaggeredItemEntrance(
           key: ValueKey("empty_${empty[emptyIndex].id}"),
-          isHabis: true,
+          index: index,
+          child: _buildProductCard(
+            empty[emptyIndex],
+            isHabis: true,
+          ),
         );
       }
     }
@@ -1404,25 +1463,29 @@ class _ProductListScreenState extends State<ProductListScreen>
           if (rowIndex < availRows) {
             final int i1 = rowIndex * 2;
             final int i2 = i1 + 1;
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: _buildProductCard(
-                    available[i1],
-                    key: ValueKey("avail_${available[i1].id}"),
+            return StaggeredItemEntrance(
+              index: rowIndex,
+              maxAnimatedIndex: 5,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: _buildProductCard(
+                      available[i1],
+                      key: ValueKey("avail_${available[i1].id}"),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: i2 < available.length
-                      ? _buildProductCard(
-                          available[i2],
-                          key: ValueKey("avail_${available[i2].id}"),
-                        )
-                      : const SizedBox.shrink(),
-                ),
-              ],
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: i2 < available.length
+                        ? _buildProductCard(
+                            available[i2],
+                            key: ValueKey("avail_${available[i2].id}"),
+                          )
+                        : const SizedBox.shrink(),
+                  ),
+                ],
+              ),
             );
           } else if (rowIndex == availRows) {
             return Container(
@@ -1684,13 +1747,6 @@ class _ProductListScreenState extends State<ProductListScreen>
                 : ((isKayu || isReng || isBulat)
                     ? AppColors.menuTealBg
                     : AppColors.menuBlueBg),
-            accentBarColor: isHabis
-                ? const Color(0xFF94A3B8)
-                : (isLowStock
-                    ? AppColors.statusRed
-                    : ((isKayu || isReng || isBulat)
-                        ? AppColors.menuTealIcon
-                        : AppColors.secondaryNavy)),
             size: 44,
             iconSize: 20,
             radius: 13,

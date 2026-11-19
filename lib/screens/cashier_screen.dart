@@ -1100,19 +1100,19 @@ class _CashierScreenState extends State<CashierScreen>
     return Scaffold(
       backgroundColor: AppColors.liquidBackground,
       appBar: AppBar(
-        systemOverlayStyle: SystemUiOverlayStyle.light,
+        systemOverlayStyle: SystemUiOverlayStyle.dark,
         title: _isSearching
             ? TextField(
                 controller: _searchController,
                 autofocus: true,
-                cursorColor: Colors.white,
+                cursorColor: AppColors.secondaryNavy,
                 style: const TextStyle(
-                  color: Colors.white,
+                  color: AppColors.textDark,
                   fontWeight: FontWeight.bold,
                 ),
                 decoration: const InputDecoration(
                   hintText: "Cari Produk / Scan...",
-                  hintStyle: TextStyle(color: Color(0xFFDBEAFE)),
+                  hintStyle: TextStyle(color: AppColors.textGrey),
                   border: InputBorder.none,
                   filled: false,
                 ),
@@ -1125,72 +1125,134 @@ class _CashierScreenState extends State<CashierScreen>
                 "Kasir Toko",
                 style: TextStyle(
                   fontWeight: FontWeight.w800,
-                  color: Colors.white,
+                  color: AppColors.textDark,
                 ),
               ),
-        backgroundColor: AppColors.cobaltCanopyMid,
+        backgroundColor: Colors.white,
         surfaceTintColor: Colors.transparent,
-        foregroundColor: Colors.white,
+        foregroundColor: AppColors.textDark,
         elevation: 0,
-        flexibleSpace: const CobaltAppBarBackdrop(),
         actions: [
-          IconButton(
-            tooltip: "Scan Barcode",
-            icon: const Icon(
-              LucideIcons.scanBarcode,
-              color: Colors.white,
-              size: 21,
+          Padding(
+            padding: const EdgeInsets.only(right: 6),
+            child: Tooltip(
+              message: "Scan Barcode",
+              child: InkWell(
+                onTap: _scanBarcode,
+                borderRadius: BorderRadius.circular(11),
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.menuBlueBg,
+                    borderRadius: BorderRadius.circular(11),
+                    border: Border.all(color: AppColors.menuBlueBorder),
+                  ),
+                  child: const Icon(
+                    LucideIcons.scanBarcode,
+                    color: AppColors.menuBlueIcon,
+                    size: 19,
+                  ),
+                ),
+              ),
             ),
-            onPressed: _scanBarcode,
           ),
-          IconButton(
-            tooltip: "Cari Produk",
-            icon: Icon(
-              _isSearching ? LucideIcons.x : LucideIcons.search,
-              color: Colors.white,
-              size: 21,
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: Tooltip(
+              message: "Cari Produk",
+              child: InkWell(
+                onTap: () {
+                  setState(() {
+                    _isSearching = !_isSearching;
+                    if (!_isSearching) {
+                      _searchController.clear();
+                      _searchQuery = "";
+                      _applyFilters();
+                    }
+                  });
+                },
+                borderRadius: BorderRadius.circular(11),
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.menuAmberBg,
+                    borderRadius: BorderRadius.circular(11),
+                    border: Border.all(color: AppColors.menuVioletBorder),
+                  ),
+                  child: Icon(
+                    _isSearching ? LucideIcons.x : LucideIcons.search,
+                    color: AppColors.menuAmberIcon,
+                    size: 19,
+                  ),
+                ),
+              ),
             ),
-            onPressed: () {
-              setState(() {
-                _isSearching = !_isSearching;
-                if (!_isSearching) {
-                  _searchController.clear();
-                  _searchQuery = "";
-                  _applyFilters();
-                }
-              });
-            },
           ),
         ],
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: Colors.white,
-          indicatorWeight: 3.5,
-          labelColor: Colors.white,
-          unselectedLabelColor: const Color(0xFFBFDBFE),
-          tabs: const [
-            Tab(
-              child: Text(
-                "KAYU & RENG",
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(54),
+          child: Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              border: Border(
+                bottom: BorderSide(color: Color(0xFFECEEF5), width: 1.0),
               ),
             ),
-            Tab(
-              child: Text(
-                "BANGUNAN",
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+            padding: const EdgeInsets.fromLTRB(16, 2, 16, 10),
+            child: Container(
+              height: 42,
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceGrey,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: TabBar(
+                controller: _tabController,
+                indicator: BoxDecoration(
+                  color: AppColors.secondaryNavy,
+                  borderRadius: BorderRadius.circular(10),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x262563EB),
+                      blurRadius: 8,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
+                ),
+                indicatorSize: TabBarIndicatorSize.tab,
+                dividerColor: Colors.transparent,
+                labelColor: Colors.white,
+                unselectedLabelColor: AppColors.textGrey,
+                tabs: const [
+                  Tab(
+                    child: Text(
+                      "Kayu & Reng",
+                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                    ),
+                  ),
+                  Tab(
+                    child: Text(
+                      "Bangunan",
+                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                    ),
+                  ),
+                ],
               ),
             ),
-          ],
+          ),
         ),
       ),
       body: LiquidAmbientBackground(
         child: Column(
           children: [
-            ResponsiveLayout.constrained(
-              context: context,
-              maxWidth: 1120,
-              child: GlassContainer(
+            LiquidEntrance(
+              delayMs: 30,
+              durationMs: 380,
+              offsetY: 16,
+              child: ResponsiveLayout.constrained(
+                context: context,
+                maxWidth: 1120,
+                child: GlassContainer(
                 borderRadius: 20,
                 margin: const EdgeInsets.fromLTRB(16, 10, 16, 6),
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -1368,6 +1430,7 @@ class _CashierScreenState extends State<CashierScreen>
               ),
               ),
             ),
+            ),
 
             Expanded(
               child: TabBarView(
@@ -1501,9 +1564,10 @@ class _CashierScreenState extends State<CashierScreen>
 
     Widget getItemWidget(int index) {
       if (index < available.length) {
-        return _buildProductCard(
-          available[index],
+        return StaggeredItemEntrance(
           key: ValueKey("avail_${available[index].id}"),
+          index: index,
+          child: _buildProductCard(available[index]),
         );
       } else if (index == available.length) {
         return Container(
@@ -1526,10 +1590,13 @@ class _CashierScreenState extends State<CashierScreen>
         );
       } else {
         int emptyIndex = index - available.length - 1;
-        return _buildProductCard(
-          empty[emptyIndex],
+        return StaggeredItemEntrance(
           key: ValueKey("empty_${empty[emptyIndex].id}"),
-          isHabis: true,
+          index: index,
+          child: _buildProductCard(
+            empty[emptyIndex],
+            isHabis: true,
+          ),
         );
       }
     }
@@ -1581,25 +1648,29 @@ class _CashierScreenState extends State<CashierScreen>
           if (rowIndex < availRows) {
             final int i1 = rowIndex * 2;
             final int i2 = i1 + 1;
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: _buildProductCard(
-                    available[i1],
-                    key: ValueKey("avail_${available[i1].id}"),
+            return StaggeredItemEntrance(
+              index: rowIndex,
+              maxAnimatedIndex: 5,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: _buildProductCard(
+                      available[i1],
+                      key: ValueKey("avail_${available[i1].id}"),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: i2 < available.length
-                      ? _buildProductCard(
-                          available[i2],
-                          key: ValueKey("avail_${available[i2].id}"),
-                        )
-                      : const SizedBox.shrink(),
-                ),
-              ],
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: i2 < available.length
+                        ? _buildProductCard(
+                            available[i2],
+                            key: ValueKey("avail_${available[i2].id}"),
+                          )
+                        : const SizedBox.shrink(),
+                  ),
+                ],
+              ),
             );
           } else if (rowIndex == availRows) {
             return Container(
@@ -1889,11 +1960,6 @@ class _CashierScreenState extends State<CashierScreen>
                     : ((isKayu || isReng || isBulat)
                         ? AppColors.menuTealBg
                         : AppColors.menuBlueBg),
-                accentBarColor: isHabis
-                    ? const Color(0xFF94A3B8)
-                    : (inCartCount > 0 || isKayu || isReng || isBulat)
-                        ? AppColors.menuTealIcon
-                        : AppColors.secondaryNavy,
                 size: 44,
                 iconSize: 20,
                 radius: 13,

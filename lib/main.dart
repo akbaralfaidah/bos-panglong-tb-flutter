@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:animations/animations.dart';
 import 'package:firebase_core/firebase_core.dart'; // 🔥 Wajib di-import
 import 'package:get/get.dart'; // 🔥 Wajib untuk fitur notifikasi Get.snackbar()
 import 'package:google_fonts/google_fonts.dart';
@@ -58,7 +59,26 @@ class BosPanglongApp extends StatelessWidget {
         theme: ThemeData(
           useMaterial3: true,
           scaffoldBackgroundColor: AppColors.liquidBackground, 
-          colorScheme: ColorScheme.fromSeed(seedColor: AppColors.primaryNavy),
+          colorScheme: ColorScheme.fromSeed(seedColor: AppColors.secondaryNavy),
+          pageTransitionsTheme: const PageTransitionsTheme(
+            builders: {
+              TargetPlatform.android: SharedAxisPageTransitionsBuilder(
+                transitionType: SharedAxisTransitionType.horizontal,
+              ),
+              TargetPlatform.iOS: SharedAxisPageTransitionsBuilder(
+                transitionType: SharedAxisTransitionType.horizontal,
+              ),
+              TargetPlatform.windows: SharedAxisPageTransitionsBuilder(
+                transitionType: SharedAxisTransitionType.horizontal,
+              ),
+              TargetPlatform.macOS: SharedAxisPageTransitionsBuilder(
+                transitionType: SharedAxisTransitionType.horizontal,
+              ),
+              TargetPlatform.linux: SharedAxisPageTransitionsBuilder(
+                transitionType: SharedAxisTransitionType.horizontal,
+              ),
+            },
+          ),
           textTheme: baseTextTheme.apply(
             bodyColor: AppColors.textDark,
             displayColor: AppColors.textDark,

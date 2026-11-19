@@ -44,13 +44,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
       Navigator.pushReplacement(
         context,
-        PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) => nextScreen,
-          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            return FadeTransition(opacity: animation, child: child);
-          },
-          transitionDuration: const Duration(milliseconds: 280),
-        ),
+        GlassPageRoute(builder: (_) => nextScreen),
       );
     } catch (e) {
       debugPrint("Gagal Loading: $e");

@@ -52,6 +52,8 @@ dependencies:
   esc_pos_utils_plus: ^2.0.4
   image: ^4.8.0
   blue_thermal_printer: ^1.2.3
+  flutter_animate: ^4.5.2
+  animations: ^2.2.0
 
 dev_dependencies:
   flutter_test:

@@ -1,81 +1,100 @@
 // lib/theme/app_colors.dart
 import 'package:flutter/material.dart';
 
-/// Bright Royal-Sapphire & Ice-Porcelain Frosted Glass Design System Tokens
+/// Warm Everyday Multi-Color Design System Tokens (Royal Blue, Emerald, Rose Berry, Soft Violet, Cyan — Zero Orange)
 class AppColors {
-  // --- CORE PALETTE (AZURE-COBALT & COOL ICE-BLUE, ZERO ORANGE) ---
-  static const Color primaryNavy = Color(0xFF1E40AF); // Deep Cobalt 800
-  static const Color secondaryNavy = Color(0xFF2563EB); // Vibrant Azure-Cobalt 600
-  static const Color accentGold = Color(0xFFFFFFFF); // Crisp White on Cobalt buttons/headers
-  static const Color accentAmberBright = Color(0xFFAFD6FF); // Reference Soft Sky Highlight
+  // --- CORE BRAND & NEUTRAL SURFACES (COMFORTABLE & NATURAL ON EYES) ---
+  static const Color primaryNavy = Color(0xFF1D4ED8); // Friendly Royal Blue 700
+  static const Color secondaryNavy = Color(0xFF2563EB); // Vibrant Royal Blue 600
+  static const Color accentGold = Color(0xFFFFFFFF);
+  static const Color accentAmberBright = Color(0xFFBFDBFE); // Soft Sky Highlight
 
-  static const Color backgroundWhite = Color(0xFFF3F7FE); // Cool Ice-Porcelain
-  static const Color liquidBackground = Color(0xFFEEF3FB); // Crisp Cool Alabaster-Ice
+  static const Color backgroundWhite = Color(0xFFF9FAFC); // Warm Soft Pearl
+  static const Color liquidBackground = Color(0xFFF6F7FB); // Comfortable Alabaster Canvas
   static const Color pureWhite = Color(0xFFFFFFFF);
-  static const Color surfaceGrey = Color(0xFFE6EEFA);
-  static const Color borderLight = Color(0xFFCBD5E1); // Visible Slate-300 structural border
+  static const Color surfaceGrey = Color(0xFFF1F5F9);
+  static const Color borderLight = Color(0xFFE5E7EB); // Gentle Neutral Border
   static const Color borderDark = Color(0xFF2563EB);
 
-  static const Color textDark = Color(0xFF0F172A); // Slate 900
-  static const Color textGrey = Color(0xFF475569); // Slate 600 (4.5:1+ contrast)
+  static const Color textDark = Color(0xFF111827); // Warm Charcoal Ink
+  static const Color textGrey = Color(0xFF64748B); // Comfortable Muted Slate
 
-  // --- ROYAL SAPPHIRE DEPTH TOKENS ---
+  // --- HERO & DEPTH TOKENS ---
   static const Color cardNavyStart = Color(0xFF2563EB);
-  static const Color cardNavyEnd = Color(0xFF1E40AF);
-  static const Color navyGlassStart = Color(0xFF1E40AF);
+  static const Color cardNavyEnd = Color(0xFF1D4ED8);
+  static const Color navyGlassStart = Color(0xFF1D4ED8);
   static const Color navyGlassMid = Color(0xFF2563EB);
-  static const Color navyGlassEnd = Color(0xFF296DE8);
+  static const Color navyGlassEnd = Color(0xFF0D9488);
 
-  // --- ARCHITECTURAL BLUEPRINT & CANOPY TOKENS ---
-  static const Color cobaltCanopyStart = Color(0xFF1E3A8A);
-  static const Color cobaltCanopyMid = Color(0xFF1D4ED8);
-  static const Color cobaltCanopyEnd = Color(0xFF2563EB);
-  static const Color blueprintGridMinor = Color(0x0B2563EB);
-  static const Color blueprintGridMajor = Color(0x141E40AF);
-  static const Color blueprintGridDark = Color(0x10FFFFFF);
-  static const Color menuTealDark = Color(0xFF0F766E);
+  // --- LEGACY & ACCENT TOKENS ---
+  static const Color cobaltCanopyStart = Color(0xFF1D4ED8);
+  static const Color cobaltCanopyMid = Color(0xFF2563EB);
+  static const Color cobaltCanopyEnd = Color(0xFF0D9488);
+  static const Color blueprintGridMinor = Color(0x00000000);
+  static const Color blueprintGridMajor = Color(0x00000000);
+  static const Color blueprintGridDark = Color(0x00000000);
+  static const Color menuTealDark = Color(0xFF047857);
 
-  // --- SEMANTIC MENU TOKENS (ZERO ORANGE — TEAL, LAVENDER-VIOLET, AZURE, INDIGO) ---
-  static const Color menuTealBg = Color(0xFFE0F7F4);
-  static const Color menuTealIcon = Color(0xFF0D9488);
+  // --- HARMONIOUS MULTI-COLOR SEMANTIC TOKENS (ZERO ORANGE) ---
+  // 1. Fresh Emerald / Mint (Stok Masuk, Gudang, Kayu & Reng, Profit)
+  static const Color menuTealBg = Color(0xFFECFDF5);
+  static const Color menuTealIcon = Color(0xFF059669);
+  static const Color menuEmeraldBorder = Color(0xFFC6F6E2);
+  static const Color menuEmeraldTint = Color(0xFFF2FDF8);
 
-  static const Color menuAmberBg = Color(0xFFEDE9FE); // Reference Soft Lavender
-  static const Color menuAmberIcon = Color(0xFF6D28D9); // Deep Periwinkle-Violet
+  // 2. Soft Plum Violet (Piutang, Titipan, Riwayat, Pengaturan)
+  static const Color menuAmberBg = Color(0xFFF5F3FF);
+  static const Color menuAmberIcon = Color(0xFF7C3AED);
+  static const Color menuVioletBorder = Color(0xFFE4DCFE);
+  static const Color menuVioletTint = Color(0xFFF8F6FF);
 
-  static const Color menuBlueBg = Color(0xFFDBEAFE);
-  static const Color menuBlueIcon = Color(0xFF296DE8);
+  // 3. Friendly Royal Blue (Omset, Kasir, Bangunan, Laporan)
+  static const Color menuBlueBg = Color(0xFFEFF6FF);
+  static const Color menuBlueIcon = Color(0xFF2563EB);
+  static const Color menuBlueBorder = Color(0xFFD6E7FF);
+  static const Color menuBlueTint = Color(0xFFF3F8FF);
 
-  static const Color menuIndigoBg = Color(0xFFE0E7FF);
-  static const Color menuIndigoIcon = Color(0xFF4F46E5);
+  // 4. Warm Berry Rose (Operasional / Biaya, Modal, Keluar, Stok Menipis)
+  static const Color menuRoseBg = Color(0xFFFFF1F2);
+  static const Color menuRoseIcon = Color(0xFFE11D48);
+  static const Color menuRoseBorder = Color(0xFFFFDCE2);
+  static const Color menuRoseTint = Color(0xFFFFF5F6);
+
+  // 5. Ocean Cyan Teal (Pelanggan, Shift Kasir, Ringkasan Sekunder)
+  static const Color menuCyanBg = Color(0xFFECFEFF);
+  static const Color menuCyanIcon = Color(0xFF0891B2);
+  static const Color menuCyanBorder = Color(0xFFCFFAFE);
+
+  // Indigo alias
+  static const Color menuIndigoBg = Color(0xFFF5F3FF);
+  static const Color menuIndigoIcon = Color(0xFF7C3AED);
 
   static const Color statusGreen = Color(0xFF059669);
-  static const Color statusRed = Color(0xFFDC2626);
+  static const Color statusRed = Color(0xFFE11D48);
 
-  /// Kartu kaca frosted terang dengan rim struktural crisp & dual-layer shadow
+  /// Kartu terang hangat & nyaman di mata dengan elevasi lembut natural
   static BoxDecoration liquidGlassCard({
     Color? tint,
     double radius = 20,
     Color? borderColor,
-    double borderWidth = 1.2,
+    double borderWidth = 1.1,
   }) {
-    final Color midTint = tint != null
-        ? Color.alphaBlend(tint.withValues(alpha: 0.06), const Color(0xFFF3F7FF))
-        : const Color(0xFFF3F7FF);
+    final Color softBg = tint != null
+        ? Color.alphaBlend(tint.withValues(alpha: 0.05), const Color(0xFFFFFFFF))
+        : const Color(0xFFFFFFFF);
 
     final Color resolvedBorder = borderColor ??
         (tint != null
-            ? Color.alphaBlend(tint.withValues(alpha: 0.28), const Color(0xFFCBD5E1))
-            : const Color(0xFFD0DDF0));
+            ? Color.alphaBlend(tint.withValues(alpha: 0.22), const Color(0xFFE5E7EB))
+            : const Color(0xFFE6E9F2));
 
     return BoxDecoration(
       gradient: LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
-        stops: const [0.0, 0.5, 1.0],
         colors: [
+          softBg,
           const Color(0xFFFFFFFF),
-          midTint,
-          const Color(0xFFF9FBFF),
         ],
       ),
       borderRadius: BorderRadius.circular(radius),
@@ -85,12 +104,12 @@ class AppColors {
       ),
       boxShadow: const [
         BoxShadow(
-          color: Color(0x0E0F172A),
-          blurRadius: 12,
+          color: Color(0x0A0F172A),
+          blurRadius: 14,
           offset: Offset(0, 4),
         ),
         BoxShadow(
-          color: Color(0x061D4ED8),
+          color: Color(0x050F172A),
           blurRadius: 2,
           offset: Offset(0, 1),
         ),
