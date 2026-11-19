@@ -1,8 +1,6 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'dart:io';
-import 'dart:ui' as ui;
-import 'package:flutter/rendering.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'dart:typed_data';
@@ -14,6 +12,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:gal/gal.dart';
 
 import '../helpers/printer_helper.dart';
+import '../helpers/thermal_receipt_encoder.dart';
 import '../theme/app_colors.dart';
 import 'product_list_screen.dart';
 import '../helpers/session_manager.dart';
@@ -459,27 +458,33 @@ class _StockReceiptScreenState extends State<StockReceiptScreen>
     }
   }
 
-  Future<Uint8List?> _generateImageBytes({required double pixelRatio}) async {
+  Future<Uint8List?> _generateImageBytes({
+    bool forPrint = true,
+    double pixelRatio = 3.0,
+  }) async {
     setState(() => _isGeneratingReceipt = true);
-    await Future.delayed(const Duration(milliseconds: 300));
+    await Future.delayed(const Duration(milliseconds: 120));
     try {
-      RenderRepaintBoundary boundary =
-          _printKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
-      ui.Image image = await boundary.toImage(pixelRatio: pixelRatio);
-      ByteData? byteData = await image.toByteData(
-        format: ui.ImageByteFormat.png,
+      return await PrinterHelper.captureBoundaryPng(
+        _printKey,
+        forPrint: forPrint,
+        sharePixelRatio: pixelRatio,
       );
-      return byteData?.buffer.asUint8List();
     } catch (e) {
       return null;
     } finally {
-      setState(() => _isGeneratingReceipt = false);
+      if (mounted) {
+        setState(() => _isGeneratingReceipt = false);
+      }
     }
   }
 
   Future<void> _captureAndShare() async {
     try {
-      Uint8List? pngBytes = await _generateImageBytes(pixelRatio: 3.0);
+      Uint8List? pngBytes = await _generateImageBytes(
+        forPrint: false,
+        pixelRatio: 3.0,
+      );
       if (pngBytes == null) throw Exception("Gagal memproses gambar");
       final tempDir = await getTemporaryDirectory();
       File file = await File(
@@ -543,7 +548,7 @@ class _StockReceiptScreenState extends State<StockReceiptScreen>
           logoPath: _logoPath, // 🔥 INI DIA KUNCI LOGONYA 🔥
         );
       } else {
-        Uint8List? pngBytes = await _generateImageBytes(pixelRatio: 1.5);
+        Uint8List? pngBytes = await _generateImageBytes(forPrint: true);
         if (pngBytes == null) throw Exception("Gagal memproses gambar");
         await printer.printReceiptImage(context, pngBytes);
       }
@@ -682,32 +687,38 @@ class _StockReceiptScreenState extends State<StockReceiptScreen>
                     // AREA STRUK
                     RepaintBoundary(
                       key: _printKey,
-                      child: Container(
-                        width: double.infinity,
-                        margin: _isGeneratingReceipt
-                            ? EdgeInsets.zero
-                            : const EdgeInsets.symmetric(horizontal: 16),
-                        padding: EdgeInsets.fromLTRB(
-                          _isGeneratingReceipt ? 0 : 16,
-                          15,
-                          _isGeneratingReceipt ? 0 : 16,
-                          _isGeneratingReceipt ? 80 : 20,
+                      child: Theme(
+                        data: Theme.of(context).copyWith(
+                          textTheme: ThemeData.light().textTheme,
                         ),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: _isGeneratingReceipt
-                              ? BorderRadius.zero
-                              : BorderRadius.circular(15),
-                          boxShadow: _isGeneratingReceipt
-                              ? []
-                              : [
-                                  const BoxShadow(
-                                    color: Colors.black12,
-                                    blurRadius: 10,
-                                    offset: Offset(0, 5),
-                                  ),
-                                ],
-                        ),
+                        child: Container(
+                          width: _isGeneratingReceipt
+                              ? ThermalReceiptEncoder.receiptLogicalWidth
+                              : double.infinity,
+                          margin: _isGeneratingReceipt
+                              ? EdgeInsets.zero
+                              : const EdgeInsets.symmetric(horizontal: 16),
+                          padding: EdgeInsets.fromLTRB(
+                            _isGeneratingReceipt ? 8 : 16,
+                            15,
+                            _isGeneratingReceipt ? 8 : 16,
+                            _isGeneratingReceipt ? 48 : 20,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: _isGeneratingReceipt
+                                ? BorderRadius.zero
+                                : BorderRadius.circular(15),
+                            boxShadow: _isGeneratingReceipt
+                                ? []
+                                : [
+                                    const BoxShadow(
+                                      color: Colors.black12,
+                                      blurRadius: 10,
+                                      offset: Offset(0, 5),
+                                    ),
+                                  ],
+                          ),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -981,6 +992,7 @@ class _StockReceiptScreenState extends State<StockReceiptScreen>
                             const SizedBox(height: 25),
                           ],
                         ),
+                      ),
                       ),
                     ),
 

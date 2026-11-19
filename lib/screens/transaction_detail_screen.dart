@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'dart:io';
-import 'dart:ui' as ui;
-import 'package:flutter/rendering.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:image_picker/image_picker.dart';
@@ -13,6 +11,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:connectivity_plus/connectivity_plus.dart';
 import '../helpers/printer_helper.dart';
+import '../helpers/thermal_receipt_encoder.dart';
 import '../controllers/transaction_detail_controller.dart';
 import '../theme/app_colors.dart';
 import '../theme/glass_widgets.dart';
@@ -1613,28 +1612,34 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
     );
   }
 
-  Future<Uint8List?> _generateImageBytes({required double pixelRatio}) async {
+  Future<Uint8List?> _generateImageBytes({
+    bool forPrint = true,
+    double pixelRatio = 3.0,
+  }) async {
     setState(() => _isGeneratingReceipt = true);
-    await Future.delayed(const Duration(milliseconds: 300));
+    await Future.delayed(const Duration(milliseconds: 120));
 
     try {
-      RenderRepaintBoundary boundary =
-          _printKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
-      ui.Image image = await boundary.toImage(pixelRatio: pixelRatio);
-      ByteData? byteData = await image.toByteData(
-        format: ui.ImageByteFormat.png,
+      return await PrinterHelper.captureBoundaryPng(
+        _printKey,
+        forPrint: forPrint,
+        sharePixelRatio: pixelRatio,
       );
-      return byteData?.buffer.asUint8List();
     } catch (e) {
       return null;
     } finally {
-      setState(() => _isGeneratingReceipt = false);
+      if (mounted) {
+        setState(() => _isGeneratingReceipt = false);
+      }
     }
   }
 
   Future<void> _captureAndShare() async {
     try {
-      Uint8List? pngBytes = await _generateImageBytes(pixelRatio: 3.0);
+      Uint8List? pngBytes = await _generateImageBytes(
+        forPrint: false,
+        pixelRatio: 3.0,
+      );
       if (pngBytes == null) throw Exception("Gagal memproses gambar");
 
       final tempDir = await getTemporaryDirectory();
@@ -1677,7 +1682,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
           logoPath: _logoPath, // 🔥 INI DIA KUNCI LOGONYA 🔥
         );
       } else {
-        Uint8List? pngBytes = await _generateImageBytes(pixelRatio: 1.5);
+        Uint8List? pngBytes = await _generateImageBytes(forPrint: true);
         if (pngBytes == null) throw Exception("Gagal memproses gambar");
         await printer.printReceiptImage(context, pngBytes);
       }
@@ -1808,7 +1813,9 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                   child: CircularProgressIndicator(color: AppColors.primaryNavy),
                 )
               : SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
+                  padding: _isGeneratingReceipt
+                      ? EdgeInsets.zero
+                      : const EdgeInsets.all(16),
                   child: ResponsiveLayout.constrained(
                     context: context,
                     maxWidth: 860,
@@ -1879,21 +1886,34 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                       ],
 
                       Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: AppColors.liquidGlassCard(radius: 20),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(16),
-                          child: RepaintBoundary(
-                            key: _printKey,
+                        padding: _isGeneratingReceipt
+                            ? EdgeInsets.zero
+                            : const EdgeInsets.all(4),
+                        decoration: _isGeneratingReceipt
+                            ? null
+                            : AppColors.liquidGlassCard(radius: 20),
+                        child: RepaintBoundary(
+                          key: _printKey,
+                          child: Theme(
+                            data: Theme.of(context).copyWith(
+                              textTheme: ThemeData.light().textTheme,
+                            ),
                             child: Container(
-                        width: _isGeneratingReceipt ? 576 : double.infinity,
+                        width: _isGeneratingReceipt
+                            ? ThermalReceiptEncoder.receiptLogicalWidth
+                            : double.infinity,
                         padding: EdgeInsets.fromLTRB(
-                          _isGeneratingReceipt ? 4 : 16,
+                          _isGeneratingReceipt ? 8 : 16,
                           20,
-                          _isGeneratingReceipt ? 4 : 16,
-                          _isGeneratingReceipt ? 80 : 20,
+                          _isGeneratingReceipt ? 8 : 16,
+                          _isGeneratingReceipt ? 48 : 20,
                         ),
-                        decoration: const BoxDecoration(color: Colors.white),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: _isGeneratingReceipt
+                              ? BorderRadius.zero
+                              : BorderRadius.circular(16),
+                        ),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -2228,13 +2248,16 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                                                         MainAxisAlignment
                                                             .spaceBetween,
                                                     children: [
-                                                      Text(
-                                                        "$qtyStr $unitName = $volStr $unitLabel",
-                                                        style: const TextStyle(
-                                                          color: Colors.black87,
-                                                          fontSize: 18,
+                                                      Expanded(
+                                                        child: Text(
+                                                          "$qtyStr $unitName = $volStr $unitLabel",
+                                                          style: const TextStyle(
+                                                            color: Colors.black87,
+                                                            fontSize: 18,
+                                                          ),
                                                         ),
                                                       ),
+                                                      const SizedBox(width: 8),
                                                       Text(
                                                         _formatRpStr(
                                                           subtotalItem,
@@ -2292,14 +2315,17 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                                             mainAxisAlignment:
                                                 MainAxisAlignment.spaceBetween,
                                             children: [
-                                              Text(
-                                                "Total Vol = $pVolStr $unitLabel",
-                                                style: const TextStyle(
-                                                  color: Colors.black87,
-                                                  fontSize: 18,
-                                                  fontWeight: FontWeight.bold,
+                                              Expanded(
+                                                child: Text(
+                                                  "Total Vol = $pVolStr $unitLabel",
+                                                  style: const TextStyle(
+                                                    color: Colors.black87,
+                                                    fontSize: 18,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
                                                 ),
                                               ),
+                                              const SizedBox(width: 8),
                                               Text(
                                                 _formatRpStr(pRoundedTotal),
                                                 style: const TextStyle(
@@ -2497,15 +2523,18 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                                             mainAxisAlignment:
                                                 MainAxisAlignment.spaceBetween,
                                             children: [
-                                              Text(
-                                                isKubikInput
-                                                    ? "$qtyStr $displayUnit"
-                                                    : "$qtyStr $displayUnit x ${_formatRpStr(displayPrice)}",
-                                                style: const TextStyle(
-                                                  color: Colors.black87,
-                                                  fontSize: 18,
+                                              Expanded(
+                                                child: Text(
+                                                  isKubikInput
+                                                      ? "$qtyStr $displayUnit"
+                                                      : "$qtyStr $displayUnit x ${_formatRpStr(displayPrice)}",
+                                                  style: const TextStyle(
+                                                    color: Colors.black87,
+                                                    fontSize: 18,
+                                                  ),
                                                 ),
                                               ),
+                                              const SizedBox(width: 8),
                                               Text(
                                                 _formatRpStr(subtotalItem),
                                                 style: const TextStyle(
@@ -2607,14 +2636,17 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                                   mainAxisAlignment:
                                       MainAxisAlignment.spaceBetween,
                                   children: [
-                                    const Text(
-                                      "Total Bayar",
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.black,
-                                        fontSize: 22,
+                                    const Expanded(
+                                      child: Text(
+                                        "Total Bayar",
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.black,
+                                          fontSize: 22,
+                                        ),
                                       ),
                                     ),
+                                    const SizedBox(width: 8),
                                     Text(
                                       _formatRp(_totalPrice),
                                       style: const TextStyle(

@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
-import 'dart:ui' as ui;
 import 'dart:typed_data';
 import 'dart:io';
 import 'package:barcode_widget/barcode_widget.dart';
@@ -32,13 +30,10 @@ class _ProductBarcodeScreenState extends State<ProductBarcodeScreen> {
 
   Future<Uint8List?> _generateImageBytes() async {
     try {
-      RenderRepaintBoundary boundary =
-          _printKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
-      ui.Image image = await boundary.toImage(pixelRatio: 1.5);
-      ByteData? byteData = await image.toByteData(
-        format: ui.ImageByteFormat.png,
+      return await PrinterHelper.captureBoundaryPng(
+        _printKey,
+        forPrint: true,
       );
-      return byteData?.buffer.asUint8List();
     } catch (e) {
       return null;
     }
@@ -200,16 +195,27 @@ class _ProductBarcodeScreenState extends State<ProductBarcodeScreen> {
 
                 // 🔥 AREA CETAK STIKER 🔥
                 Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: AppColors.liquidGlassCard(radius: 20),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(14),
-                    child: RepaintBoundary(
-                      key: _printKey,
+                  padding: _isPrinting
+                      ? EdgeInsets.zero
+                      : const EdgeInsets.all(6),
+                  decoration: _isPrinting
+                      ? null
+                      : AppColors.liquidGlassCard(radius: 20),
+                  child: RepaintBoundary(
+                    key: _printKey,
+                    child: Theme(
+                      data: Theme.of(context).copyWith(
+                        textTheme: ThemeData.light().textTheme,
+                      ),
                       child: Container(
                   width: 360,
                   padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-                  decoration: const BoxDecoration(color: Colors.white),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: _isPrinting
+                        ? BorderRadius.zero
+                        : BorderRadius.circular(14),
+                  ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [

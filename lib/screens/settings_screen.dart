@@ -16,6 +16,8 @@ import 'login_screen.dart';
 import 'employee_management_screen.dart';
 import '../data/datasources/firebase/core_firebase_datasource.dart';
 import '../helpers/app_notification.dart';
+import '../helpers/printer_helper.dart';
+import '../helpers/thermal_receipt_encoder.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -36,6 +38,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final ImagePicker _picker = ImagePicker();
 
   String _ownerPin = "260679";
+  int _paperWidthMm = ThermalReceiptEncoder.paper80mm;
 
   @override
   void initState() {
@@ -46,6 +49,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _loadStoreSettings() async {
     setState(() => _isLoading = true);
     final data = await _controller.loadSettings();
+    final savedPaperMm = await PrinterHelper.getPaperWidthMm();
 
     if (mounted) {
       setState(() {
@@ -60,9 +64,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _ownerPin = data['pin']!;
         }
 
+        _paperWidthMm = savedPaperMm;
         _isLoading = false;
       });
     }
+  }
+
+  Future<void> _updatePaperWidth(int paperMm) async {
+    await PrinterHelper.setPaperWidthMm(paperMm);
+    if (!mounted) return;
+    setState(() => _paperWidthMm = paperMm);
+    AppNotification.show(
+      context,
+      message: "Ukuran kertas printer diatur ke ${paperMm}mm (${ThermalReceiptEncoder.dotsForPaperMm(paperMm)} dot)",
+      type: AppNotificationType.success,
+    );
   }
 
   Future<void> _pickLogo() async {
@@ -840,6 +856,131 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               ),
                             ),
                           ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 30),
+                  const Text(
+                    "Printer Thermal",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: AppColors.primaryNavy,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+
+                  GlassContainer(
+                    borderRadius: 20,
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Row(
+                          children: [
+                            GlassIconBadge(
+                              icon: Icons.print_rounded,
+                              iconColor: AppColors.menuBlueIcon,
+                              bgColor: AppColors.menuBlueBg,
+                              size: 44,
+                              iconSize: 22,
+                              radius: 12,
+                            ),
+                            SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    "Ukuran Kertas Nota",
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 15,
+                                      color: AppColors.textDark,
+                                    ),
+                                  ),
+                                  SizedBox(height: 2),
+                                  Text(
+                                    "Sesuaikan dengan lebar gulungan printer (HP & Tablet otomatis presisi)",
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: AppColors.textGrey,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: ChoiceChip(
+                                selectedColor: AppColors.menuBlueBg,
+                                checkmarkColor: AppColors.primaryNavy,
+                                side: BorderSide(
+                                  color: _paperWidthMm == ThermalReceiptEncoder.paper80mm
+                                      ? AppColors.primaryNavy
+                                      : AppColors.borderLight,
+                                  width: _paperWidthMm == ThermalReceiptEncoder.paper80mm
+                                      ? 1.5
+                                      : 1.0,
+                                ),
+                                label: Center(
+                                  child: Text(
+                                    "80mm (576 dot)",
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: _paperWidthMm == ThermalReceiptEncoder.paper80mm
+                                          ? AppColors.primaryNavy
+                                          : AppColors.textDark,
+                                    ),
+                                  ),
+                                ),
+                                selected: _paperWidthMm == ThermalReceiptEncoder.paper80mm,
+                                onSelected: (selected) {
+                                  if (selected) {
+                                    _updatePaperWidth(ThermalReceiptEncoder.paper80mm);
+                                  }
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: ChoiceChip(
+                                selectedColor: AppColors.menuTealBg,
+                                checkmarkColor: AppColors.menuTealDark,
+                                side: BorderSide(
+                                  color: _paperWidthMm == ThermalReceiptEncoder.paper58mm
+                                      ? AppColors.menuTealIcon
+                                      : AppColors.borderLight,
+                                  width: _paperWidthMm == ThermalReceiptEncoder.paper58mm
+                                      ? 1.5
+                                      : 1.0,
+                                ),
+                                label: Center(
+                                  child: Text(
+                                    "58mm (384 dot)",
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: _paperWidthMm == ThermalReceiptEncoder.paper58mm
+                                          ? AppColors.menuTealDark
+                                          : AppColors.textDark,
+                                    ),
+                                  ),
+                                ),
+                                selected: _paperWidthMm == ThermalReceiptEncoder.paper58mm,
+                                onSelected: (selected) {
+                                  if (selected) {
+                                    _updatePaperWidth(ThermalReceiptEncoder.paper58mm);
+                                  }
+                                },
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),

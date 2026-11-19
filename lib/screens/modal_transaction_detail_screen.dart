@@ -1,9 +1,7 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'dart:io';
-import 'dart:ui' as ui;
-import 'package:flutter/rendering.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:image_picker/image_picker.dart';
@@ -13,6 +11,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:connectivity_plus/connectivity_plus.dart';
 import '../helpers/printer_helper.dart';
+import '../helpers/thermal_receipt_encoder.dart';
 import '../controllers/transaction_detail_controller.dart';
 import '../theme/app_colors.dart';
 import '../helpers/session_manager.dart';
@@ -773,28 +772,34 @@ class _ModalTransactionDetailScreenState extends State<ModalTransactionDetailScr
     }
   }
 
-  Future<Uint8List?> _generateImageBytes({required double pixelRatio}) async {
+  Future<Uint8List?> _generateImageBytes({
+    bool forPrint = true,
+    double pixelRatio = 3.0,
+  }) async {
     setState(() => _isGeneratingReceipt = true);
-    await Future.delayed(const Duration(milliseconds: 300));
+    await Future.delayed(const Duration(milliseconds: 120));
 
     try {
-      RenderRepaintBoundary boundary =
-          _printKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
-      ui.Image image = await boundary.toImage(pixelRatio: pixelRatio);
-      ByteData? byteData = await image.toByteData(
-        format: ui.ImageByteFormat.png,
+      return await PrinterHelper.captureBoundaryPng(
+        _printKey,
+        forPrint: forPrint,
+        sharePixelRatio: pixelRatio,
       );
-      return byteData?.buffer.asUint8List();
     } catch (e) {
       return null;
     } finally {
-      setState(() => _isGeneratingReceipt = false);
+      if (mounted) {
+        setState(() => _isGeneratingReceipt = false);
+      }
     }
   }
 
   Future<void> _captureAndShare() async {
     try {
-      Uint8List? pngBytes = await _generateImageBytes(pixelRatio: 3.0);
+      Uint8List? pngBytes = await _generateImageBytes(
+        forPrint: false,
+        pixelRatio: 3.0,
+      );
       if (pngBytes == null) throw Exception("Gagal memproses gambar");
 
       final tempDir = await getTemporaryDirectory();
@@ -836,7 +841,7 @@ class _ModalTransactionDetailScreenState extends State<ModalTransactionDetailScr
           logoPath: _logoPath, // 🔥 INI DIA KUNCI LOGONYA 🔥
         );
       } else {
-        Uint8List? pngBytes = await _generateImageBytes(pixelRatio: 1.5);
+        Uint8List? pngBytes = await _generateImageBytes(forPrint: true);
         if (pngBytes == null) throw Exception("Gagal memproses gambar");
         await printer.printReceiptImage(context, pngBytes);
       }
@@ -953,7 +958,9 @@ class _ModalTransactionDetailScreenState extends State<ModalTransactionDetailScr
                 child: CircularProgressIndicator(color: AppColors.primaryNavy),
               )
             : SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
+                padding: _isGeneratingReceipt
+                    ? EdgeInsets.zero
+                    : const EdgeInsets.all(16),
                 child: Column(
                   children: [
                     if (widget.isNewTransaction) ...[
@@ -993,15 +1000,21 @@ class _ModalTransactionDetailScreenState extends State<ModalTransactionDetailScr
 
                     RepaintBoundary(
                       key: _printKey,
-                      child: Container(
-                        width: _isGeneratingReceipt ? 576 : double.infinity,
-                        padding: EdgeInsets.fromLTRB(
-                          _isGeneratingReceipt ? 4 : 16,
-                          20,
-                          _isGeneratingReceipt ? 4 : 16,
-                          _isGeneratingReceipt ? 80 : 20,
+                      child: Theme(
+                        data: Theme.of(context).copyWith(
+                          textTheme: ThemeData.light().textTheme,
                         ),
-                        decoration: const BoxDecoration(color: Colors.white),
+                        child: Container(
+                          width: _isGeneratingReceipt
+                              ? ThermalReceiptEncoder.receiptLogicalWidth
+                              : double.infinity,
+                          padding: EdgeInsets.fromLTRB(
+                            _isGeneratingReceipt ? 8 : 16,
+                            20,
+                            _isGeneratingReceipt ? 8 : 16,
+                            _isGeneratingReceipt ? 48 : 20,
+                          ),
+                          decoration: const BoxDecoration(color: Colors.white),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -1787,6 +1800,7 @@ class _ModalTransactionDetailScreenState extends State<ModalTransactionDetailScr
                             ),
                           ],
                         ),
+                      ),
                       ),
                     ),
 

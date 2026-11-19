@@ -1,10 +1,14 @@
 import 'dart:typed_data';
 import 'dart:io';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../helpers/app_notification.dart';
+import '../helpers/thermal_receipt_encoder.dart';
 import 'package:blue_thermal_printer/blue_thermal_printer.dart' as btp;
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart' as pbt;
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
@@ -18,8 +22,81 @@ class PrinterDevice {
 }
 
 class PrinterHelper {
+  static const String _prefPaperWidthKey = 'printer_paper_width_mm';
+
   final btp.BlueThermalPrinter _androidPrinter = btp.BlueThermalPrinter.instance;
   List<PrinterDevice> _devices = [];
+
+  /// Membaca lebar kertas thermal tersimpan: `80` (default, 576 dot) atau `58` (384 dot).
+  static Future<int> getPaperWidthMm() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getInt(_prefPaperWidthKey);
+      if (saved == ThermalReceiptEncoder.paper58mm ||
+          saved == ThermalReceiptEncoder.paper80mm) {
+        return saved!;
+      }
+    } catch (_) {}
+    return ThermalReceiptEncoder.paper80mm;
+  }
+
+  /// Menyimpan lebar kertas thermal (`80` atau `58`).
+  static Future<void> setPaperWidthMm(int paperMm) async {
+    final normalized = paperMm <= ThermalReceiptEncoder.paper58mm
+        ? ThermalReceiptEncoder.paper58mm
+        : ThermalReceiptEncoder.paper80mm;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_prefPaperWidthKey, normalized);
+  }
+
+  /// Mengembalikan jumlah dot horizontal sesuai lebar kertas (576 untuk 80mm, 384 untuk 58mm).
+  static Future<int> getPaperWidthDots() async {
+    final mm = await getPaperWidthMm();
+    return ThermalReceiptEncoder.dotsForPaperMm(mm);
+  }
+
+  /// Menangkap [RepaintBoundary] secara stabil setelah layout & paint frame benar-benar selesai.
+  /// Saat [forPrint] = true, pixelRatio dihitung otomatis agar pas 1:1 dengan lebar dot printer
+  /// baik di HP maupun Tablet.
+  static Future<Uint8List?> captureBoundaryPng(
+    GlobalKey boundaryKey, {
+    bool forPrint = true,
+    double sharePixelRatio = 3.0,
+  }) async {
+    await WidgetsBinding.instance.endOfFrame;
+    await Future.delayed(const Duration(milliseconds: 60));
+
+    RenderRepaintBoundary? boundary =
+        boundaryKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+    if (boundary == null) return null;
+
+    if (boundary.debugNeedsPaint) {
+      await WidgetsBinding.instance.endOfFrame;
+      await Future.delayed(const Duration(milliseconds: 40));
+      boundary =
+          boundaryKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+      if (boundary == null) return null;
+    }
+
+    double pixelRatio = sharePixelRatio;
+    if (forPrint) {
+      final int targetDots = await getPaperWidthDots();
+      pixelRatio = ThermalReceiptEncoder.computeCapturePixelRatio(
+        logicalWidth: boundary.size.width,
+        targetDots: targetDots,
+      );
+    }
+
+    final ui.Image image = await boundary.toImage(pixelRatio: pixelRatio);
+    try {
+      final ByteData? byteData = await image.toByteData(
+        format: ui.ImageByteFormat.png,
+      );
+      return byteData?.buffer.asUint8List();
+    } finally {
+      image.dispose();
+    }
+  }
 
   Future<bool> get isConnected async {
     if (Platform.isIOS) return await pbt.PrintBluetoothThermal.connectionStatus;
@@ -48,27 +125,42 @@ class PrinterHelper {
       if (await isConnected) {
         _showSnack(context, "Mencetak Struk...", Colors.blue);
 
+        final int paperMm = await getPaperWidthMm();
+        final int targetDots = ThermalReceiptEncoder.dotsForPaperMm(paperMm);
+
         if (Platform.isAndroid) {
-          await _androidPrinter.printImageBytes(imageBytes);
-          await _androidPrinter.printNewLine();
-          await _androidPrinter.printNewLine();
+          // Encode ESC/POS GS v 0 band-sliced dengan ukuran dot persis (576px/80mm atau 384px/58mm),
+          // ESC @ reset, background putih solid, dan chunking Bluetooth SPP yang stabil di HP & Tablet.
+          final Uint8List escPosBytes = ThermalReceiptEncoder.encodeEscPosRaster(
+            imageBytes,
+            targetWidthDots: targetDots,
+          );
+          final List<Uint8List> chunks = ThermalReceiptEncoder.splitIntoChunks(escPosBytes);
+          for (final chunk in chunks) {
+            await _androidPrinter.writeBytes(chunk);
+            await Future.delayed(const Duration(milliseconds: 12));
+          }
+          await Future.delayed(const Duration(milliseconds: 150));
         } else if (Platform.isIOS) {
           final profile = await CapabilityProfile.load();
-          final generator = Generator(PaperSize.mm80, profile); 
+          final paperSize = paperMm <= ThermalReceiptEncoder.paper58mm
+              ? PaperSize.mm58
+              : PaperSize.mm80;
+          final generator = Generator(paperSize, profile); 
           List<int> bytes = [];
 
-          final decodedImage = img.decodeImage(imageBytes);
-          if (decodedImage != null) {
-            final resizedImage = img.copyResize(decodedImage, width: 384);
-            bytes += generator.image(resizedImage);
-            bytes += generator.feed(2); 
+          final preparedImage = ThermalReceiptEncoder.prepareOpaqueImage(
+            imageBytes,
+            targetWidthDots: ThermalReceiptEncoder.dots58mm,
+          );
+          bytes += generator.image(preparedImage);
+          bytes += generator.feed(2); 
 
-            int chunkSize = 150; 
-            for (int i = 0; i < bytes.length; i += chunkSize) {
-              int end = (i + chunkSize < bytes.length) ? i + chunkSize : bytes.length;
-              await pbt.PrintBluetoothThermal.writeBytes(bytes.sublist(i, end));
-              await Future.delayed(const Duration(milliseconds: 15)); 
-            }
+          int chunkSize = 150; 
+          for (int i = 0; i < bytes.length; i += chunkSize) {
+            int end = (i + chunkSize < bytes.length) ? i + chunkSize : bytes.length;
+            await pbt.PrintBluetoothThermal.writeBytes(bytes.sublist(i, end));
+            await Future.delayed(const Duration(milliseconds: 15)); 
           }
         }
         
@@ -457,32 +549,90 @@ class PrinterHelper {
     }
   }
 
-  Future<bool?> _showDeviceSelectionDialog(BuildContext context) {
+  Future<bool?> _showDeviceSelectionDialog(BuildContext context) async {
+    int selectedPaperMm = await getPaperWidthMm();
+    if (!context.mounted) return false;
+
     return showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text("Pilih Printer Thermal"),
-        content: SizedBox(
-          width: double.maxFinite,
-          height: 300,
-          child: ListView.builder(
-            itemCount: _devices.length,
-            itemBuilder: (c, i) {
-              return ListTile(
-                leading: const Icon(Icons.print, color: Colors.blue),
-                title: Text(_devices[i].name),
-                subtitle: Text(_devices[i].mac), 
-                onTap: () async {
-                  Navigator.pop(ctx, true);
-                  await _connectToDevice(context, _devices[i]);
-                },
-              );
-            },
+      builder: (ctx) => StatefulBuilder(
+        builder: (dialogCtx, setDialogState) => AlertDialog(
+          title: const Text(
+            "Pilih Printer Thermal",
+            style: TextStyle(fontWeight: FontWeight.bold),
           ),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "Ukuran Kertas Thermal:",
+                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ChoiceChip(
+                        label: const Center(child: Text("80mm (Standar)")),
+                        selected: selectedPaperMm == ThermalReceiptEncoder.paper80mm,
+                        onSelected: (v) async {
+                          if (!v) return;
+                          await setPaperWidthMm(ThermalReceiptEncoder.paper80mm);
+                          setDialogState(() {
+                            selectedPaperMm = ThermalReceiptEncoder.paper80mm;
+                          });
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ChoiceChip(
+                        label: const Center(child: Text("58mm (Mini)")),
+                        selected: selectedPaperMm == ThermalReceiptEncoder.paper58mm,
+                        onSelected: (v) async {
+                          if (!v) return;
+                          await setPaperWidthMm(ThermalReceiptEncoder.paper58mm);
+                          setDialogState(() {
+                            selectedPaperMm = ThermalReceiptEncoder.paper58mm;
+                          });
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                const Divider(height: 1),
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 260,
+                  child: ListView.builder(
+                    itemCount: _devices.length,
+                    itemBuilder: (c, i) {
+                      return ListTile(
+                        leading: const Icon(Icons.print, color: Colors.blue),
+                        title: Text(_devices[i].name),
+                        subtitle: Text(_devices[i].mac),
+                        onTap: () async {
+                          Navigator.pop(ctx, true);
+                          await _connectToDevice(context, _devices[i]);
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text("Batal"),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Batal"))
-        ],
       ),
     );
   }
