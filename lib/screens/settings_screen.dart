@@ -12,6 +12,7 @@ import '../controllers/settings_controller.dart';
 import '../helpers/session_manager.dart';
 import '../theme/app_colors.dart';
 import '../theme/glass_widgets.dart';
+import 'auth_screen.dart';
 import 'login_screen.dart';
 import 'employee_management_screen.dart';
 import '../data/datasources/firebase/core_firebase_datasource.dart';
@@ -39,6 +40,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   String _ownerPin = "260679";
   int _paperWidthMm = ThermalReceiptEncoder.paper80mm;
+  double _receiptScale = 1.0;
 
   @override
   void initState() {
@@ -50,6 +52,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() => _isLoading = true);
     final data = await _controller.loadSettings();
     final savedPaperMm = await PrinterHelper.getPaperWidthMm();
+    final savedReceiptScale = await PrinterHelper.getReceiptScale();
 
     if (mounted) {
       setState(() {
@@ -65,6 +68,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         }
 
         _paperWidthMm = savedPaperMm;
+        _receiptScale = savedReceiptScale;
         _isLoading = false;
       });
     }
@@ -77,6 +81,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
     AppNotification.show(
       context,
       message: "Ukuran kertas printer diatur ke ${paperMm}mm (${ThermalReceiptEncoder.dotsForPaperMm(paperMm)} dot)",
+      type: AppNotificationType.success,
+    );
+  }
+
+  Future<void> _updateReceiptScale(ThermalPrintSize preset) async {
+    final scale = ThermalReceiptEncoder.scaleForPreset(preset);
+    await PrinterHelper.setReceiptScale(scale);
+    if (!mounted) return;
+    setState(() => _receiptScale = scale);
+    final label = preset == ThermalPrintSize.small
+        ? "Kecil (Hemat Kertas)"
+        : preset == ThermalPrintSize.large
+            ? "Besar (Jelas)"
+            : "Normal (Standar)";
+    AppNotification.show(
+      context,
+      message: "Ukuran huruf nota diatur ke $label",
       type: AppNotificationType.success,
     );
   }
@@ -379,6 +400,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
             onPressed: () async {
+              final bool wasStandaloneEmp =
+                  SessionManager().isStandaloneEmployee;
+
               // 🔥 SUNTIK ID TOKO & PIN SESAAT SEBELUM LOGOUT 🔥
               SharedPreferences prefs = await SharedPreferences.getInstance();
               String savedPin = _ownerPin;
@@ -388,24 +412,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
               if (SessionManager().isOwner) {
                 await GoogleSignIn().signOut();
                 await FirebaseAuth.instance.signOut();
+              } else if (wasStandaloneEmp) {
+                await FirebaseAuth.instance.signOut();
               }
 
               // Perintah ini menghapus memori HP lu
-              SessionManager().logout();
+              await SessionManager().logout();
 
               // Beri jeda sepersekian detik biar penghapusan selesai
-              await Future.delayed(const Duration(milliseconds: 300));
+              await Future.delayed(const Duration(milliseconds: 200));
 
-              // 🔥 SUNTIK BALIK DATA PENTING BIAR GAK AMNESIA 🔥
-              await prefs.setString('saved_owner_pin', savedPin);
-              if (savedStoreId != null) {
-                await prefs.setString('saved_store_id', savedStoreId);
+              if (!wasStandaloneEmp) {
+                // 🔥 SUNTIK BALIK DATA PENTING BIAR GAK AMNESIA 🔥
+                await prefs.setString('saved_owner_pin', savedPin);
+                if (savedStoreId != null) {
+                  await prefs.setString('saved_store_id', savedStoreId);
+                }
               }
 
               if (!mounted) return;
 
               Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (context) => const LoginScreen()),
+                MaterialPageRoute(
+                  builder: (context) => wasStandaloneEmp
+                      ? const AuthScreen()
+                      : const LoginScreen(),
+                ),
                 (Route<dynamic> route) => false,
               );
             },
@@ -982,35 +1014,98 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ),
                           ],
                         ),
+                        const SizedBox(height: 16),
+                        const Divider(height: 1),
+                        const SizedBox(height: 14),
+                        const Text(
+                          "Besar-Kecil Huruf Nota",
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13.5,
+                            color: AppColors.textDark,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: ChoiceChip(
+                                selectedColor: AppColors.menuBlueBg,
+                                checkmarkColor: AppColors.primaryNavy,
+                                label: const Center(child: Text("Kecil")),
+                                selected:
+                                    ThermalReceiptEncoder.presetForScale(_receiptScale) ==
+                                        ThermalPrintSize.small,
+                                onSelected: (s) {
+                                  if (s) {
+                                    _updateReceiptScale(ThermalPrintSize.small);
+                                  }
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: ChoiceChip(
+                                selectedColor: AppColors.menuBlueBg,
+                                checkmarkColor: AppColors.primaryNavy,
+                                label: const Center(child: Text("Normal")),
+                                selected:
+                                    ThermalReceiptEncoder.presetForScale(_receiptScale) ==
+                                        ThermalPrintSize.normal,
+                                onSelected: (s) {
+                                  if (s) {
+                                    _updateReceiptScale(ThermalPrintSize.normal);
+                                  }
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: ChoiceChip(
+                                selectedColor: AppColors.menuBlueBg,
+                                checkmarkColor: AppColors.primaryNavy,
+                                label: const Center(child: Text("Besar")),
+                                selected:
+                                    ThermalReceiptEncoder.presetForScale(_receiptScale) ==
+                                        ThermalPrintSize.large,
+                                onSelected: (s) {
+                                  if (s) {
+                                    _updateReceiptScale(ThermalPrintSize.large);
+                                  }
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
                       ],
                     ),
                   ),
 
-                  const SizedBox(height: 30),
-                  const Text(
-                    "Keamanan Akun",
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                      color: AppColors.primaryNavy,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-
-                  _buildMenuCard(
-                    title: "Ganti PIN Pemilik",
-                    subtitle: "Akses menu penting hanya dengan PIN",
-                    icon: Icons.lock,
-                    iconColor: AppColors.menuAmberIcon,
-                    bgColor: AppColors.menuAmberBg,
-                    onTap: _showChangePinDialog,
-                  ),
-
                   if (SessionManager().isOwner) ...[
+                    const SizedBox(height: 30),
+                    const Text(
+                      "Keamanan & Akses Tim",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: AppColors.primaryNavy,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+
+                    _buildMenuCard(
+                      title: "Ganti PIN Pemilik",
+                      subtitle: "Akses menu penting hanya dengan PIN",
+                      icon: Icons.lock,
+                      iconColor: AppColors.menuAmberIcon,
+                      bgColor: AppColors.menuAmberBg,
+                      onTap: _showChangePinDialog,
+                    ),
+
                     const SizedBox(height: 10),
                     _buildMenuCard(
                       title: "Kelola Karyawan",
-                      subtitle: "Tambah atau hapus akses kasir",
+                      subtitle: "Buat akun login karyawan (Email & Password) & atur akses",
                       icon: Icons.people_alt,
                       iconColor: AppColors.menuIndigoIcon,
                       bgColor: AppColors.menuIndigoBg,

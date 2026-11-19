@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/datasources/firebase/core_firebase_datasource.dart';
 import '../data/datasources/firebase/employee_firebase_datasource.dart';
+import '../helpers/employee_account_helper.dart';
 import '../helpers/session_manager.dart';
 import 'dashboard_screen.dart';
 import '../theme/app_colors.dart';
@@ -171,44 +172,236 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  void _showEmployeeLoginDialog() {
-    User? currentUser = FirebaseAuth.instance.currentUser;
+  void _showEmployeeEmailLoginDialog() {
+    final emailCtrl = TextEditingController();
+    final passCtrl = TextEditingController();
+    bool obscure = true;
+    bool submitting = false;
 
-    if (currentUser == null) {
-      showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (dialogCtx, setDialogState) => AlertDialog(
+          backgroundColor: AppColors.pureWhite,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(22),
           ),
-          title: const Text(
-            "Akses Ditolak",
-            style: TextStyle(
-              color: AppColors.statusRed,
-              fontWeight: FontWeight.bold,
+          title: const Row(
+            children: [
+              GlassIconBadge(
+                icon: LucideIcons.userCheck,
+                iconColor: AppColors.menuTealIcon,
+                bgColor: AppColors.menuTealBg,
+                size: 38,
+                iconSize: 20,
+                radius: 12,
+              ),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  "Login Karyawan",
+                  style: TextStyle(
+                    color: AppColors.primaryNavy,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "Masukkan Email & Password yang dibuatkan Pemilik Toko. Akun Anda akan otomatis terhubung ke database toko.",
+                  style: TextStyle(fontSize: 12.5, color: AppColors.textGrey),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: emailCtrl,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: InputDecoration(
+                    labelText: "Email Karyawan",
+                    hintText: "contoh: budi@depot.com",
+                    prefixIcon: const Icon(Icons.email_outlined),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: passCtrl,
+                  obscureText: obscure,
+                  decoration: InputDecoration(
+                    labelText: "Password",
+                    prefixIcon: const Icon(Icons.lock_outline),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        obscure
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
+                      ),
+                      onPressed: () {
+                        setDialogState(() => obscure = !obscure);
+                      },
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ),
-          content: const Text(
-            "Tablet ini belum ditautkan ke database.\n\nMinta Bos Anda untuk login menggunakan 'Login Pemilik Toko' setidaknya 1 kali di perangkat ini.",
-            style: TextStyle(color: AppColors.textDark),
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(ctx),
+              onPressed: submitting ? null : () => Navigator.pop(ctx),
               child: const Text(
-                "MENGERTI",
-                style: TextStyle(
-                  color: AppColors.primaryNavy,
-                  fontWeight: FontWeight.bold,
+                "BATAL",
+                style: TextStyle(color: AppColors.textGrey),
+              ),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryNavy,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
               ),
+              onPressed: submitting
+                  ? null
+                  : () async {
+                      final email =
+                          EmployeeAccountHelper.normalizeEmail(emailCtrl.text);
+                      final pass = passCtrl.text.trim();
+                      if (email.isEmpty || pass.isEmpty) {
+                        AppNotification.show(
+                          context,
+                          message: "Email dan password wajib diisi!",
+                          type: AppNotificationType.error,
+                        );
+                        return;
+                      }
+                      setDialogState(() => submitting = true);
+                      try {
+                        final cred = await FirebaseAuth.instance
+                            .signInWithEmailAndPassword(
+                          email: email,
+                          password: pass,
+                        );
+                        final empUser = cred.user;
+                        if (empUser == null) {
+                          throw Exception("Akun tidak ditemukan.");
+                        }
+
+                        final link = await EmployeeFirebaseDataSource()
+                            .getEmployeeAccountByAuthUid(
+                          empUser.uid,
+                          forceServer: true,
+                        );
+
+                        if (link == null) {
+                          await FirebaseAuth.instance.signOut();
+                          throw Exception(
+                            "Email ini belum ditautkan sebagai akun karyawan toko. Minta Bos buatkan dari menu Kelola Karyawan.",
+                          );
+                        }
+                        if (!link.isActive) {
+                          await FirebaseAuth.instance.signOut();
+                          throw Exception(
+                            "Akses akun karyawan ini telah dinonaktifkan oleh Pemilik Toko.",
+                          );
+                        }
+
+                        await SessionManager().loginAsEmployee(
+                          name: link.name,
+                          email: link.email,
+                          userId: link.storeId,
+                          employeeAuthUid: link.authUid,
+                        );
+
+                        if (!ctx.mounted) return;
+                        Navigator.pop(ctx);
+                        if (!mounted) return;
+                        Navigator.pushReplacement(
+                          context,
+                          GlassPageRoute(
+                            builder: (_) => const DashboardScreen(),
+                          ),
+                        );
+                      } on FirebaseAuthException catch (e) {
+                        if (mounted) {
+                          AppNotification.show(
+                            context,
+                            message:
+                                EmployeeAccountHelper.mapAuthErrorCode(e.code),
+                            type: AppNotificationType.error,
+                          );
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          AppNotification.show(
+                            context,
+                            message:
+                                e.toString().replaceFirst('Exception: ', ''),
+                            type: AppNotificationType.error,
+                          );
+                        }
+                      } finally {
+                        if (dialogCtx.mounted) {
+                          setDialogState(() => submitting = false);
+                        }
+                      }
+                    },
+              child: submitting
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : const Text(
+                      "MASUK",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
             ),
           ],
         ),
-      );
+      ),
+    );
+  }
+
+  Future<void> _showEmployeeLoginDialog() async {
+    User? currentUser = FirebaseAuth.instance.currentUser;
+
+    // Jika perangkat belum login akun Bos (atau sedang login akun karyawan mandiri),
+    // langsung tampilkan form Login Karyawan pakai Email & Password tanpa butuh Gmail Bos!
+    if (currentUser == null) {
+      _showEmployeeEmailLoginDialog();
       return;
     }
 
+    EmployeeAccountLink? existingEmpLink;
+    try {
+      existingEmpLink = await EmployeeFirebaseDataSource()
+          .getEmployeeAccountByAuthUid(currentUser.uid, forceServer: false);
+    } catch (_) {}
+
+    if (existingEmpLink != null) {
+      if (mounted) _showEmployeeEmailLoginDialog();
+      return;
+    }
+
+    if (!mounted) return;
     String bossId = currentUser.uid;
 
     showDialog(
@@ -235,24 +428,29 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 );
               }
-              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+              final activeDocs = (snapshot.data?.docs ?? []).where((doc) {
+                final data = doc.data() as Map<String, dynamic>? ?? {};
+                return data['isActive'] != false;
+              }).toList();
+
+              if (activeDocs.isEmpty) {
                 return const Padding(
                   padding: EdgeInsets.symmetric(vertical: 20),
                   child: Text(
-                    "Belum ada data karyawan terdaftar.\n\nMinta Bos tambahkan dari menu Pengaturan.",
+                    "Belum ada data karyawan aktif.\n\nMinta Bos tambahkan dari menu Pengaturan -> Kelola Karyawan.",
                     textAlign: TextAlign.center,
                     style: TextStyle(color: AppColors.textGrey, fontSize: 13),
                   ),
                 );
               }
 
-              var docs = snapshot.data!.docs;
               return ListView.builder(
                 shrinkWrap: true,
-                itemCount: docs.length,
+                itemCount: activeDocs.length,
                 itemBuilder: (listCtx, index) {
-                  var emp = docs[index];
-                  String empName = emp['name'] ?? "Tanpa Nama";
+                  var emp = activeDocs[index];
+                  final data = emp.data() as Map<String, dynamic>? ?? {};
+                  String empName = (data['name'] ?? "Tanpa Nama").toString();
 
                   return Card(
                     elevation: 0,
@@ -308,6 +506,14 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
         actions: [
+          TextButton.icon(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _showEmployeeEmailLoginDialog();
+            },
+            icon: const Icon(Icons.email_outlined, size: 16),
+            label: const Text("Login Email"),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text(
@@ -323,6 +529,19 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _loginWithGoogle() async {
     try {
       User? currentUser = FirebaseAuth.instance.currentUser;
+
+      // Jangan izinkan akun karyawan mandiri masuk sebagai Pemilik Toko
+      if (currentUser != null) {
+        EmployeeAccountLink? empLink;
+        try {
+          empLink = await EmployeeFirebaseDataSource()
+              .getEmployeeAccountByAuthUid(currentUser.uid, forceServer: false);
+        } catch (_) {}
+        if (empLink != null) {
+          await FirebaseAuth.instance.signOut();
+          currentUser = null;
+        }
+      }
 
       if (currentUser != null) {
         SharedPreferences prefs = await SharedPreferences.getInstance();

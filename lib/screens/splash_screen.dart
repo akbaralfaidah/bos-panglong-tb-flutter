@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import '../data/datasources/firebase/employee_firebase_datasource.dart';
 import '../helpers/session_manager.dart';
 import '../theme/app_colors.dart';
 import '../theme/glass_widgets.dart';
@@ -35,7 +36,26 @@ class _SplashScreenState extends State<SplashScreen> {
 
       Widget nextScreen;
       if (SessionManager().isLoggedIn) {
-        nextScreen = const DashboardScreen();
+        bool employeeStillValid = true;
+        if (SessionManager().isStandaloneEmployee) {
+          try {
+            final link = await EmployeeFirebaseDataSource()
+                .getEmployeeAccountByAuthUid(
+              SessionManager().employeeAuthUid!,
+              forceServer: true,
+            );
+            if (link == null || !link.isActive) {
+              employeeStillValid = false;
+              await FirebaseAuth.instance.signOut();
+              await SessionManager().logout();
+            }
+          } catch (_) {
+            // Mode offline: tetap izinkan lanjut menggunakan cache lokal
+          }
+        }
+        nextScreen = employeeStillValid
+            ? const DashboardScreen()
+            : const AuthScreen();
       } else {
         nextScreen = FirebaseAuth.instance.currentUser == null
             ? const AuthScreen()

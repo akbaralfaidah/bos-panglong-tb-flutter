@@ -241,6 +241,40 @@ void main() {
       }
       expect(reassembled.toBytes(), equals(raw));
     });
+
+    test('clamps receipt and barcode scales and computes proportional sticker metrics', () {
+      expect(ThermalReceiptEncoder.normalizePrintScale(0.2), 0.65);
+      expect(ThermalReceiptEncoder.normalizePrintScale(2.5), 1.30);
+      expect(ThermalReceiptEncoder.normalizePrintScale(1.0), 1.0);
+
+      expect(
+        ThermalReceiptEncoder.scaleForPreset(ThermalPrintSize.small),
+        closeTo(0.82, 0.001),
+      );
+      expect(
+        ThermalReceiptEncoder.scaleForPreset(ThermalPrintSize.normal),
+        closeTo(1.00, 0.001),
+      );
+      expect(
+        ThermalReceiptEncoder.scaleForPreset(ThermalPrintSize.large),
+        closeTo(1.18, 0.001),
+      );
+
+      final smallSticker = ThermalReceiptEncoder.barcodeStickerLayout(
+        paperWidthMm: 58,
+        scale: 0.75,
+      );
+      final largeSticker = ThermalReceiptEncoder.barcodeStickerLayout(
+        paperWidthMm: 80,
+        scale: 1.20,
+      );
+
+      expect(smallSticker.canvasWidth, lessThan(largeSticker.canvasWidth));
+      expect(smallSticker.priceFontSize, lessThan(largeSticker.priceFontSize));
+      expect(smallSticker.barcodeHeight, lessThan(largeSticker.barcodeHeight));
+      expect(smallSticker.barcodeWidth, lessThanOrEqualTo(smallSticker.canvasWidth - 16));
+      expect(largeSticker.barcodeWidth, lessThanOrEqualTo(largeSticker.canvasWidth - 16));
+    });
   });
 
   group('ThermalReceiptEncoder - Flutter RepaintBoundary phone vs tablet capture', () {

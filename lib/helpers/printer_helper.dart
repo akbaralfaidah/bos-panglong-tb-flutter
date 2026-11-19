@@ -23,9 +23,11 @@ class PrinterDevice {
 
 class PrinterHelper {
   static const String _prefPaperWidthKey = 'printer_paper_width_mm';
+  static const String _prefReceiptScaleKey = 'printer_receipt_scale';
+  static const String _prefBarcodeScaleKey = 'printer_barcode_scale';
 
   final btp.BlueThermalPrinter _androidPrinter = btp.BlueThermalPrinter.instance;
-  List<PrinterDevice> _devices = [];
+  final List<PrinterDevice> _devices = [];
 
   /// Membaca lebar kertas thermal tersimpan: `80` (default, 576 dot) atau `58` (384 dot).
   static Future<int> getPaperWidthMm() async {
@@ -53,6 +55,48 @@ class PrinterHelper {
   static Future<int> getPaperWidthDots() async {
     final mm = await getPaperWidthMm();
     return ThermalReceiptEncoder.dotsForPaperMm(mm);
+  }
+
+  /// Membaca skala besar-kecil huruf nota thermal (`0.65` - `1.30`, default `1.0`).
+  static Future<double> getReceiptScale() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getDouble(_prefReceiptScaleKey);
+      if (saved != null) {
+        return ThermalReceiptEncoder.normalizePrintScale(saved);
+      }
+    } catch (_) {}
+    return 1.0;
+  }
+
+  /// Menyimpan skala besar-kecil huruf nota thermal.
+  static Future<void> setReceiptScale(double scale) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(
+      _prefReceiptScaleKey,
+      ThermalReceiptEncoder.normalizePrintScale(scale),
+    );
+  }
+
+  /// Membaca skala besar-kecil stiker barcode (`0.65` - `1.30`, default `1.0`).
+  static Future<double> getBarcodeScale() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getDouble(_prefBarcodeScaleKey);
+      if (saved != null) {
+        return ThermalReceiptEncoder.normalizePrintScale(saved);
+      }
+    } catch (_) {}
+    return 1.0;
+  }
+
+  /// Menyimpan skala besar-kecil stiker barcode.
+  static Future<void> setBarcodeScale(double scale) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(
+      _prefBarcodeScaleKey,
+      ThermalReceiptEncoder.normalizePrintScale(scale),
+    );
   }
 
   /// Menangkap [RepaintBoundary] secara stabil setelah layout & paint frame benar-benar selesai.
@@ -475,6 +519,7 @@ class PrinterHelper {
     required int priceGrosir,
     required String unitEcer,
     required String unitGrosir,
+    double scale = 1.0,
   }) async {
     if (!await _checkPermissions()) {
       _showSnack(context, "Izin Bluetooth/Lokasi wajib diaktifkan!", Colors.red);
@@ -497,27 +542,80 @@ class PrinterHelper {
       if (await pbt.PrintBluetoothThermal.connectionStatus) {
         _showSnack(context, "Mencetak Barcode...", Colors.blue);
 
+        final int paperMm = await getPaperWidthMm();
         final profile = await CapabilityProfile.load();
-        final generator = Generator(PaperSize.mm80, profile);
+        final generator = Generator(
+          paperMm <= ThermalReceiptEncoder.paper58mm
+              ? PaperSize.mm58
+              : PaperSize.mm80,
+          profile,
+        );
         List<int> bytes = [];
         final currency = NumberFormat('#,##0', 'id_ID');
+        final bool isCompact = scale <= 0.88;
+        final PosTextSize priceWidth =
+            isCompact ? PosTextSize.size1 : PosTextSize.size2;
+        final PosTextSize priceHeight =
+            isCompact ? PosTextSize.size1 : PosTextSize.size2;
+        final int barHeight = (78 * ThermalReceiptEncoder.normalizePrintScale(scale))
+            .round()
+            .clamp(45, 110);
 
-        bytes += generator.text(productName, styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2));
+        bytes += generator.text(
+          productName,
+          styles: PosStyles(
+            align: PosAlign.center,
+            bold: true,
+            height: isCompact ? PosTextSize.size1 : PosTextSize.size2,
+          ),
+        );
         bytes += generator.feed(1);
 
         if (priceEcer > 0 && priceGrosir > 0) {
-          bytes += generator.text("Rp ${currency.format(priceEcer)} / $unitEcer", styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2));
-          bytes += generator.text("Rp ${currency.format(priceGrosir)} / $unitGrosir", styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2));
+          bytes += generator.text(
+            "Rp ${currency.format(priceEcer)} / $unitEcer",
+            styles: PosStyles(
+              align: PosAlign.center,
+              bold: true,
+              height: priceHeight,
+              width: priceWidth,
+            ),
+          );
+          bytes += generator.text(
+            "Rp ${currency.format(priceGrosir)} / $unitGrosir",
+            styles: PosStyles(
+              align: PosAlign.center,
+              bold: true,
+              height: priceHeight,
+              width: priceWidth,
+            ),
+          );
         } else if (priceEcer > 0) {
-          bytes += generator.text("Rp ${currency.format(priceEcer)} / $unitEcer", styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2));
+          bytes += generator.text(
+            "Rp ${currency.format(priceEcer)} / $unitEcer",
+            styles: PosStyles(
+              align: PosAlign.center,
+              bold: true,
+              height: priceHeight,
+              width: priceWidth,
+            ),
+          );
         } else if (priceGrosir > 0) {
-          bytes += generator.text("Rp ${currency.format(priceGrosir)} / $unitGrosir", styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2));
+          bytes += generator.text(
+            "Rp ${currency.format(priceGrosir)} / $unitGrosir",
+            styles: PosStyles(
+              align: PosAlign.center,
+              bold: true,
+              height: priceHeight,
+              width: priceWidth,
+            ),
+          );
         }
         
         bytes += generator.feed(1);
         
         final List<int> barData = barcodeData.codeUnits;
-        bytes += generator.barcode(Barcode.code128(barData), height: 80);
+        bytes += generator.barcode(Barcode.code128(barData), height: barHeight);
         bytes += generator.text(barcodeData, styles: const PosStyles(align: PosAlign.center, bold: true));
         
         bytes += generator.feed(3);

@@ -12,10 +12,15 @@ class SessionManager {
   String? userName;
   String? userEmail;
   String? uid;
+  String? employeeAuthUid;
 
   bool get isLoggedIn => _activeRole != null;
   bool get isOwner => _activeRole == 'OWNER';
   bool get isEmployee => _activeRole == 'EMPLOYEE';
+
+  /// True jika karyawan login menggunakan akun Email & Password mandiri (tanpa akun Google Bos di HP).
+  bool get isStandaloneEmployee =>
+      isEmployee && employeeAuthUid != null && employeeAuthUid!.isNotEmpty;
 
   Future<void> init() async {
     // Baca dari brankas enkripsi
@@ -23,6 +28,7 @@ class SessionManager {
     userName = await _storage.read(key: 'name');
     userEmail = await _storage.read(key: 'email');
     uid = await _storage.read(key: 'uid');
+    employeeAuthUid = await _storage.read(key: 'employee_auth_uid');
   }
 
   Future<void> loginAsOwner({
@@ -34,6 +40,8 @@ class SessionManager {
     userName = name;
     userEmail = email;
     uid = userId;
+    employeeAuthUid = null;
+    await _storage.delete(key: 'employee_auth_uid');
     await _saveToLocal();
   }
 
@@ -41,11 +49,16 @@ class SessionManager {
     String? name,
     String? email,
     String? userId,
+    String? employeeAuthUid,
   }) async {
     _activeRole = 'EMPLOYEE';
     userName = name;
     userEmail = email;
     uid = userId;
+    this.employeeAuthUid = employeeAuthUid;
+    if (employeeAuthUid == null || employeeAuthUid.isEmpty) {
+      await _storage.delete(key: 'employee_auth_uid');
+    }
     await _saveToLocal();
   }
 
@@ -55,6 +68,9 @@ class SessionManager {
     if (userName != null) await _storage.write(key: 'name', value: userName!);
     if (userEmail != null) await _storage.write(key: 'email', value: userEmail!);
     if (uid != null) await _storage.write(key: 'uid', value: uid!);
+    if (employeeAuthUid != null && employeeAuthUid!.isNotEmpty) {
+      await _storage.write(key: 'employee_auth_uid', value: employeeAuthUid!);
+    }
   }
 
   Future<void> logout() async {
@@ -62,6 +78,7 @@ class SessionManager {
     userName = null;
     userEmail = null;
     uid = null;
+    employeeAuthUid = null;
     // Hancurkan semua kunci saat logout
     await _storage.deleteAll();
   }

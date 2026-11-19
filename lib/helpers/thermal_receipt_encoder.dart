@@ -3,6 +3,36 @@ import 'dart:typed_data';
 
 import 'package:image/image.dart' as img;
 
+/// Preset besar-kecil cetakan thermal (Nota & Stiker Barcode).
+enum ThermalPrintSize {
+  small,
+  normal,
+  large,
+}
+
+/// Dimensi tata letak stiker barcode yang menyesuaikan lebar kertas & skala pilihan pengguna.
+class BarcodeStickerMetrics {
+  final double canvasWidth;
+  final double horizontalPadding;
+  final double titleFontSize;
+  final double priceFontSize;
+  final double barcodeWidth;
+  final double barcodeHeight;
+  final double codeFontSize;
+  final double bottomPadding;
+
+  const BarcodeStickerMetrics({
+    required this.canvasWidth,
+    required this.horizontalPadding,
+    required this.titleFontSize,
+    required this.priceFontSize,
+    required this.barcodeWidth,
+    required this.barcodeHeight,
+    required this.codeFontSize,
+    required this.bottomPadding,
+  });
+}
+
 /// Pure-Dart thermal receipt image normalizer & ESC/POS raster encoder.
 ///
 /// Replaces `blue_thermal_printer`'s buggy Java `Utils.decodeBitmap()` which:
@@ -29,6 +59,70 @@ class ThermalReceiptEncoder {
 
   /// Luminance cutoff below which pixels print black (keeps anti-aliased receipt text crisp & dark).
   static const int defaultLuminanceThreshold = 185;
+
+  static const double minPrintScale = 0.65;
+  static const double maxPrintScale = 1.30;
+
+  /// Menormalisasi skala cetakan agar selalu berada dalam rentang aman (65% - 130%).
+  static double normalizePrintScale(double scale) {
+    if (scale.isNaN || scale.isInfinite) return 1.0;
+    return scale.clamp(minPrintScale, maxPrintScale).toDouble();
+  }
+
+  /// Mengembalikan faktor skala untuk preset Kecil / Normal / Besar.
+  static double scaleForPreset(ThermalPrintSize preset) {
+    switch (preset) {
+      case ThermalPrintSize.small:
+        return 0.82;
+      case ThermalPrintSize.normal:
+        return 1.00;
+      case ThermalPrintSize.large:
+        return 1.18;
+    }
+  }
+
+  /// Menentukan preset terdekat dari nilai skala tersimpan.
+  static ThermalPrintSize presetForScale(double scale) {
+    if (scale <= 0.90) return ThermalPrintSize.small;
+    if (scale >= 1.10) return ThermalPrintSize.large;
+    return ThermalPrintSize.normal;
+  }
+
+  /// Menghitung dimensi stiker barcode secara proporsional terhadap ukuran kertas (`58mm`/`80mm`)
+  /// dan skala besar-kecil pilihan pengguna (`0.65` - `1.30`), tanpa pernah melampaui lebar kanvas.
+  static BarcodeStickerMetrics barcodeStickerLayout({
+    required int paperWidthMm,
+    required double scale,
+  }) {
+    final double safeScale = normalizePrintScale(scale);
+    final bool is58 = paperWidthMm <= paper58mm;
+    final double canvasWidth = is58 ? 288.0 : 384.0;
+    final double hPad = is58 ? 10.0 : 14.0;
+    final double innerMaxWidth = canvasWidth - (hPad * 2);
+
+    // Base typography tuned for crisp thermal printing; scaled smoothly by user slider/preset.
+    final double baseFactor = is58 ? 0.84 : 1.0;
+    final double effective = baseFactor * safeScale;
+
+    final double titleFont = (22.0 * effective).clamp(13.0, 32.0);
+    final double priceFont = (28.0 * effective).clamp(16.0, 40.0);
+    final double barcodeWidth =
+        (innerMaxWidth * (0.76 + (safeScale - 0.65) * 0.34)).clamp(140.0, innerMaxWidth);
+    final double barcodeHeight = (64.0 * effective).clamp(38.0, 96.0);
+    final double codeFont = (14.0 * effective).clamp(10.0, 20.0);
+    final double bottomPad = (26.0 * safeScale).clamp(14.0, 44.0);
+
+    return BarcodeStickerMetrics(
+      canvasWidth: canvasWidth,
+      horizontalPadding: hPad,
+      titleFontSize: titleFont,
+      priceFontSize: priceFont,
+      barcodeWidth: barcodeWidth,
+      barcodeHeight: barcodeHeight,
+      codeFontSize: codeFont,
+      bottomPadding: bottomPad,
+    );
+  }
 
   /// Returns exact hardware dot width (guaranteed multiple of 8) for paper roll width in mm.
   static int dotsForPaperMm(int paperMm) {

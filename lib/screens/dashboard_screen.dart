@@ -2,13 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'dart:io';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../data/datasources/firebase/core_firebase_datasource.dart';
+import '../data/datasources/firebase/employee_firebase_datasource.dart';
 import '../controllers/dashboard_controller.dart';
+import '../helpers/app_notification.dart';
 import '../helpers/session_manager.dart';
 import '../theme/app_colors.dart';
 import '../theme/glass_widgets.dart';
+import 'auth_screen.dart';
 import 'profit_history_screen.dart';
 import 'product_list_screen.dart';
 import 'cashier_screen.dart';
@@ -70,6 +74,37 @@ class _DashboardScreenState extends State<DashboardScreen>
   // SESSION TIMEOUT PER HARI
   Future<void> _checkSessionTimeout() async {
     final prefs = await SharedPreferences.getInstance();
+
+    if (SessionManager().isStandaloneEmployee) {
+      try {
+        final link = await EmployeeFirebaseDataSource()
+            .getEmployeeAccountByAuthUid(
+          SessionManager().employeeAuthUid!,
+          forceServer: true,
+        );
+        if (link == null || !link.isActive) {
+          await FirebaseAuth.instance.signOut();
+          await SessionManager().logout();
+          if (mounted) {
+            AppNotification.show(
+              context,
+              message:
+                  "Akses akun karyawan ini telah dinonaktifkan oleh Pemilik Toko.",
+              type: AppNotificationType.error,
+            );
+            Navigator.pushAndRemoveUntil(
+              context,
+              GlassPageRoute(builder: (context) => const AuthScreen()),
+              (route) => false,
+            );
+          }
+          return;
+        }
+      } catch (_) {
+        // Offline: tetap izinkan kasir bekerja dari cache
+      }
+      return;
+    }
 
     if (SessionManager().isOwner) {
       int? loginTime = prefs.getInt('boss_session_timestamp');
@@ -147,13 +182,23 @@ class _DashboardScreenState extends State<DashboardScreen>
               ),
             ),
             onPressed: () async {
+              final bool wasStandaloneEmp =
+                  SessionManager().isStandaloneEmployee;
+              if (wasStandaloneEmp) {
+                await FirebaseAuth.instance.signOut();
+              }
               await SessionManager().logout();
               if (!ctx.mounted) return;
               Navigator.pop(ctx);
               if (!mounted) return;
-              Navigator.pushReplacement(
+              Navigator.pushAndRemoveUntil(
                 context,
-                GlassPageRoute(builder: (context) => const LoginScreen()),
+                GlassPageRoute(
+                  builder: (context) => wasStandaloneEmp
+                      ? const AuthScreen()
+                      : const LoginScreen(),
+                ),
+                (route) => false,
               );
             },
             child: const Text("Keluar", style: TextStyle(color: Colors.white)),

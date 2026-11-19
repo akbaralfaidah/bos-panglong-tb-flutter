@@ -5,6 +5,7 @@ import 'package:barcode_widget/barcode_widget.dart';
 import 'package:intl/intl.dart';
 import '../models/product.dart';
 import '../helpers/printer_helper.dart';
+import '../helpers/thermal_receipt_encoder.dart';
 import '../theme/app_colors.dart';
 import '../theme/glass_widgets.dart';
 import '../helpers/app_notification.dart';
@@ -21,6 +22,36 @@ class ProductBarcodeScreen extends StatefulWidget {
 class _ProductBarcodeScreenState extends State<ProductBarcodeScreen> {
   final GlobalKey _printKey = GlobalKey();
   bool _isPrinting = false;
+  int _paperWidthMm = ThermalReceiptEncoder.paper80mm;
+  double _barcodeScale = 1.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPrinterPreferences();
+  }
+
+  Future<void> _loadPrinterPreferences() async {
+    final paperMm = await PrinterHelper.getPaperWidthMm();
+    final scale = await PrinterHelper.getBarcodeScale();
+    if (!mounted) return;
+    setState(() {
+      _paperWidthMm = paperMm;
+      _barcodeScale = scale;
+    });
+  }
+
+  Future<void> _setPaperWidth(int paperMm) async {
+    await PrinterHelper.setPaperWidthMm(paperMm);
+    if (!mounted) return;
+    setState(() => _paperWidthMm = paperMm);
+  }
+
+  Future<void> _setScale(double scale) async {
+    final normalized = ThermalReceiptEncoder.normalizePrintScale(scale);
+    setState(() => _barcodeScale = normalized);
+    await PrinterHelper.setBarcodeScale(normalized);
+  }
 
   String _formatRp(int number) => NumberFormat.currency(
     locale: 'id',
@@ -39,19 +70,20 @@ class _ProductBarcodeScreenState extends State<ProductBarcodeScreen> {
     }
   }
 
-  // 🔥 FUNGSI CETAK UPDATE DENGAN DUAL ENGINE 🔥
   Future<void> _printBarcode() async {
     setState(() => _isPrinting = true);
-    await Future.delayed(const Duration(milliseconds: 300));
+    await Future.delayed(const Duration(milliseconds: 120));
     try {
       PrinterHelper printer = PrinterHelper();
 
-      // Setup Nama dan Satuan
       String displayName = widget.product.name;
-      if (widget.product.type == 'BANGUNAN' && widget.product.dimensions != null) {
+      if (widget.product.type == 'BANGUNAN' &&
+          widget.product.dimensions != null) {
         String dimSuffix = "(${widget.product.dimensions})";
         if (displayName.endsWith(dimSuffix)) {
-          displayName = displayName.substring(0, displayName.length - dimSuffix.length).trim();
+          displayName = displayName
+              .substring(0, displayName.length - dimSuffix.length)
+              .trim();
         }
       }
 
@@ -73,7 +105,7 @@ class _ProductBarcodeScreenState extends State<ProductBarcodeScreen> {
       }
 
       if (Platform.isIOS) {
-        // 🔥 iOS PAKAI ESC/POS MURNI KHUSUS BARCODE 🔥
+        if (!mounted) return;
         await printer.printBarcodeIOS(
           context,
           productName: displayName,
@@ -82,24 +114,50 @@ class _ProductBarcodeScreenState extends State<ProductBarcodeScreen> {
           priceGrosir: widget.product.sellPriceCubic,
           unitEcer: unitSatuan,
           unitGrosir: unitGrosir,
+          scale: _barcodeScale,
         );
       } else {
-        // 🔥 ANDROID TETAP PAKAI GAMBAR 🔥
         Uint8List? pngBytes = await _generateImageBytes();
-        if (pngBytes == null) throw Exception("Gagal memproses gambar stiker");
+        if (pngBytes == null) {
+          throw Exception("Gagal memproses gambar stiker");
+        }
+        if (!mounted) return;
         await printer.printReceiptImage(context, pngBytes);
       }
 
       if (mounted && Platform.isAndroid) {
-        AppNotification.show(context, message: "Perintah Cetak Dikirim ke Printer!", type: AppNotificationType.success);
+        AppNotification.show(
+          context,
+          message: "Perintah Cetak Dikirim ke Printer!",
+          type: AppNotificationType.success,
+        );
       }
     } catch (e) {
       if (mounted) {
-        AppNotification.show(context, message: "Gagal Cetak: $e", type: AppNotificationType.error);
+        AppNotification.show(
+          context,
+          message: "Gagal Cetak: $e",
+          type: AppNotificationType.error,
+        );
       }
     } finally {
       if (mounted) setState(() => _isPrinting = false);
     }
+  }
+
+  Widget _buildPriceLine(String text, double fontSize) {
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Text(
+        text,
+        maxLines: 1,
+        style: TextStyle(
+          fontSize: fontSize,
+          fontWeight: FontWeight.w900,
+          color: Colors.black,
+        ),
+      ),
+    );
   }
 
   @override
@@ -108,7 +166,13 @@ class _ProductBarcodeScreenState extends State<ProductBarcodeScreen> {
       return Scaffold(
         backgroundColor: AppColors.liquidBackground,
         appBar: AppBar(
-          title: const Text("Cetak Barcode", style: TextStyle(color: AppColors.pureWhite, fontWeight: FontWeight.bold)),
+          title: const Text(
+            "Cetak Barcode",
+            style: TextStyle(
+              color: AppColors.pureWhite,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
           backgroundColor: AppColors.navyGlassStart,
           iconTheme: const IconThemeData(color: AppColors.pureWhite),
           elevation: 0,
@@ -152,8 +216,15 @@ class _ProductBarcodeScreenState extends State<ProductBarcodeScreen> {
       unitGrosir = "Btg";
     }
 
-    bool showEcer = widget.product.sellPriceUnit > 0;
-    bool showGrosir = widget.product.sellPriceCubic > 0;
+    final bool showEcer = widget.product.sellPriceUnit > 0;
+    final bool showGrosir = widget.product.sellPriceCubic > 0;
+
+    final BarcodeStickerMetrics metrics =
+        ThermalReceiptEncoder.barcodeStickerLayout(
+      paperWidthMm: _paperWidthMm,
+      scale: _barcodeScale,
+    );
+    final int scalePct = (_barcodeScale * 100).round();
 
     return Scaffold(
       backgroundColor: AppColors.liquidBackground,
@@ -179,124 +250,280 @@ class _ProductBarcodeScreenState extends State<ProductBarcodeScreen> {
         elevation: 0,
       ),
       body: LiquidAmbientBackground(
-        child: Center(
-          child: SingleChildScrollView(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 18, 16, 32),
+          child: ResponsiveLayout.constrained(
+            context: context,
+            maxWidth: 640,
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Text(
-                  "Preview Stiker:",
-                  style: TextStyle(
+                Text(
+                  "Preview Stiker (${_paperWidthMm}mm • $scalePct%)",
+                  style: const TextStyle(
                     color: AppColors.textGrey,
                     fontWeight: FontWeight.bold,
+                    fontSize: 13,
                   ),
                 ),
+                const SizedBox(height: 14),
+
+                // AREA CETAK STIKER (LIVE PREVIEW SESUAI UKURAN KERTAS & SKALA)
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Container(
+                    padding: _isPrinting
+                        ? EdgeInsets.zero
+                        : const EdgeInsets.all(6),
+                    decoration: _isPrinting
+                        ? null
+                        : AppColors.liquidGlassCard(radius: 20),
+                    child: RepaintBoundary(
+                      key: _printKey,
+                      child: Theme(
+                        data: Theme.of(context).copyWith(
+                          textTheme: ThemeData.light().textTheme,
+                        ),
+                        child: Container(
+                          width: metrics.canvasWidth,
+                          padding: EdgeInsets.fromLTRB(
+                            metrics.horizontalPadding,
+                            10,
+                            metrics.horizontalPadding,
+                            metrics.bottomPadding,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: _isPrinting
+                                ? BorderRadius.zero
+                                : BorderRadius.circular(14),
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                displayName,
+                                textAlign: TextAlign.center,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: metrics.titleFontSize,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.black,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+
+                              if (showEcer && showGrosir)
+                                Column(
+                                  children: [
+                                    _buildPriceLine(
+                                      "${_formatRp(widget.product.sellPriceUnit)} / $unitSatuan",
+                                      metrics.priceFontSize,
+                                    ),
+                                    _buildPriceLine(
+                                      "${_formatRp(widget.product.sellPriceCubic)} / $unitGrosir",
+                                      metrics.priceFontSize,
+                                    ),
+                                  ],
+                                )
+                              else if (showEcer)
+                                _buildPriceLine(
+                                  "${_formatRp(widget.product.sellPriceUnit)} / $unitSatuan",
+                                  metrics.priceFontSize,
+                                )
+                              else if (showGrosir)
+                                _buildPriceLine(
+                                  "${_formatRp(widget.product.sellPriceCubic)} / $unitGrosir",
+                                  metrics.priceFontSize,
+                                ),
+
+                              const SizedBox(height: 10),
+
+                              BarcodeWidget(
+                                barcode: Barcode.code128(),
+                                data: widget.product.barcode!,
+                                width: metrics.barcodeWidth,
+                                height: metrics.barcodeHeight,
+                                style: TextStyle(
+                                  fontSize: metrics.codeFontSize,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 1.2,
+                                  color: Colors.black,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
                 const SizedBox(height: 20),
 
-                // 🔥 AREA CETAK STIKER 🔥
-                Container(
-                  padding: _isPrinting
-                      ? EdgeInsets.zero
-                      : const EdgeInsets.all(6),
-                  decoration: _isPrinting
-                      ? null
-                      : AppColors.liquidGlassCard(radius: 20),
-                  child: RepaintBoundary(
-                    key: _printKey,
-                    child: Theme(
-                      data: Theme.of(context).copyWith(
-                        textTheme: ThemeData.light().textTheme,
-                      ),
-                      child: Container(
-                  width: 360,
-                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: _isPrinting
-                        ? BorderRadius.zero
-                        : BorderRadius.circular(14),
-                  ),
+                // PANEL PENGATURAN UKURAN KERTAS & BESAR-KECIL STIKER
+                GlassContainer(
+                  borderRadius: 20,
+                  padding: const EdgeInsets.all(16),
                   child: Column(
-                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        displayName,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 23,
+                      const Text(
+                        "Ukuran Kertas Printer",
+                        style: TextStyle(
                           fontWeight: FontWeight.bold,
-                          color: Colors.black,
+                          fontSize: 13.5,
+                          color: AppColors.primaryNavy,
                         ),
                       ),
                       const SizedBox(height: 8),
-
-                      if (showEcer && showGrosir)
-                        Column(
-                          children: [
-                            Text(
-                              "${_formatRp(widget.product.sellPriceUnit)} / $unitSatuan",
-                              style: const TextStyle(
-                                fontSize: 30,
-                                fontWeight: FontWeight.w900,
-                                color: Color.fromARGB(221, 0, 0, 0),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ChoiceChip(
+                              selectedColor: AppColors.menuBlueBg,
+                              checkmarkColor: AppColors.primaryNavy,
+                              side: BorderSide(
+                                color: _paperWidthMm ==
+                                        ThermalReceiptEncoder.paper80mm
+                                    ? AppColors.primaryNavy
+                                    : AppColors.borderLight,
+                                width: _paperWidthMm ==
+                                        ThermalReceiptEncoder.paper80mm
+                                    ? 1.5
+                                    : 1.0,
                               ),
-                            ),
-                            Text(
-                              "${_formatRp(widget.product.sellPriceCubic)} / $unitGrosir",
-                              style: const TextStyle(
-                                fontSize: 30,
-                                fontWeight: FontWeight.w900,
-                                color: Color.fromARGB(221, 0, 0, 0),
+                              label: const Center(
+                                child: Text(
+                                  "80mm (Standar)",
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
                               ),
+                              selected: _paperWidthMm ==
+                                  ThermalReceiptEncoder.paper80mm,
+                              onSelected: (v) {
+                                if (v) {
+                                  _setPaperWidth(
+                                    ThermalReceiptEncoder.paper80mm,
+                                  );
+                                }
+                              },
                             ),
-                          ],
-                        )
-                      else if (showEcer)
-                        Text(
-                          "${_formatRp(widget.product.sellPriceUnit)} / $unitSatuan",
-                          style: const TextStyle(
-                            fontSize: 30,
-                            fontWeight: FontWeight.w900,
-                            color: Colors.black,
                           ),
-                        )
-                      else if (showGrosir)
-                        Text(
-                          "${_formatRp(widget.product.sellPriceCubic)} / $unitGrosir",
-                          style: const TextStyle(
-                            fontSize: 30,
-                            fontWeight: FontWeight.w900,
-                            color: Colors.black,
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: ChoiceChip(
+                              selectedColor: AppColors.menuTealBg,
+                              checkmarkColor: AppColors.menuTealDark,
+                              side: BorderSide(
+                                color: _paperWidthMm ==
+                                        ThermalReceiptEncoder.paper58mm
+                                    ? AppColors.menuTealIcon
+                                    : AppColors.borderLight,
+                                width: _paperWidthMm ==
+                                        ThermalReceiptEncoder.paper58mm
+                                    ? 1.5
+                                    : 1.0,
+                              ),
+                              label: const Center(
+                                child: Text(
+                                  "58mm (Mini)",
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                              selected: _paperWidthMm ==
+                                  ThermalReceiptEncoder.paper58mm,
+                              onSelected: (v) {
+                                if (v) {
+                                  _setPaperWidth(
+                                    ThermalReceiptEncoder.paper58mm,
+                                  );
+                                }
+                              },
+                            ),
                           ),
-                        ),
-
-                      const SizedBox(height: 12),
-
-                      BarcodeWidget(
-                        barcode: Barcode.code128(),
-                        data: widget.product.barcode!,
-                        width: 280,
-                        height: 65,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.5,
-                        ),
+                        ],
                       ),
 
-                      const SizedBox(height: 40),
+                      const SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            "Besar-Kecil Stiker & Huruf",
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13.5,
+                              color: AppColors.primaryNavy,
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.menuBlueBg,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              "$scalePct%",
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 12,
+                                color: AppColors.primaryNavy,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ChoiceChip(
+                              label: const Center(child: Text("Kecil")),
+                              selected: _barcodeScale <= 0.85,
+                              onSelected: (_) => _setScale(0.75),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: ChoiceChip(
+                              label: const Center(child: Text("Normal")),
+                              selected:
+                                  _barcodeScale > 0.85 && _barcodeScale < 1.12,
+                              onSelected: (_) => _setScale(1.0),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: ChoiceChip(
+                              label: const Center(child: Text("Besar")),
+                              selected: _barcodeScale >= 1.12,
+                              onSelected: (_) => _setScale(1.20),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      Slider(
+                        value: _barcodeScale,
+                        min: ThermalReceiptEncoder.minPrintScale,
+                        max: ThermalReceiptEncoder.maxPrintScale,
+                        divisions: 13,
+                        activeColor: AppColors.primaryNavy,
+                        label: "$scalePct%",
+                        onChanged: (val) => _setScale(val),
+                      ),
                     ],
                   ),
                 ),
-              ),
-                  ),
-                ),
 
-              const SizedBox(height: 40),
+                const SizedBox(height: 22),
 
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 30),
-                child: SizedBox(
+                SizedBox(
                   width: double.infinity,
                   height: 55,
                   child: ElevatedButton.icon(
@@ -312,27 +539,25 @@ class _ProductBarcodeScreenState extends State<ProductBarcodeScreen> {
                             width: 20,
                             height: 20,
                             child: CircularProgressIndicator(
-                              color: AppColors.accentGold,
+                              color: Colors.white,
                               strokeWidth: 2,
                             ),
                           )
-                        : const Icon(Icons.print, color: AppColors.accentGold),
+                        : const Icon(Icons.print, color: Colors.white),
                     label: Text(
                       _isPrinting ? "MEMPROSES..." : "CETAK BARCODE",
                       style: const TextStyle(
-                        color: AppColors.accentGold,
+                        color: Colors.white,
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
                       ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 15),
-            ],
+              ],
+            ),
           ),
         ),
-      ),
       ),
     );
   }

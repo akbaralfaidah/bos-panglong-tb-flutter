@@ -43,6 +43,7 @@ class _ModalTransactionDetailScreenState extends State<ModalTransactionDetailScr
   bool _isLoading = true;
   bool _isGeneratingReceipt = false;
   bool _isVoiding = false;
+  double _receiptScale = 1.0;
 
   List<Map<String, dynamic>> _items = [];
   List<Map<String, dynamic>> _payments = [];
@@ -776,7 +777,12 @@ class _ModalTransactionDetailScreenState extends State<ModalTransactionDetailScr
     bool forPrint = true,
     double pixelRatio = 3.0,
   }) async {
-    setState(() => _isGeneratingReceipt = true);
+    final scale = forPrint ? await PrinterHelper.getReceiptScale() : 1.0;
+    if (!mounted) return null;
+    setState(() {
+      _receiptScale = scale;
+      _isGeneratingReceipt = true;
+    });
     await Future.delayed(const Duration(milliseconds: 120));
 
     try {
@@ -1000,11 +1006,17 @@ class _ModalTransactionDetailScreenState extends State<ModalTransactionDetailScr
 
                     RepaintBoundary(
                       key: _printKey,
-                      child: Theme(
-                        data: Theme.of(context).copyWith(
-                          textTheme: ThemeData.light().textTheme,
+                      child: MediaQuery(
+                        data: MediaQuery.of(context).copyWith(
+                          textScaler: TextScaler.linear(
+                            _isGeneratingReceipt ? _receiptScale : 1.0,
+                          ),
                         ),
-                        child: Container(
+                        child: Theme(
+                          data: Theme.of(context).copyWith(
+                            textTheme: ThemeData.light().textTheme,
+                          ),
+                          child: Container(
                           width: _isGeneratingReceipt
                               ? ThermalReceiptEncoder.receiptLogicalWidth
                               : double.infinity,
@@ -1800,6 +1812,7 @@ class _ModalTransactionDetailScreenState extends State<ModalTransactionDetailScr
                             ),
                           ],
                         ),
+                      ),
                       ),
                       ),
                     ),
