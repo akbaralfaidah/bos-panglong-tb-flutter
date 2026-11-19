@@ -342,7 +342,7 @@ class _LegacyTitipanSheetState extends State<_LegacyTitipanSheet> {
                                   ),
                                 ),
                                 subtitle: Text(
-                                  'Siap Jual: ${p.stockDisplay} $baseUnit  |  Titipan: ${p.reservedStockDisplay} $baseUnit',
+                                  'Fisik Depot: ${p.physicalStockDisplay} $baseUnit  |  Titipan: ${p.reservedStockDisplay} $baseUnit',
                                   style: const TextStyle(
                                     fontSize: 11,
                                     color: AppColors.textGrey,
@@ -819,7 +819,7 @@ class _LegacyTitipanSheetState extends State<_LegacyTitipanSheet> {
 
                         // ATURAN STOK GUDANG
                         const Text(
-                          '2. Pengaruh ke Stok Gudang Saat Ini',
+                          '2. Kondisi Fisik Barang di Depot Saat Ini',
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w800,
@@ -830,9 +830,9 @@ class _LegacyTitipanSheetState extends State<_LegacyTitipanSheet> {
                         _buildStockModeOption(
                           isSelected: _deductFromStock,
                           title:
-                              'Stok Siap Jual BELUM dikurangi barang titipan ini',
+                              'Fisik di depot TETAP (termasuk titipan / stok diputar)',
                           subtitle:
-                              'Pindahkan dari Stok Siap Jual -> Titipan Gudang. Total Fisik Gudang tetap sama.',
+                              'Cocok untuk kayu di tumpukan saat ini maupun semen/barang yang stoknya diputar. Angka Fisik Depot tidak akan menggelembung.',
                           icon: Icons.swap_horiz_rounded,
                           accentColor: AppColors.menuBlueIcon,
                           onTap: () => setState(() => _deductFromStock = true),
@@ -841,9 +841,9 @@ class _LegacyTitipanSheetState extends State<_LegacyTitipanSheet> {
                         _buildStockModeOption(
                           isSelected: !_deductFromStock,
                           title:
-                              'Stok Siap Jual SUDAH dikurangi sebelumnya',
+                              'Barang titipan disimpan terpisah di luar stok aplikasi',
                           subtitle:
-                              'Hanya tambah catatan Titipan Gudang tanpa memotong Stok Siap Jual lagi.',
+                              'Total Fisik Depot akan BERTAMBAH sesuai jumlah titipan ini (hanya jika tumpukan titipan belum terhitung di stok sekarang).',
                           icon: Icons.playlist_add_check_rounded,
                           accentColor: AppColors.menuAmberIcon,
                           onTap: () => setState(() => _deductFromStock = false),
@@ -1246,13 +1246,11 @@ class _LegacyTitipanSheetState extends State<_LegacyTitipanSheet> {
               runSpacing: 4,
               children: [
                 Text(
-                  'Siap Jual: ${p.stockDisplay} -> ${_fmtNum(afterReady)} $baseUnit',
-                  style: TextStyle(
+                  'Fisik Depot: ${p.physicalStockDisplay} -> ${_fmtNum(afterPhysical)} $baseUnit',
+                  style: const TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
-                    color: afterReady < 0
-                        ? AppColors.statusRed
-                        : AppColors.menuBlueIcon,
+                    color: AppColors.statusGreen,
                   ),
                 ),
                 Text(
@@ -1264,11 +1262,15 @@ class _LegacyTitipanSheetState extends State<_LegacyTitipanSheet> {
                   ),
                 ),
                 Text(
-                  'Fisik: ${p.physicalStockDisplay} -> ${_fmtNum(afterPhysical)} $baseUnit',
-                  style: const TextStyle(
+                  afterReady < 0
+                      ? 'Kurang ${_fmtNum(-afterReady)} $baseUnit utk titipan (stok diputar)'
+                      : 'Bebas Jual: ${p.freeStockDisplay} -> ${_fmtNum(afterReady)} $baseUnit',
+                  style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.statusGreen,
+                    color: afterReady < 0
+                        ? AppColors.statusRed
+                        : AppColors.menuBlueIcon,
                   ),
                 ),
               ],

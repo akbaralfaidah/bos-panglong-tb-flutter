@@ -542,7 +542,7 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
                                 }
                               }
                               
-                              double maxAvailableStock = p.stock + originalTaken - currentlyTaken;
+                              double maxAvailableStock = p.physicalStock + originalTaken - currentlyTaken;
                               
                               if (requiredStock > maxAvailableStock) {
                                 if (mounted) {
@@ -752,7 +752,7 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
                         color: AppColors.pureWhite,
                         child: ListTile(
                           title: Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                          subtitle: Text("Stok: ${p.stock} | ${_formatRp(p.sellPriceUnit)}", style: const TextStyle(color: AppColors.textGrey)),
+                          subtitle: Text("Fisik: ${p.physicalStockDisplay} | ${_formatRp(p.sellPriceUnit)}", style: const TextStyle(color: AppColors.textGrey)),
                           trailing: Container(
                             decoration: BoxDecoration(color: AppColors.statusGreen.withOpacity(0.1), shape: BoxShape.circle),
                             child: IconButton(

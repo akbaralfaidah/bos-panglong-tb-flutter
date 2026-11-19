@@ -204,12 +204,14 @@ class _CashierScreenState extends State<CashierScreen>
           double stockInCart = _cart
               .where((c) => c.product.id == foundProduct!.id)
               .fold(0.0, (sum, item) => sum + item.stockDeduction);
-          double displayStock = double.parse((foundProduct.stock - stockInCart).toStringAsFixed(2));
+          double physicalNow = double.parse(
+            (foundProduct.physicalStock - stockInCart).toStringAsFixed(2),
+          );
 
-          if (displayStock <= 0) {
-            AppNotification.show(context, message: "Stok sisa di rak habis! (Sudah masuk keranjang)", type: AppNotificationType.error);
+          if (physicalNow <= 0) {
+            AppNotification.show(context, message: "Fisik di depot habis! (Sudah masuk keranjang)", type: AppNotificationType.error);
           } else {
-            _showQuickAddDialog(foundProduct, foundProduct.name, displayStock);
+            _showQuickAddDialog(foundProduct, foundProduct.name, physicalNow);
           }
         } else {
           AppNotification.show(context, message: "Produk dengan Barcode tersebut tidak ditemukan!", type: AppNotificationType.error);
@@ -306,8 +308,8 @@ class _CashierScreenState extends State<CashierScreen>
       });
     } else if (sortBy == "Stok Kosong") {
       list.sort((a, b) {
-        if (a.stock <= 0 && b.stock > 0) return -1;
-        if (a.stock > 0 && b.stock <= 0) return 1;
+        if (a.physicalStock <= 0 && b.physicalStock > 0) return -1;
+        if (a.physicalStock > 0 && b.physicalStock <= 0) return 1;
         return _naturalCompare(a.name, b.name);
       });
     } else {
@@ -342,7 +344,18 @@ class _CashierScreenState extends State<CashierScreen>
     setState(() {});
   }
 
-  void _showQuickAddDialog(Product p, String displayName, double displayStock) {
+  String _fmtQtyClean(double value) {
+    final double normalized = value == 0 ? 0.0 : value;
+    if (normalized == normalized.roundToDouble()) {
+      return normalized.round().toString();
+    }
+    return normalized.toStringAsFixed(2);
+  }
+
+  void _showQuickAddDialog(Product p, String displayName, double maxPhysical) {
+    final double netFreeNow = double.parse(
+      (maxPhysical - p.reservedStock).toStringAsFixed(2),
+    );
     final TextEditingController qtyCtrl = TextEditingController(text: "1");
 
     int unitMode = 0;
@@ -558,25 +571,47 @@ class _CashierScreenState extends State<CashierScreen>
                     ),
                     const SizedBox(height: 5),
                     Text(
-                      "Siap Jual (Sistem): ${displayStock == displayStock.roundToDouble() ? displayStock.round().toString() : displayStock.toStringAsFixed(2)}",
+                      "Fisik di Depot: ${_fmtQtyClean(maxPhysical)}",
                       style: TextStyle(
                         fontSize: 13,
-                        color: displayStock <= 0
+                        color: maxPhysical <= 0
                             ? AppColors.statusRed
                             : AppColors.textDark,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                     if (p.reservedStock > 0) ...[
-                      const SizedBox(height: 3),
-                      Text(
-                        "Titipan: ${p.reservedStockDisplay}  •  Fisik Gudang: ${p.physicalStockDisplay}",
-                        style: const TextStyle(
-                          fontSize: 11.5,
-                          color: AppColors.menuAmberIcon,
-                          fontWeight: FontWeight.bold,
+                      const SizedBox(height: 6),
+                      if (netFreeNow < 0)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.menuRoseBg,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: AppColors.menuRoseBorder),
+                          ),
+                          child: Text(
+                            "Titipan: ${p.reservedStockDisplay} • Stok diputar (kurang ${_fmtQtyClean(-netFreeNow)} utk titipan). Tetap bisa dijual selama fisik tersedia.",
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 11.5,
+                              color: AppColors.menuRoseIcon,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        )
+                      else
+                        Text(
+                          "Titipan: ${p.reservedStockDisplay}  •  Bebas Jual: ${_fmtQtyClean(netFreeNow)}",
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            color: AppColors.menuAmberIcon,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                      ),
                     ],
                     const SizedBox(height: 20),
 
@@ -814,21 +849,21 @@ class _CashierScreenState extends State<CashierScreen>
                                 unitMode,
                               );
 
-                              if (requiredStock > displayStock) {
+                              if (requiredStock > maxPhysical) {
                                 if (mounted) {
                                   showDialog(
                                     context: context,
                                     builder: (c) => AlertDialog(
                                       backgroundColor: AppColors.pureWhite,
                                       title: const Text(
-                                        "Stok Kurang!",
+                                        "Stok Fisik Kurang!",
                                         style: TextStyle(
                                           color: AppColors.statusRed,
                                           fontWeight: FontWeight.bold,
                                         ),
                                       ),
                                       content: Text(
-                                        "Butuh dimasukkan: $requiredStock\nSisa Tersedia di Rak: $displayStock",
+                                        "Butuh dimasukkan: $requiredStock\nSisa Fisik di Depot: ${_fmtQtyClean(maxPhysical)}",
                                         style: const TextStyle(
                                           color: AppColors.textDark,
                                         ),
@@ -1553,7 +1588,7 @@ class _CashierScreenState extends State<CashierScreen>
       double stockInCart = _cart
           .where((c) => c.product.id == p.id)
           .fold(0.0, (sum, item) => sum + item.stockDeduction);
-      if (p.stock - stockInCart > 0)
+      if (p.physicalStock - stockInCart > 0)
         available.add(p);
       else
         empty.add(p);
@@ -1798,15 +1833,21 @@ class _CashierScreenState extends State<CashierScreen>
     double stockInCartDeduction = _cart
         .where((c) => c.product.id == p.id)
         .fold(0.0, (sum, item) => sum + item.stockDeduction);
-    double displayStock = double.parse((p.stock - stockInCartDeduction).toStringAsFixed(2));
+    double physicalNow = double.parse(
+      (p.physicalStock - stockInCartDeduction).toStringAsFixed(2),
+    );
+    double netFreeNow = double.parse(
+      (p.stock - stockInCartDeduction).toStringAsFixed(2),
+    );
     int inCartCount = _cart.where((c) => c.product.id == p.id).length;
-    String displayStockStr = displayStock == displayStock.roundToDouble() ? displayStock.round().toString() : displayStock.toStringAsFixed(2);
 
     String unitShort = isBangunan ? (p.dimensions ?? "Pcs") : "Btg";
-    double physicalNow = double.parse((displayStock + p.reservedStock).toStringAsFixed(2));
-    String physicalNowStr = physicalNow == physicalNow.roundToDouble() ? physicalNow.round().toString() : physicalNow.toStringAsFixed(2);
+    String physicalNowStr = _fmtQtyClean(physicalNow);
+    final bool hasNetDeficit = netFreeNow < 0;
+    final String netFreeStr = _fmtQtyClean(netFreeNow > 0 ? netFreeNow : 0.0);
+    final String deficitStr = _fmtQtyClean(hasNetDeficit ? -netFreeNow : 0.0);
 
-    final bool isLowStock = displayStock <= 5;
+    final bool isLowStock = physicalNow <= 5;
     final Color stockTextColor =
         isLowStock ? AppColors.statusRed : const Color(0xFF065F46);
     final Color stockSubTextColor =
@@ -1817,8 +1858,8 @@ class _CashierScreenState extends State<CashierScreen>
         p.grosirUnit != null &&
         p.grosirUnit!.isNotEmpty &&
         p.packContent > 1) {
-      int g = displayStock ~/ p.packContent;
-      int s = (displayStock % p.packContent).toInt();
+      int g = physicalNow ~/ p.packContent;
+      int s = (physicalNow % p.packContent).toInt();
       String dim = p.dimensions ?? "Pcs";
       if (g > 0) {
         String subText = "($g ${p.grosirUnit}";
@@ -1829,7 +1870,7 @@ class _CashierScreenState extends State<CashierScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              "Siap Jual: $displayStockStr $dim",
+              "Fisik Depot: $physicalNowStr $dim",
               style: TextStyle(
                 color: stockTextColor,
                 fontSize: 12,
@@ -1849,7 +1890,7 @@ class _CashierScreenState extends State<CashierScreen>
         );
       } else {
         stockWidget = Text(
-          "Siap Jual: $displayStockStr $dim",
+          "Fisik Depot: $physicalNowStr $dim",
           style: TextStyle(
             color: stockTextColor,
             fontSize: 12,
@@ -1859,7 +1900,7 @@ class _CashierScreenState extends State<CashierScreen>
       }
     } else {
       stockWidget = Text(
-        "Siap Jual: $displayStockStr $unitShort",
+        "Fisik Depot: $physicalNowStr $unitShort",
         style: TextStyle(
           color: stockTextColor,
           fontSize: 12,
@@ -1901,7 +1942,7 @@ class _CashierScreenState extends State<CashierScreen>
                 GestureDetector(
                   onTap: isHabis
                       ? null
-                      : () => _showQuickAddDialog(p, displayName, displayStock),
+                      : () => _showQuickAddDialog(p, displayName, physicalNow),
                   child: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
@@ -2099,24 +2140,38 @@ class _CashierScreenState extends State<CashierScreen>
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
                       decoration: BoxDecoration(
-                        color: AppColors.menuBlueBg,
+                        color: hasNetDeficit
+                            ? AppColors.menuRoseBg
+                            : AppColors.menuBlueBg,
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: const Color(0xFFBFDBFE)),
+                        border: Border.all(
+                          color: hasNetDeficit
+                              ? AppColors.menuRoseBorder
+                              : AppColors.menuBlueBorder,
+                        ),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(
-                            LucideIcons.boxes,
+                          Icon(
+                            hasNetDeficit
+                                ? LucideIcons.triangleAlert
+                                : LucideIcons.check,
                             size: 13,
-                            color: AppColors.menuBlueIcon,
+                            color: hasNetDeficit
+                                ? AppColors.menuRoseIcon
+                                : AppColors.menuBlueIcon,
                           ),
                           const SizedBox(width: 4),
                           Flexible(
                             child: Text(
-                              "Fisik: $physicalNowStr $unitShort",
-                              style: const TextStyle(
-                                color: AppColors.primaryNavy,
+                              hasNetDeficit
+                                  ? "Kurang $deficitStr $unitShort utk titipan"
+                                  : "Bebas: $netFreeStr $unitShort",
+                              style: TextStyle(
+                                color: hasNetDeficit
+                                    ? AppColors.menuRoseIcon
+                                    : AppColors.primaryNavy,
                                 fontSize: 11.5,
                                 fontWeight: FontWeight.w700,
                               ),

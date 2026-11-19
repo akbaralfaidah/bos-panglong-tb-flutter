@@ -290,9 +290,9 @@ class _ProductListScreenState extends State<ProductListScreen>
       });
     } else if (sortBy == "Stok Kosong") {
       list.sort((a, b) {
-        // Stok 0 di atas, lalu A-Z
-        if (a.stock <= 0 && b.stock > 0) return -1;
-        if (a.stock > 0 && b.stock <= 0) return 1;
+        // Fisik gudang 0 di atas, lalu A-Z
+        if (a.physicalStock <= 0 && b.physicalStock > 0) return -1;
+        if (a.physicalStock > 0 && b.physicalStock <= 0) return 1;
         return _naturalCompare(a.name, b.name);
       });
     } else {
@@ -329,7 +329,7 @@ class _ProductListScreenState extends State<ProductListScreen>
   }
 
   int _calculateTotalStock(List<Product> products) {
-    return products.fold(0, (sum, item) => sum + item.stock.toInt());
+    return products.fold(0, (sum, item) => sum + item.physicalStock.toInt());
   }
 
   double _calculateTotalVolume(List<Product> products) {
@@ -353,7 +353,7 @@ class _ProductListScreenState extends State<ProductListScreen>
         else if (dim == '3x4')
           volCm = 48.0;
       }
-      totalVol += (p.stock * volCm);
+      totalVol += (p.physicalStock * volCm);
     }
     return totalVol;
   }
@@ -513,7 +513,7 @@ class _ProductListScreenState extends State<ProductListScreen>
                     value: isChecked,
                     activeColor: AppColors.primaryNavy,
                     title: Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                    subtitle: Text("Stok: ${p.stockDisplay} | ${p.category ?? p.type}", style: const TextStyle(fontSize: 12)),
+                    subtitle: Text("Fisik: ${p.physicalStockDisplay} | ${p.category ?? p.type}", style: const TextStyle(fontSize: 12)),
                     onChanged: (val) {
                       setDialogState(() {
                         if (val == true) {
@@ -1361,8 +1361,10 @@ class _ProductListScreenState extends State<ProductListScreen>
         ),
       );
 
-    List<Product> available = products.where((p) => p.stock > 0).toList();
-    List<Product> empty = products.where((p) => p.stock <= 0).toList();
+    List<Product> available =
+        products.where((p) => p.physicalStock > 0).toList();
+    List<Product> empty =
+        products.where((p) => p.physicalStock <= 0).toList();
 
     int totalItems =
         available.length + (empty.isNotEmpty ? 1 : 0) + empty.length;
@@ -1617,7 +1619,7 @@ class _ProductListScreenState extends State<ProductListScreen>
 
     String unitShort = isBangunan ? (p.dimensions ?? "Pcs") : "Btg";
 
-    final bool isLowStock = p.stock <= 5;
+    final bool isLowStock = p.physicalStock <= 5;
     final Color stockTextColor =
         isLowStock ? AppColors.statusRed : const Color(0xFF065F46);
     final Color stockSubTextColor =
@@ -1628,8 +1630,8 @@ class _ProductListScreenState extends State<ProductListScreen>
         p.grosirUnit != null &&
         p.grosirUnit!.isNotEmpty &&
         p.packContent > 1) {
-      int g = p.stock ~/ p.packContent;
-      int s = (p.stock % p.packContent).toInt();
+      int g = p.physicalStock ~/ p.packContent;
+      int s = (p.physicalStock % p.packContent).toInt();
       String dim = p.dimensions ?? "Pcs";
       if (g > 0) {
         String subText = "($g ${p.grosirUnit}";
@@ -1640,7 +1642,7 @@ class _ProductListScreenState extends State<ProductListScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              "Siap Jual: ${p.stockDisplay} $dim",
+              "Fisik Depot: ${p.physicalStockDisplay} $dim",
               style: TextStyle(
                 color: stockTextColor,
                 fontSize: 12,
@@ -1660,7 +1662,7 @@ class _ProductListScreenState extends State<ProductListScreen>
         );
       } else {
         stockWidget = Text(
-          "Siap Jual: ${p.stockDisplay} $dim",
+          "Fisik Depot: ${p.physicalStockDisplay} $dim",
           style: TextStyle(
             color: stockTextColor,
             fontSize: 12,
@@ -1670,7 +1672,7 @@ class _ProductListScreenState extends State<ProductListScreen>
       }
     } else {
       stockWidget = Text(
-        "Siap Jual: ${p.stockDisplay} $unitShort",
+        "Fisik Depot: ${p.physicalStockDisplay} $unitShort",
         style: TextStyle(
           color: stockTextColor,
           fontSize: 12,
@@ -1767,38 +1769,62 @@ class _ProductListScreenState extends State<ProductListScreen>
                 spacing: 6,
                 runSpacing: 6,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: isLowStock
-                          ? const Color(0xFFFEF2F2)
-                          : const Color(0xFFECFDF5),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: isLowStock
-                            ? const Color(0xFFFECACA)
-                            : const Color(0xFFA7F3D0),
+                  InkWell(
+                    onTap: _isOwner
+                        ? () => _showCorrectPhysicalStockDialog(
+                              p,
+                              displayName,
+                              unitShort,
+                            )
+                        : null,
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
                       ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.only(top: 1.5),
-                          child: Icon(
-                            isLowStock
-                                ? LucideIcons.triangleAlert
-                                : LucideIcons.packageCheck,
-                            size: 13.5,
-                            color: isLowStock
-                                ? AppColors.statusRed
-                                : const Color(0xFF059669),
-                          ),
+                      decoration: BoxDecoration(
+                        color: isLowStock
+                            ? const Color(0xFFFEF2F2)
+                            : const Color(0xFFECFDF5),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: isLowStock
+                              ? const Color(0xFFFECACA)
+                              : const Color(0xFFA7F3D0),
                         ),
-                        const SizedBox(width: 6),
-                        Flexible(child: stockWidget),
-                      ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.only(top: 1.5),
+                            child: Icon(
+                              isLowStock
+                                  ? LucideIcons.triangleAlert
+                                  : LucideIcons.packageCheck,
+                              size: 13.5,
+                              color: isLowStock
+                                  ? AppColors.statusRed
+                                  : const Color(0xFF059669),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Flexible(child: stockWidget),
+                          if (_isOwner) ...[
+                            const SizedBox(width: 5),
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Icon(
+                                LucideIcons.pencil,
+                                size: 11,
+                                color: stockTextColor.withValues(alpha: 0.72),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
                     ),
                   ),
                   Container(
@@ -1877,35 +1903,50 @@ class _ProductListScreenState extends State<ProductListScreen>
                       ),
                     ),
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: AppColors.menuBlueBg,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: const Color(0xFFBFDBFE)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          LucideIcons.boxes,
-                          size: 13,
-                          color: AppColors.menuBlueIcon,
+                  if (p.reservedStock > 0)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: p.hasStockDeficit
+                            ? AppColors.menuRoseBg
+                            : AppColors.menuBlueBg,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: p.hasStockDeficit
+                              ? AppColors.menuRoseBorder
+                              : AppColors.menuBlueBorder,
                         ),
-                        const SizedBox(width: 5),
-                        Flexible(
-                          child: Text(
-                            "Fisik Gudang: ${p.physicalStockDisplay} $unitShort",
-                            style: const TextStyle(
-                              color: AppColors.primaryNavy,
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w700,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            p.hasStockDeficit
+                                ? LucideIcons.triangleAlert
+                                : LucideIcons.check,
+                            size: 13,
+                            color: p.hasStockDeficit
+                                ? AppColors.menuRoseIcon
+                                : AppColors.menuBlueIcon,
+                          ),
+                          const SizedBox(width: 5),
+                          Flexible(
+                            child: Text(
+                              p.hasStockDeficit
+                                  ? "Kurang ${p.stockDeficitDisplay} $unitShort utk titipan"
+                                  : "Bebas Jual: ${p.freeStockDisplay} $unitShort",
+                              style: TextStyle(
+                                color: p.hasStockDeficit
+                                    ? AppColors.menuRoseIcon
+                                    : AppColors.primaryNavy,
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
                 ],
               ),
               if ((isKayu && kelas.isNotEmpty) || p.source.isNotEmpty) ...[
@@ -1996,8 +2037,16 @@ class _ProductListScreenState extends State<ProductListScreen>
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
-                            "Ada ${p.reservedStockDisplay} $unitShort pesanan titipan belum diantar.\nAktual Fisik: ${p.physicalStockDisplay} = Sistem ${p.stockDisplay} + Titipan ${p.reservedStockDisplay}",
-                            style: const TextStyle(fontSize: 11.5, color: AppColors.textDark, fontWeight: FontWeight.w600),
+                            p.hasStockDeficit
+                                ? "Fisik Depot: ${p.physicalStockDisplay} $unitShort • Titipan: ${p.reservedStockDisplay} $unitShort.\nStok sedang diputar: kurang ${p.stockDeficitDisplay} $unitShort jika semua titipan diambil sekarang."
+                                : "Fisik Depot: ${p.physicalStockDisplay} $unitShort = Bebas Jual ${p.freeStockDisplay} + Titipan ${p.reservedStockDisplay} $unitShort.",
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              color: p.hasStockDeficit
+                                  ? AppColors.menuRoseIcon
+                                  : AppColors.textDark,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 6),
@@ -2067,60 +2116,7 @@ class _ProductListScreenState extends State<ProductListScreen>
                       ],
                     ),
                     const Divider(height: 25),
-
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _actionButton(
-                            LucideIcons.plus,
-                            "Tambah Stok",
-                            AppColors.statusGreen,
-                            () => _showQuickAddStock(p, displayName),
-                          ),
-                        ),
-                        Expanded(
-                          child: _actionButton(
-                            LucideIcons.pencil,
-                            "Edit",
-                            AppColors.menuAmberIcon,
-                            () async {
-                              await Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => ProductFormScreen(product: p),
-                                ),
-                              );
-                              _loadProducts();
-                            },
-                          ),
-                        ),
-                        Expanded(
-                          child: _actionButton(
-                            LucideIcons.qrCode,
-                            "Barcode",
-                            AppColors.menuBlueIcon,
-                            () async {
-                              await Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) =>
-                                      ProductBarcodeScreen(product: p),
-                                ),
-                              );
-                              _loadProducts();
-                            },
-                          ),
-                        ),
-                        Expanded(
-                          child: _actionButton(
-                            LucideIcons.trash2,
-                            "Hapus",
-                            AppColors.statusRed,
-                            () => _confirmDelete(p),
-                          ),
-                        ),
-                      ],
-                    ),
+                    _buildOwnerActionsSection(p, displayName, unitShort),
                   ],
                 ] else ...[
                   Row(
@@ -2167,60 +2163,7 @@ class _ProductListScreenState extends State<ProductListScreen>
                       ],
                     ),
                     const Divider(height: 25),
-
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _actionButton(
-                            LucideIcons.plus,
-                            "Tambah Stok",
-                            AppColors.statusGreen,
-                            () => _showQuickAddStock(p, displayName),
-                          ),
-                        ),
-                        Expanded(
-                          child: _actionButton(
-                            LucideIcons.pencil,
-                            "Edit",
-                            AppColors.menuAmberIcon,
-                            () async {
-                              await Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => ProductFormScreen(product: p),
-                                ),
-                              );
-                              _loadProducts();
-                            },
-                          ),
-                        ),
-                        Expanded(
-                          child: _actionButton(
-                            LucideIcons.qrCode,
-                            "Barcode",
-                            AppColors.menuBlueIcon,
-                            () async {
-                              await Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) =>
-                                      ProductBarcodeScreen(product: p),
-                                ),
-                              );
-                              _loadProducts();
-                            },
-                          ),
-                        ),
-                        Expanded(
-                          child: _actionButton(
-                            LucideIcons.archive,
-                            "Arsipkan",
-                            AppColors.statusRed,
-                            () => _confirmDelete(p),
-                          ),
-                        ),
-                      ],
-                    ),
+                    _buildOwnerActionsSection(p, displayName, unitShort),
                   ],
                 ],
               ],
@@ -2229,6 +2172,322 @@ class _ProductListScreenState extends State<ProductListScreen>
         ],
       ),
     );
+  }
+
+  Widget _buildOwnerActionsSection(
+    Product p,
+    String displayName,
+    String unitShort,
+  ) {
+    return Column(
+      children: [
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: () =>
+                _showCorrectPhysicalStockDialog(p, displayName, unitShort),
+            icon: const Icon(
+              LucideIcons.clipboardCheck,
+              size: 16,
+              color: AppColors.menuCyanIcon,
+            ),
+            label: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                "Koreksi Fisik Aktual (${p.physicalStockDisplay} $unitShort)",
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.menuCyanIcon,
+                ),
+              ),
+            ),
+            style: OutlinedButton.styleFrom(
+              backgroundColor: AppColors.menuCyanBg,
+              side: const BorderSide(color: AppColors.menuCyanBorder),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(11),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: _actionButton(
+                LucideIcons.plus,
+                "Tambah Stok",
+                AppColors.statusGreen,
+                () => _showQuickAddStock(p, displayName),
+              ),
+            ),
+            Expanded(
+              child: _actionButton(
+                LucideIcons.pencil,
+                "Edit",
+                AppColors.menuAmberIcon,
+                () async {
+                  await Navigator.push(
+                    context,
+                    GlassPageRoute(
+                      builder: (_) => ProductFormScreen(product: p),
+                    ),
+                  );
+                  _loadProducts();
+                },
+              ),
+            ),
+            Expanded(
+              child: _actionButton(
+                LucideIcons.qrCode,
+                "Barcode",
+                AppColors.menuBlueIcon,
+                () async {
+                  await Navigator.push(
+                    context,
+                    GlassPageRoute(
+                      builder: (_) => ProductBarcodeScreen(product: p),
+                    ),
+                  );
+                  _loadProducts();
+                },
+              ),
+            ),
+            Expanded(
+              child: _actionButton(
+                LucideIcons.archive,
+                "Arsipkan",
+                AppColors.statusRed,
+                () => _confirmDelete(p),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  String _fmtStockNum(double val) {
+    final double normalized = val == 0 ? 0.0 : val;
+    if (normalized == normalized.roundToDouble()) {
+      return normalized.round().toString();
+    }
+    return normalized.toStringAsFixed(2);
+  }
+
+  Future<void> _showCorrectPhysicalStockDialog(
+    Product p,
+    String displayName,
+    String unitShort,
+  ) async {
+    final TextEditingController physicalCtrl = TextEditingController(
+      text: p.physicalStockDisplay,
+    );
+    final TextEditingController noteCtrl = TextEditingController();
+    bool isSaving = false;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          final double? parsedPhys = double.tryParse(
+            physicalCtrl.text.trim().replaceAll(',', '.'),
+          );
+          final bool isValid = parsedPhys != null && parsedPhys >= 0;
+          final double previewNet = isValid
+              ? Product.computeNetStockFromPhysical(
+                  targetPhysical: parsedPhys,
+                  reservedStock: p.reservedStock,
+                )
+              : p.stock;
+          final bool isDeficit = previewNet < 0;
+
+          return AlertDialog(
+            backgroundColor: AppColors.pureWhite,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            title: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "Koreksi Fisik Aktual",
+                  style: TextStyle(
+                    fontSize: 16.5,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.primaryNavy,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  displayName,
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textGrey,
+                  ),
+                ),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: physicalCtrl,
+                    autofocus: true,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    onChanged: (_) => setDialogState(() {}),
+                    decoration: InputDecoration(
+                      labelText: "Jumlah Fisik Nyata di Depot ($unitShort)",
+                      hintText: "Contoh: 214",
+                      suffixText: unitShort,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: noteCtrl,
+                    decoration: InputDecoration(
+                      labelText: "Catatan opname (opsional)",
+                      hintText: "Misal: Hitung ulang tumpukan depot",
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(11),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.borderLight),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          isValid
+                              ? "Fisik Depot: ${p.physicalStockDisplay} -> ${_fmtStockNum(parsedPhys)} $unitShort"
+                              : "Masukkan angka fisik valid (>= 0)",
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: isValid
+                                ? AppColors.statusGreen
+                                : AppColors.statusRed,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          "Titipan Pelanggan: ${p.reservedStockDisplay} $unitShort (tetap)",
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.menuAmberIcon,
+                          ),
+                        ),
+                        if (isValid && p.reservedStock > 0) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            isDeficit
+                                ? "Stok diputar: kurang ${_fmtStockNum(-previewNet)} $unitShort untuk titipan"
+                                : "Bebas Jual: ${_fmtStockNum(previewNet)} $unitShort",
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                              color: isDeficit
+                                  ? AppColors.menuRoseIcon
+                                  : AppColors.menuBlueIcon,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: isSaving ? null : () => Navigator.pop(ctx),
+                child: const Text(
+                  "Batal",
+                  style: TextStyle(color: AppColors.textGrey),
+                ),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.secondaryNavy,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                onPressed: (!isValid || isSaving)
+                    ? null
+                    : () async {
+                        setDialogState(() => isSaving = true);
+                        try {
+                          await _controller.correctPhysicalStock(
+                            product: p,
+                            newPhysicalStock: parsedPhys,
+                            note: noteCtrl.text,
+                          );
+                          if (ctx.mounted) Navigator.pop(ctx);
+                          await _loadProducts();
+                          if (mounted) {
+                            AppNotification.show(
+                              context,
+                              message:
+                                  "Fisik aktual $displayName diubah ke ${_fmtStockNum(parsedPhys)} $unitShort",
+                              type: AppNotificationType.success,
+                            );
+                          }
+                        } catch (e) {
+                          setDialogState(() => isSaving = false);
+                          if (mounted) {
+                            AppNotification.show(
+                              context,
+                              message: "Gagal koreksi fisik: $e",
+                              type: AppNotificationType.error,
+                            );
+                          }
+                        }
+                      },
+                child: isSaving
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Text(
+                        "Simpan Fisik",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    physicalCtrl.dispose();
+    noteCtrl.dispose();
   }
 
   Widget _priceInfo(
@@ -2505,10 +2764,20 @@ class _ProductListScreenState extends State<ProductListScreen>
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                       const Text("Sisa Barang Gudang:", style: TextStyle(color: AppColors.textGrey, fontSize: 13)),
-                       Text("${p.stockDisplay}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.primaryNavy)),
+                       const Text("Fisik Depot Saat Ini:", style: TextStyle(color: AppColors.textGrey, fontSize: 13)),
+                       Text(p.physicalStockDisplay, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.primaryNavy)),
                     ],
                   ),
+                  if (p.reservedStock > 0) ...[
+                    const SizedBox(height: 4),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text("Titipan Pelanggan:", style: TextStyle(color: AppColors.textGrey, fontSize: 12)),
+                        Text(p.reservedStockDisplay, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.menuAmberIcon)),
+                      ],
+                    ),
+                  ],
                   const SizedBox(height: 10),
                   
                   Container(

@@ -16,23 +16,46 @@ class Product {
   /// Stok fisik aktual di gudang (Siap Jual + Titipan/Belum Diantar)
   double get physicalStock => double.parse((stock + reservedStock).toStringAsFixed(2));
 
-  /// Menampilkan stok siap jual dalam format bersih (35.75 bukan 35.749999999999)
-  String get stockDisplay {
-    if (stock == stock.roundToDouble()) return stock.round().toString();
-    return stock.toStringAsFixed(2);
+  /// Apakah stok bebas sedang defisit / diputar untuk memenuhi titipan
+  bool get hasStockDeficit => stock < 0;
+
+  /// Jumlah kekurangan stok terhadap total kewajiban titipan
+  double get stockDeficit =>
+      stock < 0 ? double.parse((-stock).toStringAsFixed(2)) : 0.0;
+
+  /// Jumlah stok bebas positif yang aman dijual tanpa menyentuh titipan
+  double get freeStock =>
+      stock > 0 ? double.parse(stock.toStringAsFixed(2)) : 0.0;
+
+  /// Hitung stok bebas (netto) dari target fisik aktual depot & titipan tercatat
+  static double computeNetStockFromPhysical({
+    required double targetPhysical,
+    required double reservedStock,
+  }) =>
+      double.parse((targetPhysical - reservedStock).toStringAsFixed(2));
+
+  static String _formatCleanDouble(double value) {
+    final double normalized = value == 0 ? 0.0 : value;
+    if (normalized == normalized.roundToDouble()) {
+      return normalized.round().toString();
+    }
+    return normalized.toStringAsFixed(2);
   }
+
+  /// Menampilkan stok siap jual dalam format bersih (35.75 bukan 35.749999999999)
+  String get stockDisplay => _formatCleanDouble(stock);
 
   /// Menampilkan stok titipan (belum diantar) dalam format bersih
-  String get reservedStockDisplay {
-    if (reservedStock == reservedStock.roundToDouble()) return reservedStock.round().toString();
-    return reservedStock.toStringAsFixed(2);
-  }
+  String get reservedStockDisplay => _formatCleanDouble(reservedStock);
 
   /// Menampilkan stok fisik aktual di gudang dalam format bersih
-  String get physicalStockDisplay {
-    if (physicalStock == physicalStock.roundToDouble()) return physicalStock.round().toString();
-    return physicalStock.toStringAsFixed(2);
-  }
+  String get physicalStockDisplay => _formatCleanDouble(physicalStock);
+
+  /// Menampilkan angka kekurangan stok dalam format bersih
+  String get stockDeficitDisplay => _formatCleanDouble(stockDeficit);
+
+  /// Menampilkan stok bebas positif dalam format bersih
+  String get freeStockDisplay => _formatCleanDouble(freeStock);
   
   final int buyPriceUnit;   
   final int buyPriceCubic;  

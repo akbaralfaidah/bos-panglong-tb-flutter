@@ -270,7 +270,7 @@ class _AddProductSheetState extends State<_AddProductSheet> {
             itemCount: displayed.length,
             itemBuilder: (ctx, i) => ListTile(
               title: Text(displayed[i].name),
-              subtitle: Text("Stok: ${displayed[i].stock}"),
+              subtitle: Text("Fisik: ${displayed[i].physicalStockDisplay}"),
               onTap: () {
                 setState(() {
                   _selectedProduct = displayed[i];

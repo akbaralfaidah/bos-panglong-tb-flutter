@@ -557,7 +557,31 @@ class _ReviewTransactionScreenState extends State<ReviewTransactionScreen> {
                     const SizedBox(height: 5),
                     Text(modalProdName, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.primaryNavy)),
                     const SizedBox(height: 5),
-                    Text("Sisa Stok Asli: ${product.stock}", style: TextStyle(fontSize: 13, color: product.stock <= 0 ? AppColors.statusRed : AppColors.textDark, fontWeight: FontWeight.bold)),
+                    Text(
+                      "Fisik di Depot: ${product.physicalStockDisplay}",
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: product.physicalStock <= 0
+                            ? AppColors.statusRed
+                            : AppColors.textDark,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    if (product.reservedStock > 0) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        product.hasStockDeficit
+                            ? "Titipan: ${product.reservedStockDisplay} • Kurang ${product.stockDeficitDisplay} utk titipan (stok diputar)"
+                            : "Titipan: ${product.reservedStockDisplay} • Bebas Jual: ${product.freeStockDisplay}",
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: product.hasStockDeficit
+                              ? AppColors.menuRoseIcon
+                              : AppColors.menuAmberIcon,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 20),
                     
                     SingleChildScrollView(
@@ -632,9 +656,9 @@ class _ReviewTransactionScreenState extends State<ReviewTransactionScreen> {
                             double finalQty = double.tryParse(qtyCtrl.text.replaceAll(',', '.')) ?? 1;
                             int finalTotal = int.tryParse(totalPriceCtrl.text.replaceAll('.', '')) ?? 0;
 
-                            if (activeDeduction > product.stock) {
+                            if (activeDeduction > product.physicalStock) {
                               if(mounted) {
-                                showDialog(context: context, builder: (c) => AlertDialog(backgroundColor: AppColors.pureWhite, title: const Text("Stok Kurang!", style: TextStyle(color: AppColors.statusRed, fontWeight: FontWeight.bold)), content: Text("Butuh: $activeDeduction\nTersedia: ${product.stock}", style: const TextStyle(color: AppColors.textDark)), actions: [TextButton(onPressed: ()=>Navigator.pop(c), child: const Text("OK", style: TextStyle(color: AppColors.primaryNavy)))]));
+                                showDialog(context: context, builder: (c) => AlertDialog(backgroundColor: AppColors.pureWhite, title: const Text("Stok Kurang!", style: TextStyle(color: AppColors.statusRed, fontWeight: FontWeight.bold)), content: Text("Butuh: $activeDeduction\nTersedia Fisik: ${product.physicalStockDisplay}", style: const TextStyle(color: AppColors.textDark)), actions: [TextButton(onPressed: ()=>Navigator.pop(c), child: const Text("OK", style: TextStyle(color: AppColors.primaryNavy)))]));
                               }
                               return;
                             }

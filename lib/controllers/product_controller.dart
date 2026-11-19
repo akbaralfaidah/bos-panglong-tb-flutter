@@ -27,6 +27,18 @@ class ProductController {
     await _productDS.updateStockQuick(id, newStock, expense, exactDate: exactDate);
   }
 
+  Future<void> correctPhysicalStock({
+    required Product product,
+    required double newPhysicalStock,
+    String note = '',
+  }) async {
+    await _productDS.correctPhysicalStock(
+      product: product,
+      newPhysicalStock: newPhysicalStock,
+      note: note,
+    );
+  }
+
   // 🔥 UPDATE: MENDUKUNG TANGGAL CUSTOM & AUDIT FIELDS 🔥
   Future<void> addStockLog(
     int pid,

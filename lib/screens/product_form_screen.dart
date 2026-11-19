@@ -669,9 +669,16 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
     }
 
     try {
-      double stockBaru = double.tryParse(_stockController.text.replaceAll(',', '.')) ?? 0;
-      double stockLama = widget.product?.stock ?? 0;
-      double addedQty = stockBaru - stockLama; 
+      double inputPhysical = double.tryParse(_stockController.text.replaceAll(',', '.')) ?? 0;
+      double existingReserved = widget.product?.reservedStock ?? 0.0;
+      double stockBaru = widget.product != null
+          ? Product.computeNetStockFromPhysical(
+              targetPhysical: inputPhysical,
+              reservedStock: existingReserved,
+            )
+          : inputPhysical;
+      double physicalLama = widget.product?.physicalStock ?? 0;
+      double addedQty = double.parse((inputPhysical - physicalLama).toStringAsFixed(2)); 
       
       String cleanName = _nameController.text;
       String finalName = "";
@@ -876,7 +883,10 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
     
     _sourceController.text = p.source;
     
-    String stockStr = p.stock == p.stock.roundToDouble() ? p.stock.round().toString() : p.stock.toStringAsFixed(2);
+    final double editablePhysical = p.physicalStock < 0 ? 0.0 : p.physicalStock;
+    final String stockStr = editablePhysical == editablePhysical.roundToDouble()
+        ? editablePhysical.round().toString()
+        : editablePhysical.toStringAsFixed(2);
     _stockController.text = stockStr;
     _inputQtyMasukController.text = stockStr; 
     
@@ -925,19 +935,19 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
       }
 
       double isiPcs = p.packContent > 0 ? p.packContent : 1.0;
-      
+
       if (_selectedBangunanUnit != null && _selectedBangunanGrosirUnit != null) {
-          int g = (p.stock / isiPcs).floor(); 
-          double s = p.stock - (g * isiPcs);  
+          int g = (editablePhysical / isiPcs).floor();
+          double s = editablePhysical - (g * isiPcs);
           if (g > 0) _bgnGrosirQtyController.text = g.toString();
           if (s > 0) {
             String sStr = s == s.roundToDouble() ? s.round().toString() : double.parse(s.toStringAsFixed(2)).toString();
             _bgnSatuanQtyController.text = sStr;
           }
       } else if (_selectedBangunanGrosirUnit != null) {
-          _bgnGrosirQtyController.text = p.stockDisplay;
+          _bgnGrosirQtyController.text = stockStr;
       } else if (_selectedBangunanUnit != null) {
-          _bgnSatuanQtyController.text = p.stockDisplay;
+          _bgnSatuanQtyController.text = stockStr;
       }
     }
     
@@ -1255,7 +1265,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
                    ],
                    
                    const SizedBox(height: 10),
-                   _field("Total Stok Akhir (Otomatis)", _stockController, isNum: true, readOnly: true, suffix: "Btg"),
+                   _field(widget.product != null ? "Total Stok Fisik Depot (Otomatis)" : "Total Stok Akhir (Otomatis)", _stockController, isNum: true, readOnly: true, suffix: "Btg"),
                 ] else ...[
                    if (_selectedBangunanGrosirUnit == null && _selectedBangunanUnit == null) ...[
                       const Padding(
@@ -1278,9 +1288,54 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
 
                    if (_selectedBangunanGrosirUnit != null || _selectedBangunanUnit != null) ...[
                      const SizedBox(height: 10),
-                     _field("Total Stok Akhir (Otomatis)", _stockController, isNum: true, readOnly: true, suffix: _selectedBangunanUnit ?? _selectedBangunanGrosirUnit),
+                     _field(widget.product != null ? "Total Stok Fisik Depot (Otomatis)" : "Total Stok Akhir (Otomatis)", _stockController, isNum: true, readOnly: true, suffix: _selectedBangunanUnit ?? _selectedBangunanGrosirUnit),
                    ]
                 ],
+                if (widget.product != null && widget.product!.reservedStock > 0)
+                  ValueListenableBuilder<TextEditingValue>(
+                    valueListenable: _stockController,
+                    builder: (context, val, _) {
+                      final double physNow =
+                          double.tryParse(val.text.replaceAll(',', '.')) ?? 0.0;
+                      final double reserved = widget.product!.reservedStock;
+                      final double netAfter = Product.computeNetStockFromPhysical(
+                        targetPhysical: physNow,
+                        reservedStock: reserved,
+                      );
+                      final bool isDeficit = netAfter < 0;
+                      final String netStr = (netAfter.abs() == netAfter.abs().roundToDouble())
+                          ? netAfter.abs().round().toString()
+                          : netAfter.abs().toStringAsFixed(2);
+                      return Container(
+                        margin: const EdgeInsets.only(top: 10),
+                        padding: const EdgeInsets.all(11),
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: isDeficit
+                              ? AppColors.menuRoseBg
+                              : AppColors.menuAmberBg,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: isDeficit
+                                ? AppColors.menuRoseBorder
+                                : AppColors.menuVioletBorder,
+                          ),
+                        ),
+                        child: Text(
+                          isDeficit
+                              ? "Titipan tercatat: ${widget.product!.reservedStockDisplay} (tetap).\nStatus stok diputar: kurang $netStr utk titipan jika semua diambil."
+                              : "Titipan tercatat: ${widget.product!.reservedStockDisplay} (tetap)  •  Bebas Jual: $netStr",
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: isDeficit
+                                ? AppColors.menuRoseIcon
+                                : AppColors.menuAmberIcon,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                 
                 const Divider(height: 30),
                 

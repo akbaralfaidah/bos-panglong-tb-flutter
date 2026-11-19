@@ -241,6 +241,72 @@ class ProductFirebaseDataSource {
     } catch (_) {}
   }
 
+  /// Koreksi angka Fisik Aktual di depot tanpa mengubah kewajiban Titipan.
+  /// Menghitung ulang stok bebas (`stock = newPhysicalStock - reserved_stock`),
+  /// yang boleh negatif jika stok titipan sedang diputar di lapangan.
+  Future<void> correctPhysicalStock({
+    required Product product,
+    required double newPhysicalStock,
+    String note = '',
+  }) async {
+    if (product.id == null) {
+      throw Exception('ID produk tidak valid untuk koreksi fisik.');
+    }
+    if (newPhysicalStock < 0) {
+      throw Exception('Stok fisik depot tidak boleh kurang dari 0.');
+    }
+
+    final DocumentReference docRef = _col('products').doc(product.id.toString());
+    double latestStock = product.stock;
+    double latestReserved = product.reservedStock;
+
+    try {
+      DocumentSnapshot snap;
+      try {
+        snap = await docRef
+            .get(const GetOptions(source: Source.server))
+            .timeout(const Duration(seconds: 4));
+      } catch (_) {
+        snap = await docRef.get(const GetOptions(source: Source.cache));
+      }
+      if (snap.exists && snap.data() != null) {
+        final Map<String, dynamic> data = snap.data() as Map<String, dynamic>;
+        latestStock = (data['stock'] as num?)?.toDouble() ?? product.stock;
+        latestReserved =
+            (data['reserved_stock'] as num?)?.toDouble() ?? product.reservedStock;
+      }
+    } catch (_) {}
+
+    final double latestPhysical = double.parse(
+      (latestStock + latestReserved).toStringAsFixed(2),
+    );
+    final double newNetStock = Product.computeNetStockFromPhysical(
+      targetPhysical: newPhysicalStock,
+      reservedStock: latestReserved,
+    );
+    final double physicalDelta = double.parse(
+      (newPhysicalStock - latestPhysical).toStringAsFixed(2),
+    );
+
+    await docRef.set({'stock': newNetStock}, SetOptions(merge: true));
+
+    if (physicalDelta != 0) {
+      final String logNote = note.trim().isNotEmpty
+          ? 'Koreksi Fisik Gudang: ${note.trim()}'
+          : 'Koreksi Fisik Gudang';
+      await addStockLog(
+        product.id!,
+        product.type,
+        physicalDelta,
+        product.buyPriceUnit,
+        logNote,
+        totalExpense: 0,
+        stokSebelum: latestPhysical,
+        stokSesudah: newPhysicalStock,
+      );
+    }
+  }
+
   // 🔥 UPDATE: MENDUKUNG TANGGAL CUSTOM (exactDate) & AUDIT FIELDS (modal/stok sebelum & sesudah) 🔥
   Future<void> addStockLog(
     int pid,
@@ -340,10 +406,12 @@ class ProductFirebaseDataSource {
     if (!prodDoc.exists) throw Exception("Produk tidak ditemukan di database!");
     
     Map<String, dynamic> pData = prodDoc.data() as Map<String, dynamic>;
-    double currentStock = (pData['stock'] as num).toDouble();
+    double currentStock = (pData['stock'] as num?)?.toDouble() ?? 0.0;
+    double currentReserved = (pData['reserved_stock'] as num?)?.toDouble() ?? 0.0;
+    double currentPhysical = double.parse((currentStock + currentReserved).toStringAsFixed(2));
     
-    if (currentStock < voidQty) {
-      throw Exception("GAGAL HAPUS: Stok di gudang saat ini ($currentStock) lebih sedikit dari yang mau ditarik ($voidQty).");
+    if (currentPhysical < voidQty) {
+      throw Exception("GAGAL HAPUS: Fisik di gudang saat ini ($currentPhysical) lebih sedikit dari yang mau ditarik ($voidQty).");
     }
     
     WriteBatch batch = _db.batch();
@@ -367,9 +435,11 @@ class ProductFirebaseDataSource {
     if (!prodDoc.exists) throw Exception("Produk tidak ditemukan di database!");
     
     Map<String, dynamic> pData = prodDoc.data() as Map<String, dynamic>;
-    double currentStock = (pData['stock'] as num).toDouble();
+    double currentStock = (pData['stock'] as num?)?.toDouble() ?? 0.0;
+    double currentReserved = (pData['reserved_stock'] as num?)?.toDouble() ?? 0.0;
+    double currentPhysical = double.parse((currentStock + currentReserved).toStringAsFixed(2));
     
-    if (currentStock + diffQty < 0) {
+    if (currentPhysical + diffQty < 0) {
       throw Exception("GAGAL EDIT: Perubahan stok akan membuat total fisik gudang menjadi negatif!");
     }
     
