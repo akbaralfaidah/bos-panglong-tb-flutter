@@ -1,0 +1,38 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper: cek apakah user yang login adalah karyawan AKTIF milik storeId tertentu
+    function isActiveEmployeeOf(storeId) {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/employee_accounts/$(request.auth.uid))
+        && get(/databases/$(database)/documents/employee_accounts/$(request.auth.uid)).data.storeId == storeId
+        && get(/databases/$(database)/documents/employee_accounts/$(request.auth.uid)).data.isActive == true;
+    }
+
+    // 1. Koleksi Tautan Akun Karyawan (employee_accounts/{empUid})
+    match /employee_accounts/{empUid} {
+      // Karyawan boleh baca dokumen miliknya sendiri; Bos pemilik storeId juga boleh baca
+      allow read: if request.auth != null
+        && (request.auth.uid == empUid || resource.data.storeId == request.auth.uid);
+
+      // Bos pemilik toko boleh membuat tautan akun karyawan untuk storeId miliknya sendiri
+      allow create: if request.auth != null
+        && request.resource.data.storeId == request.auth.uid;
+
+      // Bos pemilik toko boleh mengubah status aktif/nonaktif atau menghapus akun karyawan miliknya
+      allow update, delete: if request.auth != null
+        && resource.data.storeId == request.auth.uid;
+    }
+
+    // 2. Data Toko (stores/{storeId}/...) — Dapat diakses oleh Bos pemilik ATAU Karyawan Aktifnya
+    match /stores/{storeId}/{document=**} {
+      allow read, write: if request.auth != null
+        && (request.auth.uid == storeId || isActiveEmployeeOf(storeId));
+    }
+
+    // 3. Data Profil & Daftar Karyawan Bos (users/{userId}/...)
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}

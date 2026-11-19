@@ -43,6 +43,8 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
       builder: (ctx) => StatefulBuilder(
         builder: (dialogCtx, setDialogState) => AlertDialog(
           backgroundColor: AppColors.pureWhite,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          contentPadding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(22),
           ),
@@ -288,7 +290,10 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
       appBar: AppBar(
         title: const Text(
           "Kelola Karyawan",
-          style: TextStyle(fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: AppColors.pureWhite,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         backgroundColor: AppColors.navyGlassStart,
         flexibleSpace: Container(
@@ -300,6 +305,7 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
             ),
           ),
         ),
+        iconTheme: const IconThemeData(color: AppColors.pureWhite),
         foregroundColor: AppColors.pureWhite,
         elevation: 0,
       ),

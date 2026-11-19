@@ -101,63 +101,128 @@ class EmployeeFirebaseDataSource {
       options: primaryApp.options,
     );
 
+    User? createdNewAuthUser;
     String? empAuthUid;
+
     try {
       final FirebaseAuth secondaryAuth = FirebaseAuth.instanceFor(
         app: secondaryApp,
       );
-      final UserCredential cred =
-          await secondaryAuth.createUserWithEmailAndPassword(
-        email: cleanEmail,
-        password: cleanPassword,
-      );
-      empAuthUid = cred.user?.uid;
+
       try {
-        await cred.user?.updateDisplayName(cleanName);
+        final UserCredential cred =
+            await secondaryAuth.createUserWithEmailAndPassword(
+          email: cleanEmail,
+          password: cleanPassword,
+        );
+        createdNewAuthUser = cred.user;
+        empAuthUid = cred.user?.uid;
+        try {
+          await cred.user?.updateDisplayName(cleanName);
+        } catch (_) {}
+      } on FirebaseAuthException catch (e) {
+        if (e.code == 'email-already-in-use') {
+          // Pemulihan otomatis jika email sebelumnya sempat terbuat di Auth namun gagal tulis Firestore
+          try {
+            final UserCredential existingCred =
+                await secondaryAuth.signInWithEmailAndPassword(
+              email: cleanEmail,
+              password: cleanPassword,
+            );
+            final String? existingUid = existingCred.user?.uid;
+            if (existingUid == null || existingUid.isEmpty) {
+              throw Exception(EmployeeAccountHelper.mapAuthErrorCode(e.code));
+            }
+            // Cek via secondary Firestore (sebagai user tsb) apakah sudah tertaut ke toko lain
+            final secondaryDb = FirebaseFirestore.instanceFor(app: secondaryApp);
+            final existingAcc = await secondaryDb
+                .collection('employee_accounts')
+                .doc(existingUid)
+                .get();
+            if (existingAcc.exists) {
+              final linkedStore =
+                  (existingAcc.data()?['storeId'] ?? '').toString();
+              if (linkedStore.isNotEmpty && linkedStore != storeId) {
+                throw Exception(
+                  'Email ini sudah terdaftar sebagai karyawan toko lain.',
+                );
+              }
+            }
+            empAuthUid = existingUid;
+          } on FirebaseAuthException {
+            throw Exception(EmployeeAccountHelper.mapAuthErrorCode(e.code));
+          }
+        } else {
+          throw Exception(EmployeeAccountHelper.mapAuthErrorCode(e.code));
+        }
+      }
+
+      if (empAuthUid == null || empAuthUid.isEmpty) {
+        throw Exception('Gagal mendapatkan ID akun karyawan baru.');
+      }
+
+      // Simpan secara atomik ke daftar karyawan Bos & koleksi tautan employee_accounts
+      final DocumentReference empDocRef = _firestore
+          .collection('users')
+          .doc(storeId)
+          .collection('employees')
+          .doc();
+      final DocumentReference accountDocRef =
+          _firestore.collection('employee_accounts').doc(empAuthUid);
+
+      final WriteBatch batch = _firestore.batch();
+      batch.set(empDocRef, {
+        'name': cleanName,
+        'email': cleanEmail,
+        'authUid': empAuthUid,
+        'hasLoginAccount': true,
+        'isActive': true,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      batch.set(accountDocRef, {
+        'authUid': empAuthUid,
+        'employeeDocId': empDocRef.id,
+        'storeId': storeId,
+        'storeName': storeName,
+        'name': cleanName,
+        'email': cleanEmail,
+        'role': 'EMPLOYEE',
+        'isActive': true,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      try {
+        await batch.commit();
+      } on FirebaseException catch (e) {
+        // Rollback user Auth yang baru dibuat agar tidak meninggalkan email yatim
+        if (createdNewAuthUser != null) {
+          try {
+            await createdNewAuthUser.delete();
+          } catch (_) {}
+        }
+        if (e.code == 'permission-denied') {
+          throw Exception(
+            'Izin Firestore ditolak (permission-denied). Publish Firestore Rules terbaru (file firestore.rules) di Firebase Console terlebih dahulu.',
+          );
+        }
+        rethrow;
+      } catch (_) {
+        if (createdNewAuthUser != null) {
+          try {
+            await createdNewAuthUser.delete();
+          } catch (_) {}
+        }
+        rethrow;
+      }
+
+      try {
+        await secondaryAuth.signOut();
       } catch (_) {}
-      await secondaryAuth.signOut();
-    } on FirebaseAuthException catch (e) {
-      throw Exception(EmployeeAccountHelper.mapAuthErrorCode(e.code));
     } finally {
       try {
         await secondaryApp.delete();
       } catch (_) {}
     }
-
-    if (empAuthUid == null || empAuthUid.isEmpty) {
-      throw Exception('Gagal mendapatkan ID akun karyawan baru.');
-    }
-
-    // Simpan secara atomik ke daftar karyawan Bos & koleksi tautan employee_accounts
-    final DocumentReference empDocRef = _firestore
-        .collection('users')
-        .doc(storeId)
-        .collection('employees')
-        .doc();
-    final DocumentReference accountDocRef =
-        _firestore.collection('employee_accounts').doc(empAuthUid);
-
-    final WriteBatch batch = _firestore.batch();
-    batch.set(empDocRef, {
-      'name': cleanName,
-      'email': cleanEmail,
-      'authUid': empAuthUid,
-      'hasLoginAccount': true,
-      'isActive': true,
-      'createdAt': FieldValue.serverTimestamp(),
-    });
-    batch.set(accountDocRef, {
-      'authUid': empAuthUid,
-      'employeeDocId': empDocRef.id,
-      'storeId': storeId,
-      'storeName': storeName,
-      'name': cleanName,
-      'email': cleanEmail,
-      'role': 'EMPLOYEE',
-      'isActive': true,
-      'createdAt': FieldValue.serverTimestamp(),
-    });
-    await batch.commit();
   }
 
   /// Mengaktifkan atau menonaktifkan akses login karyawan secara instan dari HP Bos.
@@ -176,7 +241,11 @@ class EmployeeFirebaseDataSource {
 
     if (authUid != null && authUid.isNotEmpty) {
       final accRef = _firestore.collection('employee_accounts').doc(authUid);
-      batch.set(accRef, {'isActive': isActive}, SetOptions(merge: true));
+      batch.set(
+        accRef,
+        {'storeId': _bossId, 'isActive': isActive},
+        SetOptions(merge: true),
+      );
     }
     await batch.commit();
   }
