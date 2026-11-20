@@ -16,6 +16,7 @@ import '../helpers/owner_realtime_notifier.dart';
 import '../helpers/session_manager.dart';
 import '../theme/app_colors.dart';
 import '../theme/glass_widgets.dart';
+import '../widgets/employee_dashboard_view.dart';
 import 'auth_screen.dart';
 import 'employee_lock_screen.dart';
 import 'profit_history_screen.dart';
@@ -50,13 +51,15 @@ class _DashboardScreenState extends State<DashboardScreen>
   int _totalPiutang = 0;
   int _totalBeliStok = 0;
   int _titipanCount = 0;
+  int _todayPaidCount = 0;
+  int _todayDebtCount = 0;
 
   String _storeName = "Bos Depot & TB";
   String? _logoPath;
   String _activeDateKey = '';
 
   StreamSubscription<DashboardStats>? _statsSub;
-  StreamSubscription<int>? _titipanSub;
+  StreamSubscription<EmployeeShiftStats>? _employeeStatsSub;
   StreamSubscription<OwnerTransactionAlert>? _ownerAlertSub;
 
   bool get _isOwner => SessionManager().isOwner;
@@ -85,20 +88,20 @@ class _DashboardScreenState extends State<DashboardScreen>
     final String todayKey = DateFormat('yyyy-MM-dd').format(DateTime.now());
     if (!forceRebind &&
         _activeDateKey == todayKey &&
-        (_statsSub != null || _titipanSub != null)) {
+        (_statsSub != null || _employeeStatsSub != null)) {
       return;
     }
 
     await _statsSub?.cancel();
-    await _titipanSub?.cancel();
+    await _employeeStatsSub?.cancel();
     await _ownerAlertSub?.cancel();
     _statsSub = null;
-    _titipanSub = null;
+    _employeeStatsSub = null;
     _ownerAlertSub = null;
     _activeDateKey = todayKey;
 
     if (_isOwner) {
-      // Mulai notifikasi otomatis khusus Pemilik Toko di Android (non-iOS)
+      // Mulai notifikasi otomatis khusus Pemilik Toko (Android & iOS)
       OwnerRealtimeNotifier().startListeningIfEligible();
       _ownerAlertSub = OwnerRealtimeNotifier().onAlert.listen((alert) {
         if (!mounted) return;
@@ -126,13 +129,19 @@ class _DashboardScreenState extends State<DashboardScreen>
     } else {
       // Pastikan pegawai TIDAK pernah menerima notifikasi khusus Pemilik
       OwnerRealtimeNotifier().stopListening();
-      _titipanSub = _controller.watchActiveTitipanCount().listen(
-        (count) {
-          if (!mounted) return;
-          setState(() => _titipanCount = count);
-        },
-        onError: (e) => debugPrint('Realtime titipan count error: $e'),
-      );
+      _employeeStatsSub = _controller
+          .watchEmployeeShiftStats(dateOverride: todayKey)
+          .listen(
+            (shift) {
+              if (!mounted) return;
+              setState(() {
+                _todayPaidCount = shift.todayPaidCount;
+                _todayDebtCount = shift.todayDebtCount;
+                _titipanCount = shift.activeTitipanCount;
+              });
+            },
+            onError: (e) => debugPrint('Realtime shift stats error: $e'),
+          );
     }
   }
 
@@ -200,7 +209,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   @override
   void dispose() {
     _statsSub?.cancel();
-    _titipanSub?.cancel();
+    _employeeStatsSub?.cancel();
     _ownerAlertSub?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
@@ -407,8 +416,14 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   Future<void> _refreshStats() async {
     if (!_isOwner) {
-      final tCount = await _controller.getActiveTitipanCount();
-      if (mounted) setState(() => _titipanCount = tCount);
+      final shift = await _controller.getEmployeeShiftStats();
+      if (mounted) {
+        setState(() {
+          _todayPaidCount = shift.todayPaidCount;
+          _todayDebtCount = shift.todayDebtCount;
+          _titipanCount = shift.activeTitipanCount;
+        });
+      }
       return;
     }
     final stats = await _controller.getTodayStats();
@@ -421,6 +436,30 @@ class _DashboardScreenState extends State<DashboardScreen>
       _totalBeliStok = stats.totalBeliStok;
       _titipanCount = stats.titipanCount;
     });
+  }
+
+  String _formatTodayIndoDate() {
+    try {
+      return DateFormat('EEEE, d MMM yyyy', 'id_ID').format(DateTime.now());
+    } catch (_) {
+      return DateFormat('d MMM yyyy').format(DateTime.now());
+    }
+  }
+
+  Future<void> _quickLockOrSwitchShift() async {
+    if (SessionManager().isStandaloneEmployee) {
+      await SessionManager().lockEmployeeSession();
+      if (!mounted) return;
+      Navigator.pushAndRemoveUntil(
+        context,
+        GlassPageRoute(
+          builder: (_) => const EmployeeLockScreen(autoPromptBiometric: false),
+        ),
+        (route) => false,
+      );
+      return;
+    }
+    _logout();
   }
 
   @override
@@ -593,123 +632,127 @@ class _DashboardScreenState extends State<DashboardScreen>
             child: ResponsiveLayout.constrained(
               context: context,
               maxWidth: 1080,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // 1. KARTU RINGKASAN PROFIT UTAMA (HANGAT, BERWARNA, BERANIMASI)
-                  LiquidEntrance(
-                    delayMs: 50,
-                    durationMs: 480,
-                    offsetY: 26,
-                    child: _isOwner
-                        ? _buildOwnerHeroCard()
-                        : _buildCashierShiftCard(),
-                  ),
-
-                  const SizedBox(height: 22),
-
-                  // 2. RINGKASAN BISNIS — 4 KARTU PASTEL MULTI-WARNA
-                  if (_isOwner) ...[
-                    LiquidEntrance(
-                      delayMs: 110,
-                      durationMs: 420,
-                      offsetY: 18,
-                      child: _sectionHeader(
-                        title: "Ringkasan Bisnis",
-                        pillLabel: "Hari ini",
-                        pillBg: AppColors.menuBlueBg,
-                        pillTextColor: AppColors.menuBlueIcon,
+              child: !_isOwner
+                  ? EmployeeDashboardView(
+                      firstName: _firstName,
+                      storeName: _storeName,
+                      formattedDate: _formatTodayIndoDate(),
+                      todayPaidCount: _todayPaidCount,
+                      todayDebtCount: _todayDebtCount,
+                      activeTitipanCount: _titipanCount,
+                      isStandaloneEmployee:
+                          SessionManager().isStandaloneEmployee,
+                      onOpenCashier: () => _nav(const CashierScreen()),
+                      onOpenTodayPaid: () => _nav(
+                        const TransactionHistoryScreen(initialTabIndex: 0),
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    _buildKpiGrid(isTablet),
-                    const SizedBox(height: 22),
-                  ],
-
-                  // 3. MENU UTAMA — KASIR (BIRU) & GUDANG (HIJAU EMERALD)
-                  LiquidEntrance(
-                    delayMs: 320,
-                    durationMs: 440,
-                    offsetY: 24,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      onOpenTodayDebt: () => _nav(
+                        const TransactionHistoryScreen(initialTabIndex: 1),
+                      ),
+                      onOpenTitipan: () => _nav(
+                        const TransactionHistoryScreen(initialTabIndex: 2),
+                      ),
+                      onLockOrSwitchShift: _quickLockOrSwitchShift,
+                    )
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        _sectionHeader(
-                          title: "Menu Utama",
-                          pillLabel: "Akses cepat",
-                          pillBg: AppColors.menuTealBg,
-                          pillTextColor: AppColors.menuTealIcon,
+                        // 1. KARTU RINGKASAN PROFIT UTAMA (HANGAT, BERWARNA, BERANIMASI)
+                        LiquidEntrance(
+                          delayMs: 50,
+                          durationMs: 480,
+                          offsetY: 26,
+                          child: _buildOwnerHeroCard(),
+                        ),
+
+                        const SizedBox(height: 22),
+
+                        // 2. RINGKASAN BISNIS — 4 KARTU PASTEL MULTI-WARNA
+                        LiquidEntrance(
+                          delayMs: 110,
+                          durationMs: 420,
+                          offsetY: 18,
+                          child: _sectionHeader(
+                            title: "Ringkasan Bisnis",
+                            pillLabel: "Hari ini",
+                            pillBg: AppColors.menuBlueBg,
+                            pillTextColor: AppColors.menuBlueIcon,
+                          ),
                         ),
                         const SizedBox(height: 12),
-                        if (EmployeeAccessPolicy.canAccessWarehouse(
-                          isOwner: _isOwner,
-                        ))
-                          Row(
+                        _buildKpiGrid(isTablet),
+                        const SizedBox(height: 22),
+
+                        // 3. MENU UTAMA — KASIR (BIRU) & GUDANG (HIJAU EMERALD)
+                        LiquidEntrance(
+                          delayMs: 320,
+                          durationMs: 440,
+                          offsetY: 24,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Expanded(
-                                child: _wondrMenuBtnWide(
-                                  "Kasir",
-                                  "Transaksi & Cetak Struk",
-                                  LucideIcons.calculator,
-                                  const Color(0xFF2563EB),
-                                  const Color(0xFF3B82F6),
-                                  "Buka Kasir",
-                                  () => _nav(const CashierScreen()),
-                                ),
+                              _sectionHeader(
+                                title: "Menu Utama",
+                                pillLabel: "Akses cepat",
+                                pillBg: AppColors.menuTealBg,
+                                pillTextColor: AppColors.menuTealIcon,
                               ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: _wondrMenuBtnWide(
-                                  "Gudang",
-                                  "Stok, Modal & Harga",
-                                  LucideIcons.package,
-                                  const Color(0xFF059669),
-                                  const Color(0xFF10B981),
-                                  "Kelola Stok",
-                                  () => _nav(const ProductListScreen()),
-                                ),
+                              const SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _wondrMenuBtnWide(
+                                      "Kasir",
+                                      "Transaksi & Cetak Struk",
+                                      LucideIcons.calculator,
+                                      const Color(0xFF2563EB),
+                                      const Color(0xFF3B82F6),
+                                      "Buka Kasir",
+                                      () => _nav(const CashierScreen()),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: _wondrMenuBtnWide(
+                                      "Gudang",
+                                      "Stok, Modal & Harga",
+                                      LucideIcons.package,
+                                      const Color(0xFF059669),
+                                      const Color(0xFF10B981),
+                                      "Kelola Stok",
+                                      () => _nav(const ProductListScreen()),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
-                          )
-                        else
-                          _wondrMenuBtnWide(
-                            "Kasir",
-                            "Buat Transaksi Penjualan & Cetak Struk",
-                            LucideIcons.calculator,
-                            const Color(0xFF2563EB),
-                            const Color(0xFF3B82F6),
-                            "Buka Kasir",
-                            () => _nav(const CashierScreen()),
                           ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // 4. KELOLA & LAPORAN — DOCK MULTI-WARNA HARIAN
-                  LiquidEntrance(
-                    delayMs: 400,
-                    durationMs: 460,
-                    offsetY: 24,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _sectionHeader(
-                          title: "Kelola & Laporan",
-                          pillLabel: _isOwner ? "Manajemen" : "Pencatatan",
-                          pillBg: AppColors.menuAmberBg,
-                          pillTextColor: AppColors.menuAmberIcon,
                         ),
-                        const SizedBox(height: 10),
-                        GlassContainer(
-                          borderRadius: 22,
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 16,
-                            horizontal: 8,
-                          ),
-                          child: _isOwner
-                              ? Row(
+
+                        const SizedBox(height: 20),
+
+                        // 4. KELOLA & LAPORAN — DOCK MULTI-WARNA HARIAN
+                        LiquidEntrance(
+                          delayMs: 400,
+                          durationMs: 460,
+                          offsetY: 24,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _sectionHeader(
+                                title: "Kelola & Laporan",
+                                pillLabel: "Manajemen",
+                                pillBg: AppColors.menuAmberBg,
+                                pillTextColor: AppColors.menuAmberIcon,
+                              ),
+                              const SizedBox(height: 10),
+                              GlassContainer(
+                                borderRadius: 22,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
+                                  horizontal: 8,
+                                ),
+                                child: Row(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Expanded(
@@ -751,251 +794,213 @@ class _DashboardScreenState extends State<DashboardScreen>
                                       ),
                                     ),
                                   ],
-                                )
-                              : Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Expanded(
-                                      child: _wondrMenuBtn(
-                                        "Riwayat Nota",
-                                        LucideIcons.receiptText,
-                                        AppColors.menuBlueBg,
-                                        AppColors.menuBlueIcon,
-                                        () => _nav(
-                                          const TransactionHistoryScreen(
-                                            initialTabIndex: 0,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    Expanded(
-                                      child: _wondrMenuBtn(
-                                        "Nota Hutang",
-                                        LucideIcons.bookOpen,
-                                        AppColors.menuRoseBg,
-                                        AppColors.menuRoseIcon,
-                                        () => _nav(
-                                          const TransactionHistoryScreen(
-                                            initialTabIndex: 1,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    Expanded(
-                                      child: _wondrMenuBtn(
-                                        "Titipan",
-                                        LucideIcons.warehouse,
-                                        AppColors.menuAmberBg,
-                                        AppColors.menuAmberIcon,
-                                        () => _nav(
-                                          const TransactionHistoryScreen(
-                                            initialTabIndex: 2,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
                                 ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 18),
-
-                  // 5. BARANG TITIPAN (TETAP PALING BAWAH, PASTEL UNGU HANGAT)
-                  LiquidEntrance(
-                    delayMs: 470,
-                    durationMs: 460,
-                    offsetY: 24,
-                    child: Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            AppColors.menuVioletTint,
-                            Colors.white,
-                          ],
-                        ),
-                        borderRadius: BorderRadius.circular(22),
-                        border: Border.all(
-                          color: AppColors.menuVioletBorder,
-                          width: 1.2,
-                        ),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Color(0x0C7C3AED),
-                            blurRadius: 14,
-                            offset: Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        children: [
-                          InkWell(
-                            onTap: () => _nav(
-                              const TransactionHistoryScreen(
-                                initialTabIndex: 2,
                               ),
-                            ),
-                            borderRadius: BorderRadius.circular(12),
-                            child: Row(
-                              children: [
-                                GlassIconBadge(
-                                  icon: LucideIcons.warehouse,
-                                  iconColor: AppColors.menuAmberIcon,
-                                  bgColor: AppColors.menuAmberBg,
-                                  isSolid: _titipanCount > 0,
-                                  size: 44,
-                                  iconSize: 21,
-                                  radius: 13,
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 18),
+
+                        // 5. BARANG TITIPAN (TETAP PALING BAWAH, PASTEL UNGU HANGAT)
+                        LiquidEntrance(
+                          delayMs: 470,
+                          durationMs: 460,
+                          offsetY: 24,
+                          child: Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  AppColors.menuVioletTint,
+                                  Colors.white,
+                                ],
+                              ),
+                              borderRadius: BorderRadius.circular(22),
+                              border: Border.all(
+                                color: AppColors.menuVioletBorder,
+                                width: 1.2,
+                              ),
+                              boxShadow: const [
+                                BoxShadow(
+                                  color: Color(0x0C7C3AED),
+                                  blurRadius: 14,
+                                  offset: Offset(0, 4),
                                 ),
-                                const SizedBox(width: 12),
-                                const Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
+                              ],
+                            ),
+                            child: Column(
+                              children: [
+                                InkWell(
+                                  onTap: () => _nav(
+                                    const TransactionHistoryScreen(
+                                      initialTabIndex: 2,
+                                    ),
+                                  ),
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Row(
                                     children: [
-                                      Text(
-                                        "Barang Titipan",
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w800,
-                                          fontSize: 14.5,
-                                          color: AppColors.textDark,
+                                      GlassIconBadge(
+                                        icon: LucideIcons.warehouse,
+                                        iconColor: AppColors.menuAmberIcon,
+                                        bgColor: AppColors.menuAmberBg,
+                                        isSolid: _titipanCount > 0,
+                                        size: 44,
+                                        iconSize: 21,
+                                        radius: 13,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      const Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              "Barang Titipan",
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                                fontSize: 14.5,
+                                                color: AppColors.textDark,
+                                              ),
+                                            ),
+                                            SizedBox(height: 2),
+                                            Text(
+                                              "Kontrol pesanan yang masih disimpan di gudang",
+                                              style: TextStyle(
+                                                fontSize: 11.5,
+                                                color: AppColors.textGrey,
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
-                                      SizedBox(height: 2),
-                                      Text(
-                                        "Kontrol pesanan yang masih disimpan di gudang",
-                                        style: TextStyle(
-                                          fontSize: 11.5,
-                                          color: AppColors.textGrey,
+                                      const SizedBox(width: 8),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 11,
+                                          vertical: 5,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: _titipanCount > 0
+                                              ? AppColors.menuAmberIcon
+                                              : AppColors.menuAmberBg,
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                        ),
+                                        child: Text(
+                                          "$_titipanCount Nota",
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w800,
+                                            color: _titipanCount > 0
+                                                ? Colors.white
+                                                : AppColors.menuAmberIcon,
+                                          ),
                                         ),
                                       ),
                                     ],
                                   ),
                                 ),
-                                const SizedBox(width: 8),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 11,
-                                    vertical: 5,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: _titipanCount > 0
-                                        ? AppColors.menuAmberIcon
-                                        : AppColors.menuAmberBg,
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Text(
-                                    "$_titipanCount Nota",
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w800,
-                                      color: _titipanCount > 0
-                                          ? Colors.white
-                                          : AppColors.menuAmberIcon,
+                                const SizedBox(height: 14),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: OutlinedButton.icon(
+                                        onPressed: () => _nav(
+                                          const TransactionHistoryScreen(
+                                            initialTabIndex: 2,
+                                          ),
+                                        ),
+                                        icon: const Icon(
+                                          LucideIcons.clipboardList,
+                                          size: 16,
+                                          color: AppColors.menuAmberIcon,
+                                        ),
+                                        label: const FittedBox(
+                                          fit: BoxFit.scaleDown,
+                                          child: Text(
+                                            "Lihat Daftar Titipan",
+                                            maxLines: 1,
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w700,
+                                              color: AppColors.menuAmberIcon,
+                                            ),
+                                          ),
+                                        ),
+                                        style: OutlinedButton.styleFrom(
+                                          backgroundColor: Colors.white,
+                                          side: const BorderSide(
+                                            color: AppColors.menuVioletBorder,
+                                          ),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 11,
+                                          ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(13),
+                                          ),
+                                        ),
+                                      ),
                                     ),
-                                  ),
+                                    if (EmployeeAccessPolicy
+                                        .canInputLegacyTitipan(
+                                      isOwner: _isOwner,
+                                    )) ...[
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: ElevatedButton.icon(
+                                          onPressed: () async {
+                                            final saved =
+                                                await showLegacyTitipanDialog(
+                                              context,
+                                            );
+                                            if (saved == true) _refreshStats();
+                                          },
+                                          icon: const Icon(
+                                            LucideIcons.circlePlus,
+                                            size: 16,
+                                            color: Colors.white,
+                                          ),
+                                          label: const FittedBox(
+                                            fit: BoxFit.scaleDown,
+                                            child: Text(
+                                              "Input Titipan Lama",
+                                              maxLines: 1,
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w700,
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                          ),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor:
+                                                AppColors.menuAmberIcon,
+                                            elevation: 0,
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 10,
+                                              vertical: 11,
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(13),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
                                 ),
                               ],
                             ),
                           ),
-                          const SizedBox(height: 14),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton.icon(
-                                  onPressed: () => _nav(
-                                    const TransactionHistoryScreen(
-                                      initialTabIndex: 2,
-                                    ),
-                                  ),
-                                  icon: const Icon(
-                                    LucideIcons.clipboardList,
-                                    size: 16,
-                                    color: AppColors.menuAmberIcon,
-                                  ),
-                                  label: const FittedBox(
-                                    fit: BoxFit.scaleDown,
-                                    child: Text(
-                                      "Lihat Daftar Titipan",
-                                      maxLines: 1,
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w700,
-                                        color: AppColors.menuAmberIcon,
-                                      ),
-                                    ),
-                                  ),
-                                  style: OutlinedButton.styleFrom(
-                                    backgroundColor: Colors.white,
-                                    side: const BorderSide(
-                                      color: AppColors.menuVioletBorder,
-                                    ),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 11,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(13),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              if (EmployeeAccessPolicy.canInputLegacyTitipan(
-                                isOwner: _isOwner,
-                              )) ...[
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: ElevatedButton.icon(
-                                    onPressed: () async {
-                                      final saved = await showLegacyTitipanDialog(
-                                        context,
-                                      );
-                                      if (saved == true) _refreshStats();
-                                    },
-                                    icon: const Icon(
-                                      LucideIcons.circlePlus,
-                                      size: 16,
-                                      color: Colors.white,
-                                    ),
-                                    label: const FittedBox(
-                                      fit: BoxFit.scaleDown,
-                                      child: Text(
-                                        "Input Titipan Lama",
-                                        maxLines: 1,
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w700,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                    ),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: AppColors.menuAmberIcon,
-                                      elevation: 0,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 11,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(13),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
-              ),
             ),
           ),
         ),
@@ -1255,96 +1260,6 @@ class _DashboardScreenState extends State<DashboardScreen>
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildCashierShiftCard() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF059669),
-            Color(0xFF0D9488),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x24059669),
-            blurRadius: 18,
-            offset: Offset(0, 7),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 5,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.18),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    LivePulseDot(color: Color(0xFFA7F3D0), size: 7),
-                    SizedBox(width: 6),
-                    Text(
-                      "Shift Kasir Aktif",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 11.5,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.18),
-                  borderRadius: BorderRadius.circular(11),
-                ),
-                child: const Icon(
-                  LucideIcons.shieldCheck,
-                  color: Colors.white,
-                  size: 19,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Text(
-            "Selamat bertugas, $_firstName",
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            "Layani pelanggan dengan ramah dan pastikan setiap transaksi tercatat rapi.",
-            style: TextStyle(
-              fontSize: 12.5,
-              color: Colors.white.withValues(alpha: 0.90),
-              height: 1.4,
-            ),
-          ),
-        ],
       ),
     );
   }

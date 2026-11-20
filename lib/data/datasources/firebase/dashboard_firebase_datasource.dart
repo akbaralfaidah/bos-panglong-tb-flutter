@@ -261,6 +261,113 @@ class DashboardFirebaseDataSource {
     return controller.stream;
   }
 
+  /// Rumus hitungan operasional NON-MONETER untuk dashboard Karyawan (Kasir):
+  /// Hanya menghitung JUMLAH NOTA (tanpa omset/profit/modal dalam Rupiah) agar
+  /// "rahasia pabrik" tetap terjaga 100%.
+  static Map<String, int> computeEmployeeShiftStatsFromMaps({
+    required List<Map<String, dynamic>> todayTransactions,
+    required int activeTitipanCount,
+  }) {
+    int todayPaidCount = 0;
+    int todayDebtCount = 0;
+
+    for (final t in todayTransactions) {
+      if (t['is_legacy_titipan'] == true) continue;
+      if (t['payment_status'] == 'Lunas') {
+        todayPaidCount++;
+      } else {
+        todayDebtCount++;
+      }
+    }
+
+    return {
+      'todayPaidCount': todayPaidCount,
+      'todayDebtCount': todayDebtCount,
+      'activeTitipanCount': activeTitipanCount,
+    };
+  }
+
+  /// Stream REAL-TIME jumlah nota hari ini (Lunas & Hutang) + Titipan aktif khusus mode Kasir.
+  Stream<Map<String, int>> watchEmployeeShiftStats(String date) {
+    final String startToday = "${date}T00:00:00.000";
+    final String endToday = "${date}T23:59:59.999";
+
+    late final StreamController<Map<String, int>> controller;
+    final List<StreamSubscription<QuerySnapshot>> subs = [];
+    Timer? debounce;
+
+    List<Map<String, dynamic>> todayTrans = [];
+    int activeTitipan = 0;
+
+    void scheduleEmit() {
+      debounce?.cancel();
+      debounce = Timer(const Duration(milliseconds: 90), () {
+        if (controller.isClosed) return;
+        controller.add(
+          computeEmployeeShiftStatsFromMaps(
+            todayTransactions: todayTrans,
+            activeTitipanCount: activeTitipan,
+          ),
+        );
+      });
+    }
+
+    controller = StreamController<Map<String, int>>(
+      onListen: () {
+        subs.add(
+          _col('transactions')
+              .where('transaction_date', isGreaterThanOrEqualTo: startToday)
+              .where('transaction_date', isLessThanOrEqualTo: endToday)
+              .snapshots()
+              .listen((snap) {
+            todayTrans = _docsToMaps(snap.docs);
+            scheduleEmit();
+          }, onError: (_) {}),
+        );
+        subs.add(
+          _col('transactions')
+              .where('delivery_status', whereIn: ['Belum Diantar', 'Sebagian'])
+              .snapshots()
+              .listen((snap) {
+            activeTitipan = snap.docs.length;
+            scheduleEmit();
+          }, onError: (_) {}),
+        );
+      },
+      onCancel: () async {
+        debounce?.cancel();
+        for (final sub in subs) {
+          await sub.cancel();
+        }
+        subs.clear();
+      },
+    );
+
+    return controller.stream;
+  }
+
+  Future<Map<String, int>> getEmployeeShiftStats(String date) async {
+    final String startToday = "${date}T00:00:00.000";
+    final String endToday = "${date}T23:59:59.999";
+    final results = await Future.wait([
+      _freshOrCache(
+        _col('transactions')
+            .where('transaction_date', isGreaterThanOrEqualTo: startToday)
+            .where('transaction_date', isLessThanOrEqualTo: endToday),
+      ),
+      _freshOrCache(
+        _col('transactions').where(
+          'delivery_status',
+          whereIn: ['Belum Diantar', 'Sebagian'],
+        ),
+      ),
+    ]);
+    return computeEmployeeShiftStatsFromMaps(
+      todayTransactions: _docsToMaps(results[0]),
+      activeTitipanCount: results[1].length,
+    );
+  }
+
   /// Stream REAL-TIME jumlah nota barang titipan aktif (dipakai juga di mode Kasir).
   Stream<int> watchActiveTitipanCount() {
     return _col('transactions')

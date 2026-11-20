@@ -34,6 +34,25 @@ class DashboardStats {
       );
 }
 
+class EmployeeShiftStats {
+  final int todayPaidCount;
+  final int todayDebtCount;
+  final int activeTitipanCount;
+
+  const EmployeeShiftStats({
+    required this.todayPaidCount,
+    required this.todayDebtCount,
+    required this.activeTitipanCount,
+  });
+
+  factory EmployeeShiftStats.fromMap(Map<String, int> data) =>
+      EmployeeShiftStats(
+        todayPaidCount: data['todayPaidCount'] ?? 0,
+        todayDebtCount: data['todayDebtCount'] ?? 0,
+        activeTitipanCount: data['activeTitipanCount'] ?? 0,
+      );
+}
+
 class DashboardController {
   final DashboardFirebaseDataSource _dashboardDS =
       DashboardFirebaseDataSource();
@@ -45,6 +64,29 @@ class DashboardController {
     return _dashboardDS
         .watchSuperDashboardData(today)
         .map(DashboardStats.fromMap);
+  }
+
+  /// Stream REAL-TIME hitungan operasional non-moneter untuk Dashboard Karyawan.
+  Stream<EmployeeShiftStats> watchEmployeeShiftStats({String? dateOverride}) {
+    final String today =
+        dateOverride ?? DateFormat('yyyy-MM-dd').format(DateTime.now());
+    return _dashboardDS
+        .watchEmployeeShiftStats(today)
+        .map(EmployeeShiftStats.fromMap);
+  }
+
+  Future<EmployeeShiftStats> getEmployeeShiftStats() async {
+    try {
+      final String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      final data = await _dashboardDS.getEmployeeShiftStats(today);
+      return EmployeeShiftStats.fromMap(data);
+    } catch (_) {
+      return const EmployeeShiftStats(
+        todayPaidCount: 0,
+        todayDebtCount: 0,
+        activeTitipanCount: 0,
+      );
+    }
   }
 
   /// Stream REAL-TIME jumlah titipan aktif.
