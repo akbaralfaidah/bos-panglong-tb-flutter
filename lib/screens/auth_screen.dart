@@ -284,8 +284,10 @@ class _AuthScreenState extends State<AuthScreen> {
                         const SizedBox(height: 18),
 
                         _isLoading
-                            ? const CircularProgressIndicator(
-                                color: AppColors.primaryNavy,
+                            ? const DepotLoadingIndicator(
+                                message: "Memverifikasi akun...",
+                                size: 84,
+                                showCard: false,
                               )
                             : SizedBox(
                                 width: double.infinity,

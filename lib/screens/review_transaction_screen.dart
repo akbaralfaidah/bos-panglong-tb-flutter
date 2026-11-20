@@ -1839,7 +1839,12 @@ class _ReviewTransactionScreenState extends State<ReviewTransactionScreen> {
                         child: ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryNavy, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
                           onPressed: _isLoading || _editableCart.isEmpty ? null : _onSaveClicked,
-                          icon: _isLoading ? const CircularProgressIndicator(color: AppColors.accentGold) : const Icon(Icons.print, color: AppColors.accentGold),
+                          icon: _isLoading
+                              ? DepotLoadingIndicator.compact(
+                                  size: 22,
+                                  color: AppColors.accentGold,
+                                )
+                              : const Icon(Icons.print, color: AppColors.accentGold),
                           label: Text(_isLoading ? "MEMPROSES..." : "CETAK NOTA", style: const TextStyle(color: AppColors.accentGold, fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 1)),
                         ),
                       ),

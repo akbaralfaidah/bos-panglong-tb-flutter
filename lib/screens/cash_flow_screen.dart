@@ -24,9 +24,9 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
   // 🔥 SCROLL CONTROLLER BUAT SCROLLBAR KANAN 🔥
   final ScrollController _scrollController = ScrollController();
 
-  List<CashFlowItem> _allItems = [];
   List<CashFlowItem> _filteredItems = [];
   bool _isLoading = true;
+  int _loadSeq = 0;
   
   // 🔥 FILTER DEFAULT 🔥
   String _filterMode = 'Hari Ini';
@@ -45,14 +45,27 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
   }
 
   Future<void> _loadData() async {
-    setState(() => _isLoading = true);
-    final data = await _controller.getSuperHistory();
-    if (mounted) {
+    final int seq = ++_loadSeq;
+    if (mounted) setState(() => _isLoading = true);
+    try {
+      final data = await _controller.getSuperHistory(filterMode: _filterMode);
+      if (!mounted || seq != _loadSeq) return;
       setState(() {
-        _allItems = data;
-        _applyFilter();
-        _isLoading = false;
+        _filteredItems = data;
       });
+    } catch (e) {
+      debugPrint('Gagal muat riwayat kas: $e');
+      if (mounted && seq == _loadSeq) {
+        AppNotification.show(
+          context,
+          message: 'Gagal memuat riwayat. Tarik ke bawah untuk coba lagi.',
+          type: AppNotificationType.error,
+        );
+      }
+    } finally {
+      if (mounted && seq == _loadSeq) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -81,43 +94,15 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
       String end = DateFormat('yyyy-MM-dd').format(range.end);
       setState(() {
         _filterMode = "CUSTOM|$start|$end";
-        _applyFilter();
       });
+      _loadData();
     }
-  }
-
-  // 🔥 LOGIKA FILTER TANGGAL SECARA LOKAL 🔥
-  void _applyFilter() {
-    DateTime now = DateTime.now();
-    DateTime today = DateTime(now.year, now.month, now.day);
-    
-    _filteredItems = _allItems.where((item) {
-      DateTime itemDate = DateTime.parse(item.date);
-      DateTime justDate = DateTime(itemDate.year, itemDate.month, itemDate.day);
-      
-      if (_filterMode == 'Hari Ini') {
-        return justDate.isAtSameMomentAs(today);
-      } else if (_filterMode == 'Kemarin') {
-        return justDate.isAtSameMomentAs(today.subtract(const Duration(days: 1)));
-      } else if (_filterMode == '7 Hari') {
-        return justDate.isAfter(today.subtract(const Duration(days: 7))) || justDate.isAtSameMomentAs(today.subtract(const Duration(days: 7)));
-      } else if (_filterMode == 'Bulan Ini') {
-        return itemDate.year == now.year && itemDate.month == now.month;
-      } else if (_filterMode.startsWith('CUSTOM|')) {
-        var parts = _filterMode.split('|');
-        DateTime start = DateTime.parse(parts[1]);
-        DateTime end = DateTime.parse(parts[2]);
-        end = DateTime(end.year, end.month, end.day, 23, 59, 59); // Supaya sampai akhir hari
-        
-        return itemDate.isAfter(start.subtract(const Duration(seconds: 1))) && itemDate.isBefore(end.add(const Duration(seconds: 1)));
-      }
-      return true; // 'Semua'
-    }).toList();
   }
 
   // 🔥 LOGIKA PEMBUAT TEKS HEADER TANGGAL 🔥
   String _formatDateHeader(String dateStr) {
-    DateTime date = DateTime.parse(dateStr);
+    final DateTime? date = DateTime.tryParse(dateStr);
+    if (date == null) return dateStr;
     DateTime now = DateTime.now();
     DateTime today = DateTime(now.year, now.month, now.day);
     DateTime yesterday = today.subtract(const Duration(days: 1));
@@ -253,6 +238,13 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
         ),
         iconTheme: const IconThemeData(color: AppColors.pureWhite),
         elevation: 0,
+        actions: [
+          IconButton(
+            tooltip: 'Muat ulang',
+            icon: const Icon(Icons.refresh_rounded, color: AppColors.pureWhite),
+            onPressed: _isLoading ? null : _loadData,
+          ),
+        ],
       ),
       body: LiquidAmbientBackground(
         child: Column(
@@ -292,8 +284,8 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
                                 } else {
                                   setState(() {
                                     _filterMode = filter;
-                                    _applyFilter();
                                   });
+                                  _loadData();
                                 }
                               },
                               borderRadius: BorderRadius.circular(22),
@@ -439,15 +431,32 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
 
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _filteredItems.isEmpty
                 ? const Center(
-                    child: Text(
-                      "Belum ada riwayat pada tanggal ini.",
-                      style: TextStyle(color: AppColors.textGrey),
+                    child: DepotLoadingIndicator(
+                      message: "Memuat riwayat transaksi...",
                     ),
                   )
-                : Scrollbar(
+                : _filteredItems.isEmpty
+                ? RefreshIndicator(
+                    onRefresh: _loadData,
+                    color: AppColors.primaryNavy,
+                    child: ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: const [
+                        SizedBox(height: 120),
+                        Center(
+                          child: Text(
+                            "Belum ada riwayat pada tanggal ini.",
+                            style: TextStyle(color: AppColors.textGrey),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : RefreshIndicator(
+                    onRefresh: _loadData,
+                    color: AppColors.primaryNavy,
+                    child: Scrollbar(
                     // 🔥 SCROLLBAR INTERAKTIF DI KANAN 🔥
                     controller: _scrollController,
                     thumbVisibility: true,
@@ -456,6 +465,7 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
                     interactive: true,
                     child: ListView.builder(
                         controller: _scrollController,
+                        physics: const AlwaysScrollableScrollPhysics(),
                         padding: const EdgeInsets.symmetric(
                           horizontal: 16,
                           vertical: 10,
@@ -491,7 +501,10 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
                             sign = "⏳ ";
                           }
 
-                          String timeFormatted = DateFormat('HH:mm').format(DateTime.parse(item.date));
+                          final DateTime? parsedDt = DateTime.tryParse(item.date);
+                          String timeFormatted = parsedDt != null
+                              ? DateFormat('HH:mm').format(parsedDt)
+                              : '--:--';
                           String cashierName = item.rawData['cashier_name'] ?? 'Tidak Diketahui';
 
                           return Column(
@@ -627,6 +640,7 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
                           );
                         },
                       ),
+                    ),
                   ),
           ),
         ],

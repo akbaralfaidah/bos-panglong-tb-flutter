@@ -666,7 +666,9 @@ class _ProductListScreenState extends State<ProductListScreen>
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const Center(child: CircularProgressIndicator(color: AppColors.primaryNavy)),
+      builder: (_) => DepotLoadingIndicator.dialog(
+        message: "Menghapus stok gudang...",
+      ),
     );
 
     try {
@@ -689,7 +691,9 @@ class _ProductListScreenState extends State<ProductListScreen>
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const Center(child: CircularProgressIndicator(color: AppColors.secondaryNavy)),
+      builder: (_) => DepotLoadingIndicator.dialog(
+        message: "Memuat daftar titipan...",
+      ),
     );
 
     List<Map<String, dynamic>> matchingOrders = [];
@@ -2651,7 +2655,13 @@ class _ProductListScreenState extends State<ProductListScreen>
     
     bool useProfit = false;
     
-    showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator(color: AppColors.secondaryNavy)));
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => DepotLoadingIndicator.dialog(
+        message: "Memuat dana modal...",
+      ),
+    );
     
     double currentModalCair = await _fetchModalCair(p.id!);
     double currentProfitBersih = await _fetchCurrentProfitBersih(); 

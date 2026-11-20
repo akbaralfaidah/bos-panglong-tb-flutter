@@ -5,6 +5,7 @@ import '../helpers/session_manager.dart';
 import '../controllers/checkout_controller.dart';
 import 'cashier_screen.dart'; 
 import '../theme/app_colors.dart'; 
+import '../theme/depot_loading_widget.dart';
 import 'transaction_detail_screen.dart'; // Layar Nota / Detail Transaksi
 import '../helpers/app_notification.dart';
 
@@ -251,7 +252,10 @@ void _processPayment() async {
                     ),
                     onPressed: _isLoading ? null : _processPayment,
                     child: _isLoading 
-                        ? const CircularProgressIndicator(color: AppColors.accentGold)
+                        ? DepotLoadingIndicator.compact(
+                            size: 24,
+                            color: AppColors.accentGold,
+                          )
                         : const Text("YAKIN & BAYAR", style: TextStyle(color: AppColors.accentGold, fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
                   ),
                 ),

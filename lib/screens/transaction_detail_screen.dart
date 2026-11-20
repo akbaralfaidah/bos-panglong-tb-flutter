@@ -1537,7 +1537,16 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
           if (_deliveryStatus != 'Selesai') ...[
             const SizedBox(height: 6),
             if (_isUpdatingDelivery)
-              const Center(child: Padding(padding: EdgeInsets.all(8), child: CircularProgressIndicator(color: AppColors.primaryNavy)))
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(8),
+                  child: DepotLoadingIndicator(
+                    message: "Menyimpan pengantaran...",
+                    size: 76,
+                    showCard: false,
+                  ),
+                ),
+              )
             else
               Row(
                 children: [
@@ -1844,7 +1853,9 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
         body: LiquidAmbientBackground(
           child: _isLoading
               ? const Center(
-                  child: CircularProgressIndicator(color: AppColors.primaryNavy),
+                  child: DepotLoadingIndicator(
+                    message: "Memuat detail nota...",
+                  ),
                 )
               : SingleChildScrollView(
                   padding: _isGeneratingReceipt
@@ -3105,13 +3116,9 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                             width: double.infinity,
                             child: OutlinedButton.icon(
                               icon: _isVoiding
-                                  ? const SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: AppColors.statusRed,
-                                      ),
+                                  ? DepotLoadingIndicator.compact(
+                                      size: 20,
+                                      color: AppColors.statusRed,
                                     )
                                   : const Icon(
                                       Icons.delete_forever,

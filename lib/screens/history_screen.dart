@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../controllers/history_controller.dart';
 import 'transaction_detail_screen.dart';
 import '../theme/app_colors.dart';
+import '../theme/depot_loading_widget.dart';
 import '../helpers/search_helper.dart';
 
 enum HistoryType { transactions, piutang, bensin, stock, soldItems }
@@ -453,7 +454,11 @@ class _HistoryScreenState extends State<HistoryScreen>
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(
+              child: DepotLoadingIndicator(
+                message: "Memuat riwayat...",
+              ),
+            )
           : displayedList.isEmpty
           ? const Center(
               child: Text(

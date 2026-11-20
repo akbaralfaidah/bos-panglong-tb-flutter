@@ -123,7 +123,13 @@ class _CustomerScreenState extends State<CustomerScreen> {
           child: FutureBuilder<List<Map<String, dynamic>>>(
             future: _controller.getTransactionsByCustomer(customerName),
             builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator(color: AppColors.primaryNavy));
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(
+                  child: DepotLoadingIndicator(
+                    message: "Memuat riwayat pelanggan...",
+                  ),
+                );
+              }
               if (!snapshot.hasData || snapshot.data!.isEmpty) return const Center(child: Text("Belum ada riwayat transaksi."));
 
               final transList = snapshot.data!;
@@ -200,7 +206,11 @@ class _CustomerScreenState extends State<CustomerScreen> {
       ),
       body: LiquidAmbientBackground(
         child: _isLoading 
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(
+              child: DepotLoadingIndicator(
+                message: "Memuat buku pelanggan...",
+              ),
+            )
           : Column(
               children: [
                 Container(

@@ -694,16 +694,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: LiquidAmbientBackground(
         child: _isLoading
             ? const Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    CircularProgressIndicator(color: AppColors.primaryNavy),
-                    SizedBox(height: 10),
-                    Text(
-                      "Memproses Data...",
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ],
+                child: DepotLoadingIndicator(
+                  message: "Memproses data pengaturan...",
                 ),
               )
             : SingleChildScrollView(

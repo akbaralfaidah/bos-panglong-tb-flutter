@@ -263,7 +263,11 @@ class _CapitalManagementScreenState extends State<CapitalManagementScreen> {
 
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator(color: AppColors.primaryNavy))
+                ? const Center(
+                    child: DepotLoadingIndicator(
+                      message: "Menghitung perputaran modal...",
+                    ),
+                  )
                 : _displayedData.isEmpty
                     ? const Center(child: Text("Produk tidak ditemukan.", style: TextStyle(color: AppColors.textGrey)))
                     : Scrollbar(

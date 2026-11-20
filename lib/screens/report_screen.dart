@@ -1031,7 +1031,11 @@ class _ReportScreenState extends State<ReportScreen>
 
   Widget _buildFinanceTab() {
     return _isLoading
-        ? const Center(child: CircularProgressIndicator())
+        ? const Center(
+            child: DepotLoadingIndicator(
+              message: "Menghitung laporan keuangan...",
+            ),
+          )
         : Stack(
             children: [
               SingleChildScrollView(

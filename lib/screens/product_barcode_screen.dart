@@ -536,13 +536,9 @@ class _ProductBarcodeScreenState extends State<ProductBarcodeScreen> {
                     ),
                     onPressed: _isPrinting ? null : _printBarcode,
                     icon: _isPrinting
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              color: Colors.white,
-                              strokeWidth: 2,
-                            ),
+                        ? DepotLoadingIndicator.compact(
+                            size: 22,
+                            color: Colors.white,
                           )
                         : const Icon(Icons.print, color: Colors.white),
                     label: Text(

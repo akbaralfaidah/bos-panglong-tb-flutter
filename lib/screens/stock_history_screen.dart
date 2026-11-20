@@ -581,8 +581,8 @@ class _StockHistoryScreenState extends State<StockHistoryScreen>
           Expanded(
             child: _isLoading
                 ? const Center(
-                    child: CircularProgressIndicator(
-                      color: AppColors.primaryNavy,
+                    child: DepotLoadingIndicator(
+                      message: "Memuat riwayat stok masuk...",
                     ),
                   )
                 : displayedList.isEmpty
@@ -710,10 +710,8 @@ class _StockHistoryScreenState extends State<StockHistoryScreen>
                                 showDialog(
                                   context: context,
                                   barrierDismissible: false,
-                                  builder: (_) => const Center(
-                                    child: CircularProgressIndicator(
-                                      color: AppColors.accentGold,
-                                    ),
+                                  builder: (_) => DepotLoadingIndicator.dialog(
+                                    message: "Memuat bukti stok masuk...",
                                   ),
                                 );
                                 final batchData = await _controller

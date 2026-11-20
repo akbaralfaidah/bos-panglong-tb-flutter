@@ -14,6 +14,7 @@ import 'package:gal/gal.dart';
 import '../helpers/printer_helper.dart';
 import '../helpers/thermal_receipt_encoder.dart';
 import '../theme/app_colors.dart';
+import '../theme/depot_loading_widget.dart';
 import 'product_list_screen.dart';
 import '../helpers/session_manager.dart';
 import '../data/datasources/firebase/core_firebase_datasource.dart';
@@ -673,7 +674,9 @@ class _StockReceiptScreenState extends State<StockReceiptScreen>
         ),
         body: _isLoading
             ? const Center(
-                child: CircularProgressIndicator(color: AppColors.primaryNavy),
+                child: DepotLoadingIndicator(
+                  message: "Menyiapkan bukti stok masuk...",
+                ),
               )
             : SingleChildScrollView(
                 child: Column(

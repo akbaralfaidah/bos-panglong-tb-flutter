@@ -4,7 +4,8 @@ import 'package:animations/animations.dart';
 import 'package:firebase_core/firebase_core.dart'; // 🔥 Wajib di-import
 import 'package:get/get.dart'; // 🔥 Wajib untuk fitur notifikasi Get.snackbar()
 import 'package:google_fonts/google_fonts.dart';
-import 'screens/splash_screen.dart'; 
+import 'screens/splash_screen.dart';
+import 'helpers/app_orientation_policy.dart';
 import 'theme/app_colors.dart';
 import 'firebase_options.dart'; // 🔥 Wajib untuk konfigurasi Firebase
 
@@ -28,16 +29,42 @@ void main() async {
     debugPrint("Firebase init error: $e");
   }
   
-  SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-  ]);
+  // Tablet (shortestSide >= 600dp) bebas Portrait & Landscape sejak pertama kali dibuka;
+  // HP (< 600dp) tetap nyaman di Portrait.
+  await AppOrientationPolicy.applyForCurrentDisplay();
   
   runApp(const BosPanglongApp());
 }
 
-class BosPanglongApp extends StatelessWidget {
+class BosPanglongApp extends StatefulWidget {
   const BosPanglongApp({super.key});
+
+  @override
+  State<BosPanglongApp> createState() => _BosPanglongAppState();
+}
+
+class _BosPanglongAppState extends State<BosPanglongApp>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      AppOrientationPolicy.applyForCurrentDisplay();
+    });
+  }
+
+  @override
+  void didChangeMetrics() {
+    super.didChangeMetrics();
+    AppOrientationPolicy.applyForCurrentDisplay();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {

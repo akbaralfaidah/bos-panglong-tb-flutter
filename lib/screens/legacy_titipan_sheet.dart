@@ -979,13 +979,9 @@ class _LegacyTitipanSheetState extends State<_LegacyTitipanSheet> {
                       child: ElevatedButton.icon(
                         onPressed: _isSaving ? null : _saveLegacyTitipan,
                         icon: _isSaving
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2.2,
-                                  color: Colors.white,
-                                ),
+                            ? DepotLoadingIndicator.compact(
+                                size: 20,
+                                color: Colors.white,
                               )
                             : const Icon(
                                 Icons.save_rounded,

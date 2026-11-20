@@ -266,14 +266,7 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
                         }
                       },
                 child: _controller.isLoading.value
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2,
-                        ),
-                      )
+                    ? DepotLoadingIndicator.compact(size: 20, color: Colors.white)
                     : Text(
                         createLoginAccount ? "Buat Akun" : "Simpan",
                         style: const TextStyle(
@@ -321,7 +314,9 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(
-                child: CircularProgressIndicator(color: AppColors.primaryNavy),
+                child: DepotLoadingIndicator(
+                  message: "Memuat daftar karyawan...",
+                ),
               );
             }
             if (snapshot.hasError) {

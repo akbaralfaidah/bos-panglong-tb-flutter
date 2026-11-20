@@ -14,6 +14,7 @@ import '../helpers/printer_helper.dart';
 import '../helpers/thermal_receipt_encoder.dart';
 import '../controllers/transaction_detail_controller.dart';
 import '../theme/app_colors.dart';
+import '../theme/depot_loading_widget.dart';
 import '../helpers/session_manager.dart';
 import 'edit_transaction_screen.dart';
 import '../helpers/app_notification.dart';
@@ -983,7 +984,9 @@ class _ModalTransactionDetailScreenState extends State<ModalTransactionDetailScr
         ),
         body: _isLoading
             ? const Center(
-                child: CircularProgressIndicator(color: AppColors.primaryNavy),
+                child: DepotLoadingIndicator(
+                  message: "Memuat nota modal...",
+                ),
               )
             : SingleChildScrollView(
                 padding: _isGeneratingReceipt

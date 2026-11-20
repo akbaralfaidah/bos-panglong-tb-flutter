@@ -6,6 +6,8 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
 import 'app_colors.dart';
 
+export 'depot_loading_widget.dart';
+
 /// Helper responsif untuk membedakan layar HP vs Tablet agar layout adaptif & nyaman
 class ResponsiveLayout {
   static bool isTablet(BuildContext context) =>

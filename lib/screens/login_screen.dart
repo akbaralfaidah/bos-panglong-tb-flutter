@@ -428,8 +428,10 @@ class _LoginScreenState extends State<LoginScreen> {
             builder: (streamCtx, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(
-                  child: CircularProgressIndicator(
-                    color: AppColors.primaryNavy,
+                  child: DepotLoadingIndicator(
+                    message: "Memuat daftar karyawan...",
+                    size: 92,
+                    showCard: false,
                   ),
                 );
               }

@@ -392,14 +392,7 @@ class _EmployeeLockScreenState extends State<EmployeeLockScreen> {
                       }
                     },
               child: submitting
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        color: Colors.white,
-                        strokeWidth: 2,
-                      ),
-                    )
+                  ? DepotLoadingIndicator.compact(size: 20, color: Colors.white)
                   : const Text(
                       'MASUK',
                       style: TextStyle(
@@ -670,13 +663,9 @@ class _EmployeeLockScreenState extends State<EmployeeLockScreen> {
                                       ? null
                                       : _unlockWithDeviceAuth,
                                   icon: _isAuthenticating
-                                      ? const SizedBox(
-                                          width: 20,
-                                          height: 20,
-                                          child: CircularProgressIndicator(
-                                            color: Colors.white,
-                                            strokeWidth: 2.2,
-                                          ),
+                                      ? DepotLoadingIndicator.compact(
+                                          size: 22,
+                                          color: Colors.white,
                                         )
                                       : const Icon(
                                           LucideIcons.fingerprint,

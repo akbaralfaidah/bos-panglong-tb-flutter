@@ -754,8 +754,8 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen>
           Expanded(
             child: _isLoading
                 ? const Center(
-                    child: CircularProgressIndicator(
-                      color: AppColors.primaryNavy,
+                    child: DepotLoadingIndicator(
+                      message: "Memuat buku piutang...",
                     ),
                   )
                 : (_groups.isEmpty && _groupSummaries.isEmpty)

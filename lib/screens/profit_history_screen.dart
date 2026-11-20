@@ -440,8 +440,8 @@ class _ProfitHistoryScreenState extends State<ProfitHistoryScreen> {
           Expanded(
             child: _isLoading
                 ? const Center(
-                    child: CircularProgressIndicator(
-                      color: AppColors.primaryNavy,
+                    child: DepotLoadingIndicator(
+                      message: "Menghitung riwayat profit...",
                     ),
                   )
                 : _historyData.isEmpty
@@ -533,10 +533,8 @@ class _ProfitHistoryScreenState extends State<ProfitHistoryScreen> {
                                 showDialog(
                                   context: context,
                                   barrierDismissible: false,
-                                  builder: (_) => const Center(
-                                    child: CircularProgressIndicator(
-                                      color: AppColors.accentGold,
-                                    ),
+                                  builder: (_) => DepotLoadingIndicator.dialog(
+                                    message: "Membuka nota transaksi...",
                                   ),
                                 );
                                 final trx = await _transDS.getTransactionById(

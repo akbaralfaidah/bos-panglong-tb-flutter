@@ -9,15 +9,54 @@ class TransactionHistoryFirebaseDataSource {
     return _db.collection('stores').doc(uid).collection(path);
   }
 
-  // MESIN CACHE-FIRST TINGKAT DEWA
-  Future<QuerySnapshot> _cacheFirstQuery(Query q) async {
-    q.get(const GetOptions(source: Source.server)).then((_) => null, onError: (_) => null);
+  /// Query adaptif anti-hang & anti-stale:
+  /// - Saat [preferServer] = true (filter harian/mingguan/bulanan/titipan): ambil langsung dari
+  ///   server (1x request, timeout 7 detik) agar transaksi yang baru dibuat karyawan di HP lain
+  ///   langsung muncul seketika; bila offline/timeout langsung fallback mulus ke cache lokal.
+  /// - Saat [preferServer] = false (filter 'Semua' ribuan nota): baca cache lokal instan agar
+  ///   tidak lag, lalu sinkronisasi ringan 1x di latar belakang.
+  Future<List<QueryDocumentSnapshot>> _smartQuery(
+    Query q, {
+    required bool preferServer,
+  }) async {
+    if (preferServer) {
+      try {
+        final serverSnap = await q
+            .get(const GetOptions(source: Source.server))
+            .timeout(const Duration(seconds: 7));
+        return serverSnap.docs;
+      } catch (_) {
+        try {
+          final cacheSnap = await q.get(const GetOptions(source: Source.cache));
+          return cacheSnap.docs;
+        } catch (_) {
+          return [];
+        }
+      }
+    }
+
     try {
-      final snap = await q.get(const GetOptions(source: Source.cache));
-      if (snap.docs.isEmpty) return await q.get(const GetOptions(source: Source.server)).timeout(const Duration(seconds: 3));
-      return snap;
+      final cacheSnap = await q.get(const GetOptions(source: Source.cache));
+      if (cacheSnap.docs.isNotEmpty) {
+        q
+            .get(const GetOptions(source: Source.server))
+            .then((_) => null, onError: (_) => null);
+        return cacheSnap.docs;
+      }
+    } catch (_) {}
+
+    try {
+      final serverSnap = await q
+          .get(const GetOptions(source: Source.server))
+          .timeout(const Duration(seconds: 10));
+      return serverSnap.docs;
     } catch (_) {
-      return await q.get(const GetOptions(source: Source.server)).timeout(const Duration(seconds: 3));
+      try {
+        final cacheSnap = await q.get(const GetOptions(source: Source.cache));
+        return cacheSnap.docs;
+      } catch (_) {
+        return [];
+      }
     }
   }
 
@@ -28,13 +67,29 @@ class TransactionHistoryFirebaseDataSource {
   }) async {
     String start = "${startDate}T00:00:00.000";
     String end = "${endDate}T23:59:59.999";
+    final bool isAllTime = startDate == '2000-01-01';
 
-    final snapshot = await _cacheFirstQuery(
-      _col('transactions').where('transaction_date', isGreaterThanOrEqualTo: start).where('transaction_date', isLessThanOrEqualTo: end)
-    );
-        
-    List<Map<String, dynamic>> results = snapshot.docs
-        .map((doc) => doc.data() as Map<String, dynamic>)
+    final List<QueryDocumentSnapshot> docs;
+    if (statusCondition == 'TITIPAN') {
+      // Langsung filter status pengantaran di Firestore (hemat ribuan dokumen!)
+      docs = await _smartQuery(
+        _col('transactions').where(
+          'delivery_status',
+          whereIn: ['Belum Diantar', 'Sebagian'],
+        ),
+        preferServer: true,
+      );
+    } else {
+      docs = await _smartQuery(
+        _col('transactions')
+            .where('transaction_date', isGreaterThanOrEqualTo: start)
+            .where('transaction_date', isLessThanOrEqualTo: end),
+        preferServer: !isAllTime,
+      );
+    }
+
+    List<Map<String, dynamic>> results = docs
+        .map((doc) => Map<String, dynamic>.from(doc.data() as Map))
         .toList();
 
     if (statusCondition == 'LUNAS') {
@@ -44,7 +99,14 @@ class TransactionHistoryFirebaseDataSource {
     } else if (statusCondition == 'TITIPAN') {
       results = results.where((doc) {
         String dStatus = doc['delivery_status']?.toString() ?? 'Selesai';
-        return dStatus != 'Selesai';
+        if (dStatus == 'Selesai') return false;
+        if (!isAllTime) {
+          final String tDate = (doc['transaction_date'] ?? '').toString();
+          if (tDate.compareTo(start) < 0 || tDate.compareTo(end) > 0) {
+            return false;
+          }
+        }
+        return true;
       }).toList();
     } else {
       results = results
@@ -52,7 +114,11 @@ class TransactionHistoryFirebaseDataSource {
           .toList();
     }
 
-    results.sort((a, b) => (b['transaction_date'] as String).compareTo(a['transaction_date'] as String));
+    results.sort(
+      (a, b) => (b['transaction_date'] ?? '')
+          .toString()
+          .compareTo((a['transaction_date'] ?? '').toString()),
+    );
 
     double globalOmsetKayu = 0;
     double globalOmsetBangunan = 0;
@@ -117,17 +183,25 @@ class TransactionHistoryFirebaseDataSource {
   }) async {
     String start = "${startDate}T00:00:00.000";
     String end = "${endDate}T23:59:59.999";
+    final bool isAllTime = startDate == '2000-01-01';
 
-    final snapshot = await _cacheFirstQuery(
-      _col('transactions').where('transaction_date', isGreaterThanOrEqualTo: start).where('transaction_date', isLessThanOrEqualTo: end)
+    final docs = await _smartQuery(
+      _col('transactions')
+          .where('transaction_date', isGreaterThanOrEqualTo: start)
+          .where('transaction_date', isLessThanOrEqualTo: end),
+      preferServer: !isAllTime,
     );
-        
-    List<Map<String, dynamic>> results = snapshot.docs
-        .map((doc) => doc.data() as Map<String, dynamic>)
+
+    List<Map<String, dynamic>> results = docs
+        .map((doc) => Map<String, dynamic>.from(doc.data() as Map))
         .where((doc) => doc['is_legacy_titipan'] != true)
         .toList();
 
-    results.sort((a, b) => (b['transaction_date'] as String).compareTo(a['transaction_date'] as String));
+    results.sort(
+      (a, b) => (b['transaction_date'] ?? '')
+          .toString()
+          .compareTo((a['transaction_date'] ?? '').toString()),
+    );
 
     double globalModalKayu = 0;
     double globalModalBangunan = 0;

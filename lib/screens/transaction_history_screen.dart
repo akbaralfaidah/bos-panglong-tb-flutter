@@ -37,6 +37,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> wit
 
   List<Map<String, dynamic>> _historyData = [];
   bool _isLoading = true;
+  int _fetchSeq = 0;
 
   int _omsetKayu = 0;
   int _omsetBangunan = 0;
@@ -83,7 +84,8 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> wit
   }
 
   Future<void> _fetchData() async {
-    setState(() => _isLoading = true);
+    final int seq = ++_fetchSeq;
+    if (mounted) setState(() => _isLoading = true);
     String tabType = 'LUNAS';
     if (_tabController.index == 1) tabType = 'HUTANG';
     if (_tabController.index == 2) tabType = 'TITIPAN';
@@ -94,17 +96,22 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> wit
       requestedFilter: _selectedFilter,
     );
     _selectedFilter = effectiveFilter;
-    
-    final data = await _controller.getTransactions(tabType, effectiveFilter);
-    
-    if (mounted) {
-      setState(() { 
-        _historyData = data['history']; 
+
+    try {
+      final data = await _controller.getTransactions(tabType, effectiveFilter);
+      if (!mounted || seq != _fetchSeq) return;
+      setState(() {
+        _historyData = data['history'] ?? [];
         _omsetKayu = data['omset_kayu'] ?? 0;
         _omsetBangunan = data['omset_bangunan'] ?? 0;
-        _totalBensin = data['total_bensin'] ?? 0; 
-        _isLoading = false; 
+        _totalBensin = data['total_bensin'] ?? 0;
       });
+    } catch (e) {
+      debugPrint('Gagal muat riwayat nota: $e');
+    } finally {
+      if (mounted && seq == _fetchSeq) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -566,10 +573,32 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> wit
               context: context,
               maxWidth: 960,
               child: _isLoading
-                ? const Center(child: CircularProgressIndicator(color: AppColors.primaryNavy))
+                ? const Center(
+                    child: DepotLoadingIndicator(
+                      message: "Memuat riwayat nota...",
+                    ),
+                  )
                 : displayedList.isEmpty
-                    ? const Center(child: Text("Tidak ada transaksi atau barang tidak ditemukan.", style: TextStyle(color: AppColors.textGrey)))
-                    : Scrollbar(
+                    ? RefreshIndicator(
+                        onRefresh: _fetchData,
+                        color: AppColors.primaryNavy,
+                        child: ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          children: const [
+                            SizedBox(height: 110),
+                            Center(
+                              child: Text(
+                                "Tidak ada transaksi atau barang tidak ditemukan.",
+                                style: TextStyle(color: AppColors.textGrey),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : RefreshIndicator(
+                        onRefresh: _fetchData,
+                        color: AppColors.primaryNavy,
+                        child: Scrollbar(
                         controller: _scrollController,
                         thumbVisibility: true,
                         thickness: 8,
@@ -577,6 +606,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> wit
                         interactive: true,
                         child: ListView.builder(
                             controller: _scrollController,
+                            physics: const AlwaysScrollableScrollPhysics(),
                             padding: EdgeInsets.fromLTRB(
                               16,
                               5,
@@ -788,6 +818,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> wit
                               return rowWidget;
                             },
                           ),
+                        ),
                       ),
             ),
           ),

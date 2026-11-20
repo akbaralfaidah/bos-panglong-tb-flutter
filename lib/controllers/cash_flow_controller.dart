@@ -1,3 +1,4 @@
+import 'package:intl/intl.dart';
 import '../data/datasources/firebase/cash_flow_firebase_datasource.dart';
 
 class CashFlowItem {
@@ -11,98 +12,229 @@ class CashFlowItem {
   final Map<String, dynamic> rawData; // Payload rahasia untuk buka nota!
 
   CashFlowItem({
-    required this.id, required this.date, required this.title, 
-    required this.subtitle, required this.amount, required this.type,
-    required this.category, required this.rawData
+    required this.id,
+    required this.date,
+    required this.title,
+    required this.subtitle,
+    required this.amount,
+    required this.type,
+    required this.category,
+    required this.rawData,
   });
 }
 
 class CashFlowController {
   final CashFlowFirebaseDataSource _cashFlowDS = CashFlowFirebaseDataSource();
-  
-  Future<List<CashFlowItem>> getSuperHistory() async {
-    List<CashFlowItem> items = [];
+
+  /// Menghitung rentang ISO `startIso` & `endIso` berdasarkan mode filter UI,
+  /// sehingga Firestore hanya menarik dokumen pada tanggal yang benar-benar diminta
+  /// (bukan mengunduh seluruh ribuan riwayat setiap kali halaman dibuka!).
+  static ({String? startIso, String? endIso, bool isAllTime}) resolveDateRange(
+    String filterMode, {
+    DateTime? nowOverride,
+  }) {
+    final DateTime now = nowOverride ?? DateTime.now();
+    final DateFormat iso = DateFormat('yyyy-MM-dd');
+    final String todayStr = iso.format(now);
+
+    if (filterMode == 'Hari Ini') {
+      return (
+        startIso: '${todayStr}T00:00:00.000',
+        endIso: '${todayStr}T23:59:59.999',
+        isAllTime: false,
+      );
+    }
+    if (filterMode == 'Kemarin') {
+      final String y = iso.format(now.subtract(const Duration(days: 1)));
+      return (
+        startIso: '${y}T00:00:00.000',
+        endIso: '${y}T23:59:59.999',
+        isAllTime: false,
+      );
+    }
+    if (filterMode == '7 Hari') {
+      final String s = iso.format(now.subtract(const Duration(days: 7)));
+      return (
+        startIso: '${s}T00:00:00.000',
+        endIso: '${todayStr}T23:59:59.999',
+        isAllTime: false,
+      );
+    }
+    if (filterMode == 'Bulan Ini') {
+      final String s = DateFormat('yyyy-MM-01').format(now);
+      return (
+        startIso: '${s}T00:00:00.000',
+        endIso: '${todayStr}T23:59:59.999',
+        isAllTime: false,
+      );
+    }
+    if (filterMode.startsWith('CUSTOM|')) {
+      final parts = filterMode.split('|');
+      if (parts.length >= 3) {
+        return (
+          startIso: '${parts[1]}T00:00:00.000',
+          endIso: '${parts[2]}T23:59:59.999',
+          isAllTime: false,
+        );
+      }
+    }
+    return (startIso: null, endIso: null, isAllTime: true);
+  }
+
+  Future<List<CashFlowItem>> getSuperHistory({
+    String filterMode = 'Hari Ini',
+  }) async {
+    final range = resolveDateRange(filterMode);
+    final bool preferServer = !range.isAllTime;
+
+    // Eksekusi 4 koleksi secara PARALEL (bukan berurutan) & dibatasi rentang tanggal aktif
+    final results = await Future.wait([
+      _cashFlowDS.getAllTransactions(
+        startIso: range.startIso,
+        endIso: range.endIso,
+        preferServer: preferServer,
+      ),
+      _cashFlowDS.getAllDebtPayments(
+        startIso: range.startIso,
+        endIso: range.endIso,
+        preferServer: preferServer,
+      ),
+      _cashFlowDS.getAllStockLogsWithProducts(
+        startIso: range.startIso,
+        endIso: range.endIso,
+        preferServer: preferServer,
+      ),
+      _cashFlowDS.getAllGasExpenses(
+        startIso: range.startIso,
+        endIso: range.endIso,
+        preferServer: preferServer,
+      ),
+    ]);
+
+    final trans = results[0];
+    final debts = results[1];
+    final stocks = results[2];
+    final gas = results[3];
+
+    final List<CashFlowItem> items = [];
 
     // 1. PENJUALAN KASIR
-    final trans = await _cashFlowDS.getAllTransactions();
     for (var t in trans) {
-      // KONVERSI AMAN DARI FIRESTORE
-      int totalPrice = (t['total_price'] as num?)?.toInt() ?? 0;
-      int opCost = (t['operational_cost'] as num?)?.toInt() ?? 0;
+      final String dateStr = (t['transaction_date'] ?? '').toString();
+      if (dateStr.isEmpty) continue;
+      final int totalPrice = (t['total_price'] as num?)?.toInt() ?? 0;
+      final int opCost = (t['operational_cost'] as num?)?.toInt() ?? 0;
 
       if (t['payment_status'] == 'Lunas') {
         items.add(CashFlowItem(
-          id: 'TRX-${t['id']}', date: t['transaction_date'].toString(),
-          title: 'Penjualan Lunas (INV-${t['id']})', subtitle: 'Kpd: ${t['customer_name']}',
-          amount: totalPrice, type: 'IN', category: 'SALE', rawData: t
+          id: 'TRX-${t['id']}',
+          date: dateStr,
+          title: 'Penjualan Lunas (INV-${t['id']})',
+          subtitle: 'Kpd: ${t['customer_name'] ?? 'Pelanggan Umum'}',
+          amount: totalPrice,
+          type: 'IN',
+          category: 'SALE',
+          rawData: t,
         ));
       } else {
         items.add(CashFlowItem(
-          id: 'TRX-${t['id']}', date: t['transaction_date'].toString(),
-          title: 'Penjualan Hutang (INV-${t['id']})', subtitle: 'Kpd: ${t['customer_name']} (Belum Lunas)',
-          amount: totalPrice, type: 'PENDING', category: 'SALE', rawData: t
+          id: 'TRX-${t['id']}',
+          date: dateStr,
+          title: 'Penjualan Hutang (INV-${t['id']})',
+          subtitle:
+              'Kpd: ${t['customer_name'] ?? 'Pelanggan Umum'} (Belum Lunas)',
+          amount: totalPrice,
+          type: 'PENDING',
+          category: 'SALE',
+          rawData: t,
         ));
       }
 
       // 2. BIAYA BENSIN DARI PENJUALAN
       if (opCost > 0) {
         items.add(CashFlowItem(
-          id: 'OP-${t['id']}', date: t['transaction_date'].toString(),
-          title: 'Biaya Bensin (INV-${t['id']})', subtitle: 'Potongan Operasional Pengiriman',
-          amount: opCost, type: 'OUT', category: 'GAS_TRX', rawData: t
+          id: 'OP-${t['id']}',
+          date: dateStr,
+          title: 'Biaya Bensin (INV-${t['id']})',
+          subtitle: 'Potongan Operasional Pengiriman',
+          amount: opCost,
+          type: 'OUT',
+          category: 'GAS_TRX',
+          rawData: t,
         ));
       }
     }
 
     // 3. PEMBAYARAN CICILAN PIUTANG
-    final debts = await _cashFlowDS.getAllDebtPayments();
     for (var d in debts) {
+      final String dateStr = (d['payment_date'] ?? '').toString();
+      if (dateStr.isEmpty) continue;
+      final String note = (d['note'] ?? '').toString().trim();
       items.add(CashFlowItem(
-        id: 'DBT-${d['id']}', date: d['payment_date'].toString(),
-        title: 'Terima Cicilan (INV-${d['transaction_id']})', subtitle: 'Catatan: ${d['note']?.toString() == '' ? '-' : d['note']}',
-        amount: (d['amount_paid'] as num?)?.toInt() ?? 0, type: 'IN', category: 'DEBT', rawData: d
+        id: 'DBT-${d['id']}',
+        date: dateStr,
+        title: 'Terima Cicilan (INV-${d['transaction_id']})',
+        subtitle: 'Catatan: ${note.isEmpty ? '-' : note}',
+        amount: (d['amount_paid'] as num?)?.toInt() ?? 0,
+        type: 'IN',
+        category: 'DEBT',
+        rawData: d,
       ));
     }
 
     // 4. KULAKAN (STOK BARANG MASUK / PRODUK BARU)
-    final stocks = await _cashFlowDS.getAllStockLogsWithProducts();
     for (var s in stocks) {
-      
-      // 🔥 TAMENG ANTI-KERITING MUTLAK: Ambil harga murni dari Datasource! 🔥
-      int totalModalKeluar = s.containsKey('total_price') && s['total_price'] != null 
-          ? (s['total_price'] as num).toInt() 
-          : (((s['price'] as num?)?.toDouble() ?? 0) * ((s['quantity'] as num?)?.toDouble() ?? 1.0)).round(); 
-      
-      String logType = (s['type']?.toString() ?? '').toUpperCase();
-      
-      String category = 'STOCK_ADD';
-      if (logType.contains('BARU') || logType.contains('AWAL')) {
-        category = 'STOCK_NEW';
-      }
+      final String dateStr = (s['date'] ?? '').toString();
+      if (dateStr.isEmpty) continue;
+      final int totalModalKeluar =
+          s.containsKey('total_price') && s['total_price'] != null
+              ? (s['total_price'] as num).toInt()
+              : (((s['price'] as num?)?.toDouble() ?? 0) *
+                      ((s['quantity'] as num?)?.toDouble() ?? 1.0))
+                  .round();
+
+      final String logType = (s['type']?.toString() ?? '').toUpperCase();
+      final String category =
+          (logType.contains('BARU') || logType.contains('AWAL'))
+              ? 'STOCK_NEW'
+              : 'STOCK_ADD';
 
       if (totalModalKeluar > 0) {
+        final String note = (s['note'] ?? '').toString().trim();
         items.add(CashFlowItem(
-          id: 'STK-${s['id']}', date: s['date'].toString(),
-          title: category == 'STOCK_NEW' ? 'Produk Baru: ${s['product_name'] ?? 'Produk'}' : 'Stok Masuk: ${s['product_name'] ?? 'Produk'}', 
-          subtitle: 'Sumber/Catatan: ${s['note']?.toString() == '' ? 'Modal Gudang' : s['note']}',
-          amount: totalModalKeluar, type: 'OUT', category: category, rawData: s // Raw Data dibawa utuh buat Nota
+          id: 'STK-${s['id']}',
+          date: dateStr,
+          title: category == 'STOCK_NEW'
+              ? 'Produk Baru: ${s['product_name'] ?? 'Produk'}'
+              : 'Stok Masuk: ${s['product_name'] ?? 'Produk'}',
+          subtitle: 'Sumber/Catatan: ${note.isEmpty ? 'Modal Gudang' : note}',
+          amount: totalModalKeluar,
+          type: 'OUT',
+          category: category,
+          rawData: s,
         ));
       }
     }
 
-    // 5. BENSIN MANUAL / PENGELUARAN LAINNYA DARI MENU BENSIN
-    final gas = await _cashFlowDS.getAllGasExpenses();
+    // 5. BENSIN MANUAL / PENGELUARAN LAINNYA
     for (var g in gas) {
+      final String dateStr = (g['date'] ?? '').toString();
+      if (dateStr.isEmpty) continue;
       items.add(CashFlowItem(
-        id: 'GAS-${g['id']}', date: g['date'].toString(),
-        title: 'Biaya Bensin / Opr', subtitle: g['description']?.toString() ?? 'Pengeluaran Kendaraan',
-        amount: (g['amount'] as num?)?.toInt() ?? 0, type: 'OUT', category: 'GAS', rawData: g
+        id: 'GAS-${g['id']}',
+        date: dateStr,
+        title: 'Biaya Bensin / Opr',
+        subtitle: g['description']?.toString() ?? 'Pengeluaran Kendaraan',
+        amount: (g['amount'] as num?)?.toInt() ?? 0,
+        type: 'OUT',
+        category: 'GAS',
+        rawData: g,
       ));
     }
 
-    // Urutkan dari yang paling baru
-    items.sort((a, b) => DateTime.parse(b.date).compareTo(DateTime.parse(a.date)));
-    
+    // Urutkan aman dari paling baru (ISO-8601 string compare = super cepat & kebal FormatException)
+    items.sort((a, b) => b.date.compareTo(a.date));
+
     return items;
   }
 
