@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -78,6 +79,7 @@ class _ProductListScreenState extends State<ProductListScreen>
 
   final ProductController _controller = ProductController();
   final ProfitHistoryController _profitController = ProfitHistoryController(); 
+  StreamSubscription<List<Product>>? _productsSub;
 
   List<Product> _allProducts = [];
   List<Product> _kayuList = [];
@@ -136,9 +138,67 @@ class _ProductListScreenState extends State<ProductListScreen>
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging) setState(() {});
     });
-    _loadProducts();
+    _startRealtimeProducts();
     _syncStockCart();
     _loadCustomCategories();
+  }
+
+  void _startRealtimeProducts() {
+    _productsSub?.cancel();
+    _productsSub = _controller.watchAllProducts().listen(
+      (data) {
+        if (!mounted) return;
+        _applyFreshProducts(data);
+      },
+      onError: (_) {
+        _loadProducts();
+      },
+    );
+  }
+
+  void _applyFreshProducts(List<Product> data) {
+    final Map<int, Product> byId = {
+      for (final p in data)
+        if (p.id != null) p.id!: p,
+    };
+    bool cartChanged = false;
+    final List<StockCartItem> reconciledCart = [];
+    for (final item in _stockCart) {
+      final int? pid = item.product.id;
+      if (pid == null) {
+        reconciledCart.add(item);
+        continue;
+      }
+      final Product? latest = byId[pid];
+      if (latest == null) {
+        cartChanged = true;
+        continue;
+      }
+      reconciledCart.add(
+        StockCartItem(
+          product: latest,
+          addedQty: item.addedQty,
+          isGrosir: item.isGrosir,
+          totalExpense: item.totalExpense,
+          unitName: item.unitName,
+          finalStockAdd: item.finalStockAdd,
+          useProfitForCapital: item.useProfitForCapital,
+        ),
+      );
+    }
+
+    setState(() {
+      _allProducts = data;
+      if (_stockCart.isNotEmpty) {
+        _stockCart
+          ..clear()
+          ..addAll(reconciledCart);
+      }
+      _applyFilters();
+    });
+    if (cartChanged) {
+      _saveStockCart();
+    }
   }
 
   // 🔥 LOAD KATEGORI CUSTOM DARI SHARED PREFERENCES 🔥
@@ -160,6 +220,7 @@ class _ProductListScreenState extends State<ProductListScreen>
 
   @override
   void dispose() {
+    _productsSub?.cancel();
     _scrollControllerKayu.dispose();
     _scrollControllerBangunan.dispose();
     _searchController.dispose();
@@ -197,10 +258,8 @@ class _ProductListScreenState extends State<ProductListScreen>
 
   Future<void> _loadProducts() async {
     final data = await _controller.getAllProducts();
-    setState(() {
-      _allProducts = data;
-      _applyFilters();
-    });
+    if (!mounted) return;
+    _applyFreshProducts(data);
   }
 
   // 🔥 NATURAL COMPARE: SUPPORT PECAHAN (1/2, 3/4, 1 1/2) 🔥

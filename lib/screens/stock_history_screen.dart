@@ -694,7 +694,7 @@ class _StockHistoryScreenState extends State<StockHistoryScreen>
                                   : unitNameStr;
 
                               if (note == 'Stok Awal') {
-                                Navigator.push(
+                                await Navigator.push(
                                   context,
                                   MaterialPageRoute(
                                     builder: (_) => NewProductReceiptScreen(
@@ -706,6 +706,7 @@ class _StockHistoryScreenState extends State<StockHistoryScreen>
                                     ),
                                   ),
                                 );
+                                if (mounted) _fetchData();
                               } else {
                                 showDialog(
                                   context: context,
@@ -803,8 +804,8 @@ class _StockHistoryScreenState extends State<StockHistoryScreen>
                                   );
                                 }
 
-                                if (mounted)
-                                  Navigator.push(
+                                if (mounted) {
+                                  await Navigator.push(
                                     context,
                                     MaterialPageRoute(
                                       builder: (_) => StockReceiptScreen(
@@ -814,6 +815,8 @@ class _StockHistoryScreenState extends State<StockHistoryScreen>
                                       ),
                                     ),
                                   );
+                                  if (mounted) _fetchData();
+                                }
                               }
                             },
                             borderRadius: BorderRadius.circular(18),

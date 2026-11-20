@@ -1131,7 +1131,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       },
                     ),
 
-                    if (Platform.isAndroid) ...[
+                    if (Platform.isAndroid || Platform.isIOS) ...[
                       const SizedBox(height: 10),
                       Container(
                         decoration: AppColors.liquidGlassCard(radius: 18),
@@ -1173,7 +1173,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                       ),
                                       SizedBox(height: 2),
                                       Text(
-                                        "Khusus Pemilik (Android) • Berbunyi otomatis saat kasir menyelesaikan transaksi",
+                                        "Khusus Pemilik (Android & iOS) • Berbunyi otomatis saat kasir transaksi",
                                         style: TextStyle(
                                           fontSize: 11.5,
                                           color: AppColors.textGrey,
@@ -1201,8 +1201,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                     AppNotification.show(
                                       context,
                                       message: ok
-                                          ? "Notifikasi percobaan dikirim ke bilah Android!"
-                                          : "Pastikan izin notifikasi Android sudah diizinkan.",
+                                          ? "Notifikasi percobaan dikirim ke bilah notifikasi!"
+                                          : "Pastikan izin notifikasi aplikasi sudah diizinkan di pengaturan HP.",
                                       type: ok
                                           ? AppNotificationType.success
                                           : AppNotificationType.warning,

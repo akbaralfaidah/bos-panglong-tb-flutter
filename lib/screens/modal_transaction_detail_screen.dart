@@ -104,13 +104,24 @@ class _ModalTransactionDetailScreenState extends State<ModalTransactionDetailScr
 
     if (mounted) {
       setState(() {
+        final Map<String, dynamic>? freshTx =
+            data['transaction'] as Map<String, dynamic>?;
+        if (freshTx != null) {
+          _opCost = (freshTx['operational_cost'] as num?)?.toInt() ?? _opCost;
+          _status = freshTx['payment_status']?.toString() ?? _status;
+          _dateStr = freshTx['transaction_date']?.toString() ?? _dateStr;
+          _paymentMethod = freshTx['payment_method']?.toString() ?? _paymentMethod;
+          _cashierName = freshTx['cashier_name']?.toString() ?? _cashierName;
+          _queueNum = (freshTx['queue_number'] as num?)?.toInt() ?? _queueNum;
+        }
+
         List<dynamic> rawItems = [];
-        if (widget.transaction.containsKey('items') &&
+        if (data['items'] != null && (data['items'] as List).isNotEmpty) {
+          rawItems = data['items'];
+        } else if (widget.transaction.containsKey('items') &&
             widget.transaction['items'] != null &&
             (widget.transaction['items'] as List).isNotEmpty) {
           rawItems = widget.transaction['items'];
-        } else {
-          rawItems = data['items'] ?? [];
         }
 
         _items = rawItems.map<Map<String, dynamic>>((e) {

@@ -10,12 +10,9 @@ class DebtFirebaseDataSource {
 
   Future<List<QueryDocumentSnapshot>> _safeQuery(Query q) async {
     try {
-      final snap = await q.get(const GetOptions(source: Source.cache));
-      q.get(const GetOptions(source: Source.server)).then((_) => null, onError: (_) => null);
-      if (snap.docs.isNotEmpty) return snap.docs;
       final sSnap = await q
           .get(const GetOptions(source: Source.server))
-          .timeout(const Duration(seconds: 3));
+          .timeout(const Duration(seconds: 5));
       return sSnap.docs;
     } catch (_) {
       try {

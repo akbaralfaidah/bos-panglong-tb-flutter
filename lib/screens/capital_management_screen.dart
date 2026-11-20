@@ -210,8 +210,9 @@ class _CapitalManagementScreenState extends State<CapitalManagementScreen> {
                     ),
                     icon: const Icon(Icons.history, size: 20),
                     label: const Text("Riwayat Modal Keluar per Transaksi", style: TextStyle(fontWeight: FontWeight.bold)),
-                    onPressed: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (_) => const CapitalHistoryScreen()));
+                    onPressed: () async {
+                      await Navigator.push(context, MaterialPageRoute(builder: (_) => const CapitalHistoryScreen()));
+                      if (mounted) _fetchData();
                     },
                   ),
                 ),

@@ -5,6 +5,14 @@ class ProductController {
   
   final ProductFirebaseDataSource _productDS = ProductFirebaseDataSource();
 
+  Stream<List<Product>> watchAllProducts() {
+    return _productDS.watchAllProducts().map((list) {
+      final sorted = List<Product>.from(list);
+      sorted.sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+      return sorted;
+    });
+  }
+
   Future<List<Product>> getAllProducts() async {
     List<Product> list = await _productDS.getAllProducts();
     list.sort((a, b) => a.orderIndex.compareTo(b.orderIndex));

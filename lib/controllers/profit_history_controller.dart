@@ -1,6 +1,5 @@
 import 'package:intl/intl.dart';
 import '../data/datasources/firebase/profit_firebase_datasource.dart';
-import '../data/datasources/firebase/report_firebase_datasource.dart';
 
 class ProfitHistoryController {
   final ProfitFirebaseDataSource _profitDS = ProfitFirebaseDataSource();
@@ -10,12 +9,11 @@ class ProfitHistoryController {
     await _profitDS.withdrawProfitForCapital(amount, note);
   }
 
-  Future<Map<String, dynamic>> getProfitAndExpenses(String filterDate) async {
+  ({String startDate, String endDate}) _resolveDateRange(String filterDate) {
     DateTime now = DateTime.now();
     String startDate = '';
     String endDate = DateFormat('yyyy-MM-dd').format(now);
 
-    // 🔥 LOGIKA FILTER CUSTOM DATE 🔥
     if (filterDate.startsWith('CUSTOM|')) {
       var parts = filterDate.split('|');
       startDate = parts[1];
@@ -32,7 +30,19 @@ class ProfitHistoryController {
     } else {
       startDate = '2000-01-01'; // Default: Semua
     }
+    return (startDate: startDate, endDate: endDate);
+  }
 
-    return await _profitDS.getProfitAndExpensesData(startDate, endDate);
+  /// Stream REAL-TIME untuk filter rentang tanggal (non-'Semua').
+  /// Mengembalikan `null` untuk mode 'Semua' agar tetap memakai query cepat 1x.
+  Stream<Map<String, dynamic>>? watchProfitAndExpenses(String filterDate) {
+    if (filterDate == 'Semua') return null;
+    final range = _resolveDateRange(filterDate);
+    return _profitDS.watchProfitAndExpensesData(range.startDate, range.endDate);
+  }
+
+  Future<Map<String, dynamic>> getProfitAndExpenses(String filterDate) async {
+    final range = _resolveDateRange(filterDate);
+    return await _profitDS.getProfitAndExpensesData(range.startDate, range.endDate);
   }
 }

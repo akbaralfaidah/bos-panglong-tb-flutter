@@ -162,12 +162,13 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
 
   void _openDetail(CashFlowItem item) async {
     if (item.category == 'SALE' || item.category == 'GAS_TRX') {
-      Navigator.push(
+      await Navigator.push(
         context,
         MaterialPageRoute(
           builder: (_) => TransactionDetailScreen(transaction: item.rawData),
         ),
       );
+      if (mounted && _filterMode == 'Semua') _loadData();
     } else if (item.category == 'STOCK_NEW') {
       String pType = item.rawData['product_category'] ?? 'KAYU';
       String unit = 'Pcs';
@@ -179,7 +180,7 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
           : ((item.rawData['quantity'] as num?)?.toDouble() ?? 1.0);
       String rawInputUnit = item.rawData['input_unit']?.toString() ?? unit;
 
-      Navigator.push(
+      await Navigator.push(
         context,
         MaterialPageRoute(
           builder: (_) => NewProductReceiptScreen(
@@ -191,6 +192,7 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
           ),
         ),
       );
+      if (mounted && _filterMode == 'Semua') _loadData();
     } else if (item.category == 'STOCK_ADD') {
       String pType = item.rawData['product_category'] ?? 'KAYU';
       String unit = 'Pcs';
@@ -221,7 +223,7 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
         finalStockAdd: (item.rawData['quantity'] as num?)?.toDouble() ?? 1.0,
       );
 
-      Navigator.push(
+      await Navigator.push(
         context,
         MaterialPageRoute(
           builder: (_) => StockReceiptScreen(
@@ -231,17 +233,20 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
           ),
         ),
       );
+      if (mounted && _filterMode == 'Semua') _loadData();
     } else if (item.category == 'DEBT') {
       Map<String, dynamic>? trx = await _controller.getTransactionById(
         item.rawData['transaction_id'],
       );
-      if (trx != null && mounted)
-        Navigator.push(
+      if (trx != null && mounted) {
+        await Navigator.push(
           context,
           MaterialPageRoute(
             builder: (_) => TransactionDetailScreen(transaction: trx),
           ),
         );
+        if (mounted && _filterMode == 'Semua') _loadData();
+      }
     } else if (item.category == 'GAS') {
       AppNotification.show(context, message: "Biaya Bensin Manual tidak memiliki Nota Cetak.", type: AppNotificationType.warning);
     }

@@ -20,34 +20,38 @@ class ProductFirebaseDataSource {
       .doc(SessionManager().uid ?? 'UNKNOWN_STORE')
       .collection(path);
 
-  Future<QuerySnapshot> _cacheFirstQuery(Query q) async {
-    q
-        .get(const GetOptions(source: Source.server))
-        .then((_) => null, onError: (_) => null);
+  Future<QuerySnapshot> _smartQuery(
+    Query q, {
+    bool preferServer = true,
+  }) async {
+    if (preferServer) {
+      try {
+        return await q
+            .get(const GetOptions(source: Source.server))
+            .timeout(const Duration(seconds: 5));
+      } catch (_) {
+        return await q.get(const GetOptions(source: Source.cache));
+      }
+    }
     try {
       final snap = await q.get(const GetOptions(source: Source.cache));
-      if (snap.docs.isNotEmpty) return snap;
+      if (snap.docs.isNotEmpty) {
+        q
+            .get(const GetOptions(source: Source.server))
+            .then((_) => null, onError: (_) => null);
+        return snap;
+      }
       return await q
           .get(const GetOptions(source: Source.server))
-          .timeout(const Duration(seconds: 4));
-    } catch (e) {
+          .timeout(const Duration(seconds: 5));
+    } catch (_) {
       return await q.get(const GetOptions(source: Source.cache));
     }
   }
 
-  Future<int> createProduct(Product p) async {
-    int newId = DateTime.now().millisecondsSinceEpoch;
-    Map<String, dynamic> data = p.toMap();
-    data['id'] = newId;
-    data['is_active'] = true;
-    _col('products').doc(newId.toString()).set(data);
-    return newId;
-  }
-
-  Future<List<Product>> getAllProducts() async {
-    final snapshot = await _cacheFirstQuery(_col('products'));
+  List<Product> _parseProductDocs(List<QueryDocumentSnapshot> docs) {
     List<Product> list = [];
-    for (var doc in snapshot.docs) {
+    for (var doc in docs) {
       try {
         Map<String, dynamic> rawData = doc.data() as Map<String, dynamic>;
         Map<String, dynamic> data = Map<String, dynamic>.from(rawData);
@@ -104,6 +108,28 @@ class ProductFirebaseDataSource {
     }
     list.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
     return list;
+  }
+
+  /// Stream REAL-TIME daftar produk aktif agar edit, tambah, arsip, dan potong stok
+  /// langsung terlihat seketika di Gudang & Kasir tanpa harus kembali ke Dashboard.
+  Stream<List<Product>> watchAllProducts() {
+    return _col('products').snapshots().map(
+          (snap) => _parseProductDocs(snap.docs),
+        );
+  }
+
+  Future<int> createProduct(Product p) async {
+    int newId = DateTime.now().millisecondsSinceEpoch;
+    Map<String, dynamic> data = p.toMap();
+    data['id'] = newId;
+    data['is_active'] = true;
+    await _col('products').doc(newId.toString()).set(data);
+    return newId;
+  }
+
+  Future<List<Product>> getAllProducts() async {
+    final snapshot = await _smartQuery(_col('products'), preferServer: true);
+    return _parseProductDocs(snapshot.docs);
   }
 
   Future<int> updateProduct(Product p) async {
@@ -199,7 +225,7 @@ class ProductFirebaseDataSource {
       }
     } catch (_) {}
 
-    _col('products').doc(p.id.toString()).update(p.toMap());
+    await _col('products').doc(p.id.toString()).update(p.toMap());
     return p.id!;
   }
 

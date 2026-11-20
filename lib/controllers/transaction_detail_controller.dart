@@ -46,10 +46,12 @@ class TransactionDetailController {
     final logoPath = await _coreDS.getSetting('store_logo');
 
     return {
+      'transaction': transData,
       'items': itemsList,
       'payments': paymentsList,
       'delivery_status': deliveryStatus,
       'delivery_logs': deliveryLogsList,
+      'payment_proof': transData?['payment_proof'],
       'storeName': storeName,
       'storeAddress': storeAddress,
       'storePhone': storePhone,

@@ -666,8 +666,8 @@ class _StockReceiptScreenState extends State<StockReceiptScreen>
                     ),
                   ),
                 );
-                // Return to home or reload
-                if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
+                // Kembali ke daftar riwayat agar data langsung ter-refresh
+                if (mounted) Navigator.pop(context, true);
               },
             ),
           ],

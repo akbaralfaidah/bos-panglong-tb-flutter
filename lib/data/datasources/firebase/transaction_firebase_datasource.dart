@@ -6,24 +6,73 @@ class TransactionFirebaseDataSource {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   CollectionReference _col(String path) => _db.collection('stores').doc(SessionManager().uid ?? 'UNKNOWN_STORE').collection(path);
 
-  Future<List<QueryDocumentSnapshot>> _safeQuery(Query q) async {
+  Future<List<QueryDocumentSnapshot>> _safeQuery(
+    Query q, {
+    bool preferServer = true,
+  }) async {
+    if (preferServer) {
+      try {
+        final serverSnap = await q
+            .get(const GetOptions(source: Source.server))
+            .timeout(const Duration(seconds: 5));
+        return serverSnap.docs;
+      } catch (_) {
+        try {
+          final snap = await q.get(const GetOptions(source: Source.cache));
+          return snap.docs;
+        } catch (_) {
+          return [];
+        }
+      }
+    }
     q.get(const GetOptions(source: Source.server)).then((_) => null, onError: (_) => null);
     try {
       final snap = await q.get(const GetOptions(source: Source.cache));
       return snap.docs;
-    } catch (_) { return []; }
+    } catch (_) {
+      return [];
+    }
   }
 
   Future<Map<String, dynamic>?> getTransactionById(int id) async {
-    final docs = await _safeQuery(_col('transactions').where('id', isEqualTo: id));
-    if (docs.isNotEmpty) return docs.first.data() as Map<String, dynamic>; 
+    final docRef = _col('transactions').doc(id.toString());
+    try {
+      DocumentSnapshot snap;
+      try {
+        snap = await docRef
+            .get(const GetOptions(source: Source.server))
+            .timeout(const Duration(seconds: 4));
+      } catch (_) {
+        snap = await docRef.get(const GetOptions(source: Source.cache));
+      }
+      if (snap.exists && snap.data() != null) {
+        return Map<String, dynamic>.from(snap.data() as Map);
+      }
+    } catch (_) {}
+
+    final docs = await _safeQuery(
+      _col('transactions').where('id', isEqualTo: id),
+      preferServer: true,
+    );
+    if (docs.isNotEmpty) {
+      return Map<String, dynamic>.from(docs.first.data() as Map);
+    }
     return null;
   }
 
   Future<List<Map<String, dynamic>>> getDebtPayments(int transId) async {
-    final docs = await _safeQuery(_col('debt_payments').where('transaction_id', isEqualTo: transId));
-    List<Map<String, dynamic>> results = docs.map((doc) => doc.data() as Map<String, dynamic>).toList(); 
-    results.sort((a, b) => (a['payment_date'] ?? '').compareTo(b['payment_date'] ?? ''));
+    final docs = await _safeQuery(
+      _col('debt_payments').where('transaction_id', isEqualTo: transId),
+      preferServer: true,
+    );
+    List<Map<String, dynamic>> results = docs
+        .map((doc) => Map<String, dynamic>.from(doc.data() as Map))
+        .toList();
+    results.sort(
+      (a, b) => (a['payment_date'] ?? '').toString().compareTo(
+        (b['payment_date'] ?? '').toString(),
+      ),
+    );
     return results;
   }
 

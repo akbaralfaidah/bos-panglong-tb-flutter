@@ -58,6 +58,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
   int _queueNum = 1;
   int _opCost = 0;
 
+  late Map<String, dynamic> _currentTransaction;
   late int _transId;
   late int _totalPrice;
   late int _discount;
@@ -72,9 +73,10 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
   @override
   void initState() {
     super.initState();
-    _transId = widget.transaction['id'];
-    _totalPrice = widget.transaction['total_price'] ?? 0;
-    _discount = widget.transaction['discount'] ?? 0;
+    _currentTransaction = Map<String, dynamic>.from(widget.transaction);
+    _transId = (widget.transaction['id'] as num).toInt();
+    _totalPrice = (widget.transaction['total_price'] as num?)?.toInt() ?? 0;
+    _discount = (widget.transaction['discount'] as num?)?.toInt() ?? 0;
     _status = widget.transaction['payment_status'] ?? "Belum Lunas";
     _deliveryStatus = widget.transaction['delivery_status']?.toString() ?? "Selesai";
     if (widget.transaction['delivery_logs'] is List) {
@@ -83,8 +85,8 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
       );
     }
     _dateStr = widget.transaction['transaction_date'];
-    _queueNum = widget.transaction['queue_number'] ?? 1;
-    _opCost = widget.transaction['operational_cost'] ?? 0;
+    _queueNum = (widget.transaction['queue_number'] as num?)?.toInt() ?? 1;
+    _opCost = (widget.transaction['operational_cost'] as num?)?.toInt() ?? 0;
     _paymentMethod = widget.transaction['payment_method'] ?? "Tunai";
     _cashierName = widget.transaction['cashier_name'] ?? "Tidak Diketahui";
     _paymentProofPath = widget.transaction['payment_proof'];
@@ -114,13 +116,27 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
 
     if (mounted) {
       setState(() {
+        final Map<String, dynamic>? freshTx =
+            data['transaction'] as Map<String, dynamic>?;
+        if (freshTx != null) {
+          _currentTransaction = Map<String, dynamic>.from(freshTx);
+          _totalPrice = (freshTx['total_price'] as num?)?.toInt() ?? _totalPrice;
+          _discount = (freshTx['discount'] as num?)?.toInt() ?? _discount;
+          _opCost = (freshTx['operational_cost'] as num?)?.toInt() ?? _opCost;
+          _status = freshTx['payment_status']?.toString() ?? _status;
+          _dateStr = freshTx['transaction_date']?.toString() ?? _dateStr;
+          _paymentMethod = freshTx['payment_method']?.toString() ?? _paymentMethod;
+          _cashierName = freshTx['cashier_name']?.toString() ?? _cashierName;
+          _queueNum = (freshTx['queue_number'] as num?)?.toInt() ?? _queueNum;
+        }
+
         List<dynamic> rawItems = [];
         if (data['items'] != null && (data['items'] as List).isNotEmpty) {
           rawItems = data['items'];
-        } else if (widget.transaction.containsKey('items') &&
-            widget.transaction['items'] != null &&
-            (widget.transaction['items'] as List).isNotEmpty) {
-          rawItems = widget.transaction['items'];
+        } else if (_currentTransaction.containsKey('items') &&
+            _currentTransaction['items'] != null &&
+            (_currentTransaction['items'] as List).isNotEmpty) {
+          rawItems = _currentTransaction['items'];
         }
 
         _items = rawItems.map<Map<String, dynamic>>((e) {
@@ -153,7 +169,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
         _storeAddress = data['storeAddress'] ?? "Alamat belum diatur";
         _storePhone = data['storePhone'] ?? "";
         _logoPath = data['logoPath'];
-        _queueNum = data['queueNum'] ?? _queueNum;
+        _queueNum = (data['queueNum'] as num?)?.toInt() ?? _queueNum;
 
         if (data.containsKey('payment_proof') &&
             data['payment_proof'] != null &&
@@ -1701,7 +1717,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
           receiptId: _transId.toString(),
           date: DateFormat('dd/MM/yyyy HH:mm').format(DateTime.parse(_dateStr)),
           cashierName: _cashierName,
-          customerName: widget.transaction['customer_name'] ?? "Pelanggan Umum",
+          customerName: _currentTransaction['customer_name'] ?? "Pelanggan Umum",
           items: _items,
           subtotal: _totalPrice - _opCost + _discount,
           discount: _discount,
@@ -1783,9 +1799,9 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
       'dd/MM/yyyy HH:mm',
     ).format(DateTime.parse(_dateStr));
 
-    String customer = widget.transaction['customer_name'] ?? "Pelanggan Umum";
-    String custPhone = widget.transaction['customer_phone'] ?? "";
-    String custAddress = widget.transaction['customer_address'] ?? "";
+    String customer = _currentTransaction['customer_name'] ?? "Pelanggan Umum";
+    String custPhone = _currentTransaction['customer_phone'] ?? "";
+    String custAddress = _currentTransaction['customer_address'] ?? "";
 
     List<Map<String, dynamic>> regularItems = [];
     Map<String, List<Map<String, dynamic>>> packageGroups = {};
@@ -1866,7 +1882,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                     maxWidth: 860,
                     child: Column(
                       children: [
-                        if (widget.transaction['is_legacy_titipan'] == true) ...[
+                        if (_currentTransaction['is_legacy_titipan'] == true) ...[
                           Container(
                             margin: const EdgeInsets.only(bottom: 14),
                             padding: const EdgeInsets.all(12),
@@ -3102,11 +3118,11 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                                 final res = await Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) => EditTransactionScreen(transactionData: widget.transaction),
+                                    builder: (context) => EditTransactionScreen(transactionData: _currentTransaction),
                                   ),
                                 );
                                 if (res == true) {
-                                  _fetchData();
+                                  await _fetchData();
                                 }
                               },
                             ),

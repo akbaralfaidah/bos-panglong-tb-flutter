@@ -45,28 +45,23 @@ class OwnerTransactionAlertPolicy {
   /// Menentukan apakah transaksi [tx] layak memicu notifikasi ke perangkat aktif:
   /// 1. Hanya berlaku untuk **Pemilik Toko** (`isCurrentSessionOwner == true`), BUKAN pegawai.
   /// 2. Fitur notifikasi aktif di Pengaturan Pemilik (`isNotificationEnabled == true`).
-  /// 3. Hanya berjalan di perangkat Android (non-iOS) sesuai permintaan.
+  /// 3. Berjalan di perangkat mobile yang didukung (**Android & iOS**), dua arah Android ↔ iOS.
   /// 4. Transaksi bukan titipan lama (`is_legacy_titipan != true`).
   /// 5. Transaksi dibuat oleh **Karyawan / Kasir** (bukan oleh Pemilik sendiri).
-  /// 6. Sumber transaksi dari perangkat non-iOS (Android) atau perangkat kasir lama tanpa field platform.
-  /// 7. Belum pernah dinotifikasikan sebelumnya (`!alreadyNotified`).
+  /// 6. Belum pernah dinotifikasikan sebelumnya (`!alreadyNotified`).
   static bool shouldNotifyOwner({
     required bool isCurrentSessionOwner,
     required bool isNotificationEnabled,
-    required bool isAndroidDevice,
+    required bool isSupportedPlatform,
     required Map<String, dynamic> tx,
     required String? ownerName,
     required bool alreadyNotified,
   }) {
     if (!isCurrentSessionOwner) return false;
     if (!isNotificationEnabled) return false;
-    if (!isAndroidDevice) return false;
+    if (!isSupportedPlatform) return false;
     if (alreadyNotified) return false;
     if (tx['is_legacy_titipan'] == true) return false;
-
-    final String sourcePlatform =
-        (tx['source_platform'] ?? '').toString().toLowerCase().trim();
-    if (sourcePlatform == 'ios') return false;
 
     final String role = (tx['cashier_role'] ?? '').toString().toUpperCase().trim();
     if (role == 'OWNER') return false;
@@ -109,8 +104,9 @@ class OwnerTransactionAlertPolicy {
   }
 }
 
-/// Layanan real-time listener khusus **Pemilik Toko** di Android (non-iOS) untuk
-/// memunculkan notifikasi sistem Android otomatis saat Karyawan menyelesaikan transaksi.
+/// Layanan real-time listener khusus **Pemilik Toko** (Android & iOS) untuk
+/// memunculkan notifikasi sistem otomatis saat Karyawan menyelesaikan transaksi
+/// dari perangkat Android maupun iOS (dua arah Android ↔ iOS).
 class OwnerRealtimeNotifier {
   static final OwnerRealtimeNotifier _instance =
       OwnerRealtimeNotifier._internal();
@@ -120,6 +116,9 @@ class OwnerRealtimeNotifier {
   static const String _prefEnabledKey = 'owner_employee_tx_notify_enabled';
   static const MethodChannel _channel =
       MethodChannel('com.bospanglong.pos/owner_notifications');
+
+  static bool get isSupportedPlatform =>
+      !kIsWeb && (Platform.isAndroid || Platform.isIOS);
 
   final StreamController<OwnerTransactionAlert> _alertStreamCtrl =
       StreamController<OwnerTransactionAlert>.broadcast();
@@ -133,7 +132,7 @@ class OwnerRealtimeNotifier {
   final Set<String> _seenDocIds = <String>{};
 
   /// Membaca status ON/OFF notifikasi transaksi kasir dari pengaturan perangkat Pemilik.
-  /// Default `true` untuk Pemilik di Android; selalu `false` untuk pegawai.
+  /// Default `true` untuk Pemilik di Android/iOS; selalu `false` untuk pegawai.
   static Future<bool> isEnabled() async {
     if (!SessionManager().isOwner) return false;
     try {
@@ -151,7 +150,7 @@ class OwnerRealtimeNotifier {
     await prefs.setBool(_prefEnabledKey, enabled);
 
     if (enabled) {
-      await requestAndroidPermissionIfNeeded();
+      await requestNotificationPermissionIfNeeded();
       await OwnerRealtimeNotifier().startListeningIfEligible();
     } else {
       await OwnerRealtimeNotifier().stopListening();
@@ -159,10 +158,15 @@ class OwnerRealtimeNotifier {
     return enabled;
   }
 
-  /// Meminta izin notifikasi Android 13+ (API 33+) secara halus.
-  static Future<bool> requestAndroidPermissionIfNeeded() async {
-    if (kIsWeb || !Platform.isAndroid) return false;
+  /// Meminta izin notifikasi secara halus di Android 13+ maupun iOS.
+  static Future<bool> requestNotificationPermissionIfNeeded() async {
+    if (!isSupportedPlatform) return false;
     try {
+      if (Platform.isIOS) {
+        final bool? granted =
+            await _channel.invokeMethod<bool>('requestPermission');
+        return granted ?? false;
+      }
       final status = await Permission.notification.status;
       if (status.isGranted) return true;
       final requested = await Permission.notification.request();
@@ -172,10 +176,14 @@ class OwnerRealtimeNotifier {
     }
   }
 
-  /// Mulai memantau transaksi hari ini secara real-time khusus untuk Pemilik Toko di Android.
+  /// Alias kompatibilitas untuk pemanggil lama.
+  static Future<bool> requestAndroidPermissionIfNeeded() =>
+      requestNotificationPermissionIfNeeded();
+
+  /// Mulai memantau transaksi hari ini secara real-time khusus untuk Pemilik Toko (Android & iOS).
   /// Aman dipanggil berulang kali (idempoten).
   Future<void> startListeningIfEligible() async {
-    if (kIsWeb || !Platform.isAndroid || !SessionManager().isOwner) {
+    if (!isSupportedPlatform || !SessionManager().isOwner) {
       await stopListening();
       return;
     }
@@ -200,7 +208,7 @@ class OwnerRealtimeNotifier {
     }
 
     await stopListening();
-    await requestAndroidPermissionIfNeeded();
+    await requestNotificationPermissionIfNeeded();
 
     _listeningStoreId = storeId;
     _listeningDateStr = todayStr;
@@ -244,7 +252,7 @@ class OwnerRealtimeNotifier {
           final bool shouldNotify = OwnerTransactionAlertPolicy.shouldNotifyOwner(
             isCurrentSessionOwner: SessionManager().isOwner,
             isNotificationEnabled: stillEnabled,
-            isAndroidDevice: !kIsWeb && Platform.isAndroid,
+            isSupportedPlatform: isSupportedPlatform,
             tx: tx,
             ownerName: SessionManager().userName,
             alreadyNotified: alreadySeen,
@@ -253,7 +261,7 @@ class OwnerRealtimeNotifier {
           if (!shouldNotify) continue;
 
           final alert = OwnerTransactionAlertPolicy.buildAlert(tx);
-          await _showAndroidSystemNotification(alert);
+          await _showSystemNotification(alert);
           if (!_alertStreamCtrl.isClosed) {
             _alertStreamCtrl.add(alert);
           }
@@ -265,29 +273,29 @@ class OwnerRealtimeNotifier {
     );
   }
 
-  /// Mengirim notifikasi uji coba agar Pemilik langsung melihat & mendengar notifikasi Android.
+  /// Mengirim notifikasi uji coba agar Pemilik langsung melihat & mendengar notifikasi sistem.
   Future<bool> sendTestNotification() async {
-    if (kIsWeb || !Platform.isAndroid || !SessionManager().isOwner) {
+    if (!isSupportedPlatform || !SessionManager().isOwner) {
       return false;
     }
-    await requestAndroidPermissionIfNeeded();
+    await requestNotificationPermissionIfNeeded();
     const testAlert = OwnerTransactionAlert(
       transactionId: 999001,
       title: 'Notifikasi Kasir Aktif',
       body:
-          'Contoh: Pelanggan Umum • Rp 250.000 (Lunas • Tunai) dari Kasir Android.',
+          'Contoh: Pelanggan Umum • Rp 250.000 (Lunas • Tunai) dari Kasir.',
       cashierName: 'Kasir',
       customerName: 'Pelanggan Umum',
       totalPrice: 250000,
       paymentStatus: 'Lunas',
     );
-    return _showAndroidSystemNotification(testAlert);
+    return _showSystemNotification(testAlert);
   }
 
-  Future<bool> _showAndroidSystemNotification(
+  Future<bool> _showSystemNotification(
     OwnerTransactionAlert alert,
   ) async {
-    if (kIsWeb || !Platform.isAndroid) return false;
+    if (!isSupportedPlatform) return false;
     try {
       final int notifId = alert.transactionId.abs() % 2147483000;
       await _channel.invokeMethod('showTransactionNotification', {
@@ -297,7 +305,7 @@ class OwnerRealtimeNotifier {
       });
       return true;
     } catch (e) {
-      debugPrint('Gagal menampilkan notifikasi Android: $e');
+      debugPrint('Gagal menampilkan notifikasi sistem: $e');
       return false;
     }
   }
@@ -310,7 +318,7 @@ class OwnerRealtimeNotifier {
     _listeningDateStr = null;
     _initialSnapshotConsumed = false;
     _seenDocIds.clear();
-    if (clearNotifications && !kIsWeb && Platform.isAndroid) {
+    if (clearNotifications && isSupportedPlatform) {
       try {
         await _channel.invokeMethod('cancelAll');
       } catch (_) {}

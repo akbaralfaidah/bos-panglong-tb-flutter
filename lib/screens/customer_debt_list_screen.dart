@@ -505,9 +505,46 @@ class _CustomerDebtListScreenState extends State<CustomerDebtListScreen> {
                           builder: (_) => TransactionDetailScreen(transaction: t),
                         ),
                       );
-                      // Setelah kembali dari nota, check apakah status berubah
-                      // Re-render dengan data terbaru
-                      if (mounted) setState(() {});
+                      if (!mounted) return;
+                      // Muat ulang status nota terbaru dari Firestore (bisa jadi diedit, dilunasi, atau dihapus)
+                      final int? txId = (t['id'] as num?)?.toInt();
+                      if (txId != null) {
+                        final fresh = await _controller.loadDetailData(
+                          txId,
+                          (t['transaction_date'] ?? '').toString(),
+                        );
+                        if (!mounted) return;
+                        final Map<String, dynamic>? updatedTx =
+                            fresh['transaction'] as Map<String, dynamic>?;
+                        if (updatedTx == null) {
+                          _transactions.removeWhere(
+                            (e) => (e['id'] as num?)?.toInt() == txId,
+                          );
+                        } else {
+                          final List<dynamic> pays =
+                              (fresh['payments'] as List?) ?? [];
+                          int paidSum = 0;
+                          for (final p in pays) {
+                            if (p is Map) {
+                              paidSum +=
+                                  (p['amount_paid'] as num?)?.toInt() ?? 0;
+                            }
+                          }
+                          final merged = Map<String, dynamic>.from(updatedTx);
+                          merged['total_dicicil'] = paidSum;
+                          merged['potential_profit'] =
+                              t['potential_profit'] ?? 0;
+                          final int idx = _transactions.indexWhere(
+                            (e) => (e['id'] as num?)?.toInt() == txId,
+                          );
+                          if (idx != -1) {
+                            _transactions[idx] = merged;
+                          }
+                        }
+                        _recalculateTotals();
+                      } else {
+                        setState(() {});
+                      }
                     },
                     child: Padding(
                       padding: const EdgeInsets.all(16),

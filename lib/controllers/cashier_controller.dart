@@ -5,6 +5,15 @@ class CashierController {
   // SWAP MESIN KE FIREBASE
   final ProductFirebaseDataSource _productDS = ProductFirebaseDataSource();
 
+  // STREAM REAL-TIME PRODUK AKTIF (TERURUT BERDASARKAN ORDER INDEX)
+  Stream<List<Product>> watchAllProducts() {
+    return _productDS.watchAllProducts().map((list) {
+      final sorted = List<Product>.from(list);
+      sorted.sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+      return sorted;
+    });
+  }
+
   // AMBIL PRODUK LALU URUTKAN BERDASARKAN HASIL DRAG & DROP
   Future<List<Product>> getAllProducts() async {
     List<Product> list = await _productDS.getAllProducts();
@@ -14,9 +23,7 @@ class CashierController {
 
   // SIMPAN POSISI URUTAN BARU KE FIREBASE
   Future<void> updateProductOrder(List<Product> products) async {
-    for (var p in products) {
-      await _productDS.updateProduct(p);
-    }
+    await _productDS.updateProductOrderBatch(products);
   }
 
   int calculateRealStockDeduction(Product p, double inputQty, bool isGrosir) {

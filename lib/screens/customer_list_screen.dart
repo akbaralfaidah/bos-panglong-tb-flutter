@@ -94,9 +94,10 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                             Text(isLunas ? "LUNAS" : "BELUM LUNAS", style: TextStyle(fontSize: 10, color: isLunas ? Colors.green : Colors.red, fontWeight: FontWeight.bold)),
                           ],
                         ),
-                        onTap: () {
+                        onTap: () async {
                           Navigator.pop(context); // Tutup bottom sheet
-                          Navigator.push(context, MaterialPageRoute(builder: (_) => TransactionDetailScreen(transaction: t)));
+                          await Navigator.push(context, MaterialPageRoute(builder: (_) => TransactionDetailScreen(transaction: t)));
+                          if (mounted) _loadData();
                         },
                       );
                     },

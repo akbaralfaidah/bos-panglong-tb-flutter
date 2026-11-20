@@ -416,8 +416,9 @@ class _CapitalHistoryScreenState extends State<CapitalHistoryScreen> {
                                   child: Text(currDateStr, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryNavy, fontSize: 13)),
                                 ),
                                 InkWell(
-                                  onTap: () {
-                                    Navigator.push(context, MaterialPageRoute(builder: (_) => ModalTransactionDetailScreen(transaction: item)));
+                                  onTap: () async {
+                                    await Navigator.push(context, MaterialPageRoute(builder: (_) => ModalTransactionDetailScreen(transaction: item)));
+                                    if (mounted) _fetchData();
                                   },
                                   borderRadius: BorderRadius.circular(18),
                                   child: Container(

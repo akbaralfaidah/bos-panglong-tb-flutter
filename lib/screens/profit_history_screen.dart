@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -5,7 +6,6 @@ import '../theme/app_colors.dart';
 import '../theme/glass_widgets.dart';
 import '../controllers/profit_history_controller.dart';
 import '../data/datasources/firebase/transaction_firebase_datasource.dart';
-import '../data/datasources/firebase/profit_firebase_datasource.dart';
 import 'transaction_detail_screen.dart';
 
 class ProfitHistoryScreen extends StatefulWidget {
@@ -32,6 +32,9 @@ class _ProfitHistoryScreenState extends State<ProfitHistoryScreen> {
 
   List<Map<String, dynamic>> _historyData = [];
   bool _isLoading = true;
+  int _fetchSeq = 0;
+  StreamSubscription<Map<String, dynamic>>? _profitSub;
+  Timer? _loadingGuardTimer;
 
   int _labaKayu = 0;
   int _labaBangunan = 0;
@@ -52,16 +55,65 @@ class _ProfitHistoryScreenState extends State<ProfitHistoryScreen> {
     _fetchData();
   }
 
+  @override
+  void dispose() {
+    _loadingGuardTimer?.cancel();
+    _profitSub?.cancel();
+    super.dispose();
+  }
+
   Future<void> _fetchData() async {
-    setState(() => _isLoading = true);
-    final data = await _controller.getProfitAndExpenses(_selectedFilter);
-    if (mounted) {
-      setState(() {
-        _historyData = data['history'] ?? []; // Antisipasi kalau null
-        _labaKayu = data['laba_kayu'] ?? 0;
-        _labaBangunan = data['laba_bangunan'] ?? 0;
-        _isLoading = false;
+    final int seq = ++_fetchSeq;
+    _loadingGuardTimer?.cancel();
+    await _profitSub?.cancel();
+    _profitSub = null;
+
+    if (mounted) setState(() => _isLoading = true);
+
+    final Stream<Map<String, dynamic>>? liveStream =
+        _controller.watchProfitAndExpenses(_selectedFilter);
+
+    if (liveStream != null) {
+      _loadingGuardTimer = Timer(const Duration(seconds: 6), () {
+        if (mounted && seq == _fetchSeq && _isLoading) {
+          setState(() => _isLoading = false);
+        }
       });
+
+      _profitSub = liveStream.listen(
+        (data) {
+          if (!mounted || seq != _fetchSeq) return;
+          _loadingGuardTimer?.cancel();
+          setState(() {
+            _historyData = List<Map<String, dynamic>>.from(data['history'] ?? []);
+            _labaKayu = (data['laba_kayu'] as num?)?.toInt() ?? 0;
+            _labaBangunan = (data['laba_bangunan'] as num?)?.toInt() ?? 0;
+            _isLoading = false;
+          });
+        },
+        onError: (_) {
+          if (!mounted || seq != _fetchSeq) return;
+          _loadingGuardTimer?.cancel();
+          setState(() => _isLoading = false);
+        },
+      );
+      return;
+    }
+
+    try {
+      final data = await _controller.getProfitAndExpenses(_selectedFilter);
+      if (!mounted || seq != _fetchSeq) return;
+      setState(() {
+        _historyData = List<Map<String, dynamic>>.from(data['history'] ?? []);
+        _labaKayu = (data['laba_kayu'] as num?)?.toInt() ?? 0;
+        _labaBangunan = (data['laba_bangunan'] as num?)?.toInt() ?? 0;
+      });
+    } catch (e) {
+      debugPrint('Gagal muat riwayat profit: $e');
+    } finally {
+      if (mounted && seq == _fetchSeq) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -542,7 +594,7 @@ class _ProfitHistoryScreenState extends State<ProfitHistoryScreen> {
                                 );
                                 if (mounted) Navigator.pop(context);
                                 if (trx != null && mounted) {
-                                  Navigator.push(
+                                  await Navigator.push(
                                     context,
                                     MaterialPageRoute(
                                       builder: (_) => TransactionDetailScreen(
@@ -550,6 +602,12 @@ class _ProfitHistoryScreenState extends State<ProfitHistoryScreen> {
                                       ),
                                     ),
                                   );
+                                  if (mounted && _selectedFilter == 'Semua') {
+                                    _fetchData();
+                                  }
+                                } else if (trx == null && mounted) {
+                                  // Transaksi ternyata sudah dihapus di perangkat lain
+                                  _fetchData();
                                 }
                               }
                             },

@@ -8,16 +8,36 @@ class OperationalFirebaseDataSource {
       .doc(SessionManager().uid ?? 'UNKNOWN_STORE')
       .collection(path);
 
-  Future<List<QueryDocumentSnapshot>> _safeQuery(Query q) async {
+  Future<List<QueryDocumentSnapshot>> _safeQuery(
+    Query q, {
+    bool preferServer = true,
+  }) async {
+    if (preferServer) {
+      try {
+        final sSnap = await q
+            .get(const GetOptions(source: Source.server))
+            .timeout(const Duration(seconds: 5));
+        return sSnap.docs;
+      } catch (_) {
+        try {
+          final bSnap = await q.get(const GetOptions(source: Source.cache));
+          return bSnap.docs;
+        } catch (_) {
+          return [];
+        }
+      }
+    }
     try {
       final snap = await q.get(const GetOptions(source: Source.cache));
-      q
-          .get(const GetOptions(source: Source.server))
-          .then((_) => null, onError: (_) => null);
-      if (snap.docs.isNotEmpty) return snap.docs;
+      if (snap.docs.isNotEmpty) {
+        q
+            .get(const GetOptions(source: Source.server))
+            .then((_) => null, onError: (_) => null);
+        return snap.docs;
+      }
       final sSnap = await q
           .get(const GetOptions(source: Source.server))
-          .timeout(const Duration(seconds: 3));
+          .timeout(const Duration(seconds: 5));
       return sSnap.docs;
     } catch (_) {
       try {
@@ -34,7 +54,7 @@ class OperationalFirebaseDataSource {
     String dateNow = customDate?.toIso8601String() ?? DateTime.now().toIso8601String();
     
     // Tetap simpan di 'gas_expenses' agar data histori lama lu tidak hangus
-    _col('gas_expenses').doc(id.toString()).set({
+    await _col('gas_expenses').doc(id.toString()).set({
       'id': id,
       'amount': amount,
       'description': desc,
@@ -53,12 +73,13 @@ class OperationalFirebaseDataSource {
       _col('gas_expenses')
           .where('date', isGreaterThanOrEqualTo: start)
           .where('date', isLessThanOrEqualTo: end),
+      preferServer: startDate != '2000-01-01',
     );
     List<Map<String, dynamic>> results = docs
-        .map((doc) => doc.data() as Map<String, dynamic>)
+        .map((doc) => Map<String, dynamic>.from(doc.data() as Map))
         .toList();
     results.sort(
-      (a, b) => (b['date'] as String).compareTo(a['date'] as String),
+      (a, b) => (b['date'] ?? '').toString().compareTo((a['date'] ?? '').toString()),
     );
     return results;
   }
@@ -73,9 +94,10 @@ class OperationalFirebaseDataSource {
       _col('transactions')
           .where('transaction_date', isGreaterThanOrEqualTo: start)
           .where('transaction_date', isLessThanOrEqualTo: end),
+      preferServer: startDate != '2000-01-01',
     );
     List<Map<String, dynamic>> results = docs
-        .map((doc) => doc.data() as Map<String, dynamic>)
+        .map((doc) => Map<String, dynamic>.from(doc.data() as Map))
         .toList();
 
     List<Map<String, dynamic>> incomes = [];
@@ -92,12 +114,12 @@ class OperationalFirebaseDataSource {
       }
     }
     incomes.sort(
-      (a, b) => (b['date'] as String).compareTo(a['date'] as String),
+      (a, b) => (b['date'] ?? '').toString().compareTo((a['date'] ?? '').toString()),
     );
     return incomes;
   }
 
   Future<void> deleteOperationalExpense(int id) async {
-    _col('gas_expenses').doc(id.toString()).delete();
+    await _col('gas_expenses').doc(id.toString()).delete();
   }
 }
