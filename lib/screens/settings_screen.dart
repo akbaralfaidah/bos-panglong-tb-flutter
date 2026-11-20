@@ -17,6 +17,7 @@ import 'login_screen.dart';
 import 'employee_management_screen.dart';
 import '../data/datasources/firebase/core_firebase_datasource.dart';
 import '../helpers/app_notification.dart';
+import '../helpers/owner_realtime_notifier.dart';
 import '../helpers/printer_helper.dart';
 import '../helpers/thermal_receipt_encoder.dart';
 
@@ -41,6 +42,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _ownerPin = "260679";
   int _paperWidthMm = ThermalReceiptEncoder.paper80mm;
   double _receiptScale = 1.0;
+  bool _notifyEmployeeTx = true;
 
   @override
   void initState() {
@@ -53,6 +55,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final data = await _controller.loadSettings();
     final savedPaperMm = await PrinterHelper.getPaperWidthMm();
     final savedReceiptScale = await PrinterHelper.getReceiptScale();
+    final savedNotifyEmp = await OwnerRealtimeNotifier.isEnabled();
 
     if (mounted) {
       setState(() {
@@ -69,9 +72,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
         _paperWidthMm = savedPaperMm;
         _receiptScale = savedReceiptScale;
+        _notifyEmployeeTx = savedNotifyEmp;
         _isLoading = false;
       });
     }
+  }
+
+  Future<void> _toggleEmployeeTxNotification(bool enabled) async {
+    await OwnerRealtimeNotifier.setEnabled(enabled);
+    if (!mounted) return;
+    setState(() => _notifyEmployeeTx = enabled);
+    AppNotification.show(
+      context,
+      message: enabled
+          ? "Notifikasi transaksi karyawan diaktifkan untuk Pemilik."
+          : "Notifikasi transaksi karyawan dimatikan.",
+      type: enabled ? AppNotificationType.success : AppNotificationType.info,
+    );
   }
 
   Future<void> _updatePaperWidth(int paperMm) async {
@@ -410,6 +427,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   SessionManager().uid ?? prefs.getString('saved_store_id');
 
               if (SessionManager().isOwner) {
+                await OwnerRealtimeNotifier().stopListening(
+                  clearNotifications: true,
+                );
                 await GoogleSignIn().signOut();
                 await FirebaseAuth.instance.signOut();
               } else if (wasStandaloneEmp) {
@@ -1110,6 +1130,104 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         );
                       },
                     ),
+
+                    if (Platform.isAndroid) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        decoration: AppColors.liquidGlassCard(radius: 18),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
+                        child: Column(
+                          children: [
+                            Row(
+                              children: [
+                                GlassIconBadge(
+                                  icon: _notifyEmployeeTx
+                                      ? Icons.notifications_active_rounded
+                                      : Icons.notifications_off_outlined,
+                                  iconColor: _notifyEmployeeTx
+                                      ? AppColors.menuTealIcon
+                                      : AppColors.textGrey,
+                                  bgColor: _notifyEmployeeTx
+                                      ? AppColors.menuTealBg
+                                      : AppColors.surfaceGrey,
+                                  size: 44,
+                                  iconSize: 22,
+                                  radius: 12,
+                                ),
+                                const SizedBox(width: 12),
+                                const Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        "Notifikasi Transaksi Karyawan",
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 14.5,
+                                          color: AppColors.textDark,
+                                        ),
+                                      ),
+                                      SizedBox(height: 2),
+                                      Text(
+                                        "Khusus Pemilik (Android) • Berbunyi otomatis saat kasir menyelesaikan transaksi",
+                                        style: TextStyle(
+                                          fontSize: 11.5,
+                                          color: AppColors.textGrey,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Switch(
+                                  value: _notifyEmployeeTx,
+                                  activeThumbColor: AppColors.menuTealIcon,
+                                  onChanged: _toggleEmployeeTxNotification,
+                                ),
+                              ],
+                            ),
+                            if (_notifyEmployeeTx) ...[
+                              const SizedBox(height: 8),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: TextButton.icon(
+                                  onPressed: () async {
+                                    final ok = await OwnerRealtimeNotifier()
+                                        .sendTestNotification();
+                                    if (!mounted) return;
+                                    AppNotification.show(
+                                      context,
+                                      message: ok
+                                          ? "Notifikasi percobaan dikirim ke bilah Android!"
+                                          : "Pastikan izin notifikasi Android sudah diizinkan.",
+                                      type: ok
+                                          ? AppNotificationType.success
+                                          : AppNotificationType.warning,
+                                    );
+                                  },
+                                  icon: const Icon(
+                                    Icons.send_rounded,
+                                    size: 15,
+                                    color: AppColors.primaryNavy,
+                                  ),
+                                  label: const Text(
+                                    "Tes Notifikasi",
+                                    style: TextStyle(
+                                      color: AppColors.primaryNavy,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
                   ],
 
                   const SizedBox(height: 30),

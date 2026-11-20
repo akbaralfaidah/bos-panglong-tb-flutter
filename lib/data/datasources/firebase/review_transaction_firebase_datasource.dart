@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import '../../../helpers/session_manager.dart';
@@ -145,6 +146,9 @@ class ReviewTransactionFirebaseDataSource {
       'payment_method': paymentMethod, 'payment_status': paymentStatus, 'queue_number': queueNum,
       'transaction_date': dateNow, 'items': embeddedItems,
       'cashier_name': currentCashier,
+      'cashier_role': SessionManager().isOwner ? 'OWNER' : 'EMPLOYEE',
+      'source_platform': Platform.isAndroid ? 'android' : (Platform.isIOS ? 'ios' : 'other'),
+      'created_at_ms': DateTime.now().millisecondsSinceEpoch,
       'delivery_status': effectiveDeliveryStatus,
       'delivery_logs': deliveryLogs,
     };

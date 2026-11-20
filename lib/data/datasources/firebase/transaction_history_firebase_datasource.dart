@@ -60,6 +60,134 @@ class TransactionHistoryFirebaseDataSource {
     }
   }
 
+  Map<String, dynamic> _processTransactionDocs({
+    required List<QueryDocumentSnapshot> docs,
+    required String statusCondition,
+    required String start,
+    required String end,
+    required bool isAllTime,
+  }) {
+    List<Map<String, dynamic>> results = docs
+        .map((doc) => Map<String, dynamic>.from(doc.data() as Map))
+        .toList();
+
+    if (statusCondition == 'LUNAS') {
+      results = results
+          .where((doc) =>
+              doc['payment_status'] == 'Lunas' &&
+              doc['is_legacy_titipan'] != true)
+          .toList();
+    } else if (statusCondition == 'TITIPAN') {
+      results = results.where((doc) {
+        String dStatus = doc['delivery_status']?.toString() ?? 'Selesai';
+        if (dStatus == 'Selesai') return false;
+        if (!isAllTime) {
+          final String tDate = (doc['transaction_date'] ?? '').toString();
+          if (tDate.compareTo(start) < 0 || tDate.compareTo(end) > 0) {
+            return false;
+          }
+        }
+        return true;
+      }).toList();
+    } else {
+      results = results
+          .where((doc) =>
+              doc['payment_status'] != 'Lunas' &&
+              doc['is_legacy_titipan'] != true)
+          .toList();
+    }
+
+    results.sort(
+      (a, b) => (b['transaction_date'] ?? '')
+          .toString()
+          .compareTo((a['transaction_date'] ?? '').toString()),
+    );
+
+    double globalOmsetKayu = 0;
+    double globalOmsetBangunan = 0;
+    double globalBensin = 0;
+
+    for (var t in results) {
+      if (t['is_legacy_titipan'] == true) continue;
+      List<dynamic> items = t['items'] ?? [];
+      double trxOmsetKayu = 0;
+      double trxOmsetBangunan = 0;
+
+      double opCost = (t['operational_cost'] as num?)?.toDouble() ?? 0;
+      globalBensin += opCost;
+
+      for (var i in items) {
+        double itemOmset = 0;
+        if (i.containsKey('agreed_total') && i['agreed_total'] != null) {
+          itemOmset = (i['agreed_total'] as num).toDouble();
+        } else {
+          double sell = (i['sell_price'] as num?)?.toDouble() ?? 0;
+          double reqQty = (i['request_qty'] as num?)?.toDouble() ?? 0;
+          double qty = (i['quantity'] as num?)?.toDouble() ?? 0;
+          double displayQty = reqQty > 0 ? reqQty : qty;
+          itemOmset = sell * displayQty;
+        }
+
+        String pType = i['product_type'] ?? '';
+        if (['KAYU', 'RENG', 'BULAT'].contains(pType)) {
+          trxOmsetKayu += itemOmset;
+        } else {
+          trxOmsetBangunan += itemOmset;
+        }
+      }
+
+      double totalTrxOmset = trxOmsetKayu + trxOmsetBangunan;
+      double discount = (t['discount'] as num?)?.toDouble() ?? 0;
+
+      if (totalTrxOmset > 0 && discount > 0) {
+        globalOmsetKayu +=
+            trxOmsetKayu - (discount * (trxOmsetKayu / totalTrxOmset));
+        globalOmsetBangunan +=
+            trxOmsetBangunan - (discount * (trxOmsetBangunan / totalTrxOmset));
+      } else {
+        globalOmsetKayu += trxOmsetKayu;
+        globalOmsetBangunan += trxOmsetBangunan;
+      }
+    }
+
+    return {
+      'history': results,
+      'omset_kayu': globalOmsetKayu.round(),
+      'omset_bangunan': globalOmsetBangunan.round(),
+      'total_bensin': globalBensin.round(),
+    };
+  }
+
+  /// Stream REAL-TIME riwayat nota (untuk filter harian/mingguan/bulanan/custom/titipan).
+  Stream<Map<String, dynamic>> watchFilteredTransactionHistory({
+    required String statusCondition,
+    required String startDate,
+    required String endDate,
+  }) {
+    final String start = "${startDate}T00:00:00.000";
+    final String end = "${endDate}T23:59:59.999";
+    final bool isAllTime = startDate == '2000-01-01';
+
+    final Query query = statusCondition == 'TITIPAN'
+        ? _col('transactions').where(
+            'delivery_status',
+            whereIn: ['Belum Diantar', 'Sebagian'],
+          )
+        : _col('transactions')
+            .where('transaction_date', isGreaterThanOrEqualTo: start)
+            .where('transaction_date', isLessThanOrEqualTo: end);
+
+    return query.snapshots().map(
+          (snap) => _processTransactionDocs(
+            docs: snap.docs,
+            statusCondition: statusCondition,
+            start: start,
+            end: end,
+            isAllTime: isAllTime,
+          ),
+        );
+  }
+
   Future<Map<String, dynamic>> getFilteredTransactionHistory({
     required String statusCondition, 
     required String startDate, 
@@ -88,93 +216,13 @@ class TransactionHistoryFirebaseDataSource {
       );
     }
 
-    List<Map<String, dynamic>> results = docs
-        .map((doc) => Map<String, dynamic>.from(doc.data() as Map))
-        .toList();
-
-    if (statusCondition == 'LUNAS') {
-      results = results
-          .where((doc) => doc['payment_status'] == 'Lunas' && doc['is_legacy_titipan'] != true)
-          .toList();
-    } else if (statusCondition == 'TITIPAN') {
-      results = results.where((doc) {
-        String dStatus = doc['delivery_status']?.toString() ?? 'Selesai';
-        if (dStatus == 'Selesai') return false;
-        if (!isAllTime) {
-          final String tDate = (doc['transaction_date'] ?? '').toString();
-          if (tDate.compareTo(start) < 0 || tDate.compareTo(end) > 0) {
-            return false;
-          }
-        }
-        return true;
-      }).toList();
-    } else {
-      results = results
-          .where((doc) => doc['payment_status'] != 'Lunas' && doc['is_legacy_titipan'] != true)
-          .toList();
-    }
-
-    results.sort(
-      (a, b) => (b['transaction_date'] ?? '')
-          .toString()
-          .compareTo((a['transaction_date'] ?? '').toString()),
+    return _processTransactionDocs(
+      docs: docs,
+      statusCondition: statusCondition,
+      start: start,
+      end: end,
+      isAllTime: isAllTime,
     );
-
-    double globalOmsetKayu = 0;
-    double globalOmsetBangunan = 0;
-    double globalBensin = 0; // 🔥 VARIABEL BARU BUAT BENSIN
-
-    for (var t in results) {
-      if (t['is_legacy_titipan'] == true) continue;
-      List<dynamic> items = t['items'] ?? [];
-      double trxOmsetKayu = 0;
-      double trxOmsetBangunan = 0;
-      
-      // 🔥 SEDOT ONGOS KIRIM / BENSIN DARI NOTA INI
-      double opCost = (t['operational_cost'] as num?)?.toDouble() ?? 0;
-      globalBensin += opCost; 
-
-      for (var i in items) {
-        
-        // 🔥 FIX ANTI-LEDAKAN OMSET 1 MILIAR: HARAM NGALIIN BATANG LAGI!
-        double itemOmset = 0;
-        if (i.containsKey('agreed_total') && i['agreed_total'] != null) {
-          itemOmset = (i['agreed_total'] as num).toDouble();
-        } else {
-          // Fallback darurat biar tetep aman
-          double sell = (i['sell_price'] as num?)?.toDouble() ?? 0;
-          double reqQty = (i['request_qty'] as num?)?.toDouble() ?? 0;
-          double qty = (i['quantity'] as num?)?.toDouble() ?? 0;
-          double displayQty = reqQty > 0 ? reqQty : qty; 
-          itemOmset = sell * displayQty;
-        }
-
-        String pType = i['product_type'] ?? '';
-        if (['KAYU', 'RENG', 'BULAT'].contains(pType)) {
-          trxOmsetKayu += itemOmset;
-        } else {
-          trxOmsetBangunan += itemOmset;
-        }
-      }
-
-      double totalTrxOmset = trxOmsetKayu + trxOmsetBangunan;
-      double discount = (t['discount'] as num?)?.toDouble() ?? 0;
-
-      if (totalTrxOmset > 0 && discount > 0) {
-        globalOmsetKayu += trxOmsetKayu - (discount * (trxOmsetKayu / totalTrxOmset));
-        globalOmsetBangunan += trxOmsetBangunan - (discount * (trxOmsetBangunan / totalTrxOmset));
-      } else {
-        globalOmsetKayu += trxOmsetKayu;
-        globalOmsetBangunan += trxOmsetBangunan;
-      }
-    }
-
-    return {
-      'history': results,
-      'omset_kayu': globalOmsetKayu.round(),
-      'omset_bangunan': globalOmsetBangunan.round(),
-      'total_bensin': globalBensin.round(), // 🔥 KIRIM DATA BENSIN KE UI
-    };
   }
 
   Future<Map<String, dynamic>> getCapitalTransactionHistory({

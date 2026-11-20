@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -38,6 +39,8 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> wit
   List<Map<String, dynamic>> _historyData = [];
   bool _isLoading = true;
   int _fetchSeq = 0;
+  StreamSubscription<Map<String, dynamic>>? _historySub;
+  Timer? _loadingGuardTimer;
 
   int _omsetKayu = 0;
   int _omsetBangunan = 0;
@@ -77,6 +80,8 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> wit
 
   @override
   void dispose() {
+    _loadingGuardTimer?.cancel();
+    _historySub?.cancel();
     _tabController.dispose();
     _scrollController.dispose(); 
     _searchController.dispose(); // Bersihkan memori search
@@ -85,6 +90,10 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> wit
 
   Future<void> _fetchData() async {
     final int seq = ++_fetchSeq;
+    _loadingGuardTimer?.cancel();
+    await _historySub?.cancel();
+    _historySub = null;
+
     if (mounted) setState(() => _isLoading = true);
     String tabType = 'LUNAS';
     if (_tabController.index == 1) tabType = 'HUTANG';
@@ -96,6 +105,38 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> wit
       requestedFilter: _selectedFilter,
     );
     _selectedFilter = effectiveFilter;
+
+    final Stream<Map<String, dynamic>>? liveStream =
+        _controller.watchTransactions(tabType, effectiveFilter);
+
+    if (liveStream != null) {
+      _loadingGuardTimer = Timer(const Duration(seconds: 6), () {
+        if (mounted && seq == _fetchSeq && _isLoading) {
+          setState(() => _isLoading = false);
+        }
+      });
+
+      _historySub = liveStream.listen(
+        (data) {
+          if (!mounted || seq != _fetchSeq) return;
+          _loadingGuardTimer?.cancel();
+          setState(() {
+            _historyData = data['history'] ?? [];
+            _omsetKayu = data['omset_kayu'] ?? 0;
+            _omsetBangunan = data['omset_bangunan'] ?? 0;
+            _totalBensin = data['total_bensin'] ?? 0;
+            _isLoading = false;
+          });
+        },
+        onError: (e) {
+          debugPrint('Realtime riwayat nota error: $e');
+          if (!mounted || seq != _fetchSeq) return;
+          _loadingGuardTimer?.cancel();
+          setState(() => _isLoading = false);
+        },
+      );
+      return;
+    }
 
     try {
       final data = await _controller.getTransactions(tabType, effectiveFilter);

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../helpers/session_manager.dart';
 
@@ -7,8 +8,6 @@ class DashboardFirebaseDataSource {
       _db.collection('stores').doc(SessionManager().uid ?? 'UNKNOWN_STORE').collection(path);
 
   /// Query cepat server-first (timeout 6 detik) dengan fallback otomatis ke cache lokal.
-  /// Digunakan khusus pada query terfilter (hari ini / hutang aktif / titipan aktif)
-  /// agar data transaksi baru dari HP karyawan langsung muncul tanpa menyedot ribuan dokumen lama!
   Future<List<QueryDocumentSnapshot>> _freshOrCache(Query q) async {
     try {
       final snap = await q
@@ -39,59 +38,24 @@ class DashboardFirebaseDataSource {
     return _freshOrCache(q);
   }
 
-  // 🔥 MESIN SUPER PARALEL & RINGAN (TANPA SEDOT RIBUAN TRANSAKSI LAMA!)
-  Future<Map<String, double>> getSuperDashboardData(String date) async {
+  /// Rumus akuntansi harian murni (digunakan oleh query satu-kali maupun stream real-time).
+  static Map<String, double> computeDashboardStatsFromMaps({
+    required String date,
+    required List<Map<String, dynamic>> todayTransactions,
+    required List<Map<String, dynamic>> unpaidTransactions,
+    required int activeTitipanCount,
+    required List<Map<String, dynamic>> allDebtPayments,
+    required List<Map<String, dynamic>> todayGasExpenses,
+    required List<Map<String, dynamic>> todayStockLogs,
+  }) {
     final String startToday = "${date}T00:00:00.000";
     final String endToday = "${date}T23:59:59.999";
-
-    // Jalankan 6 query terfilter secara PARALEL (total ~20-60 dokumen, bukan ribuan!)
-    final results = await Future.wait([
-      // 0: Transaksi hari ini saja (fresh dari server agar transaksi karyawan langsung masuk!)
-      _freshOrCache(
-        _col('transactions')
-            .where('transaction_date', isGreaterThanOrEqualTo: startToday)
-            .where('transaction_date', isLessThanOrEqualTo: endToday),
-      ),
-      // 1: Transaksi belum lunas (piutang aktif)
-      _freshOrCache(
-        _col('transactions').where('payment_status', isNotEqualTo: 'Lunas'),
-      ),
-      // 2: Barang titipan aktif (belum selesai diantar)
-      _freshOrCache(
-        _col('transactions').where(
-          'delivery_status',
-          whereIn: ['Belum Diantar', 'Sebagian'],
-        ),
-      ),
-      // 3: Cicilan piutang (untuk sisa piutang + cicilan masuk hari ini)
-      _cacheThenSync(_col('debt_payments')),
-      // 4: Pengeluaran operasional hari ini saja
-      _freshOrCache(
-        _col('gas_expenses')
-            .where('date', isGreaterThanOrEqualTo: startToday)
-            .where('date', isLessThanOrEqualTo: endToday),
-      ),
-      // 5: Stok masuk hari ini saja
-      _freshOrCache(
-        _col('stock_logs')
-            .where('date', isGreaterThanOrEqualTo: startToday)
-            .where('date', isLessThanOrEqualTo: endToday),
-      ),
-    ]);
-
-    final todayTransDocs = results[0];
-    final unpaidTransDocs = results[1];
-    final activeTitipanDocs = results[2];
-    final allDebtPaymentDocs = results[3];
-    final todayGasDocs = results[4];
-    final todayStockDocs = results[5];
 
     double todayOmsetLunas = 0;
     double todayProfitBarang = 0;
     double todayOngkirMasuk = 0;
 
-    for (var doc in todayTransDocs) {
-      final t = doc.data() as Map<String, dynamic>;
+    for (var t in todayTransactions) {
       if (t['is_legacy_titipan'] == true) continue;
       if (t['payment_status'] != 'Lunas') continue;
 
@@ -129,8 +93,7 @@ class DashboardFirebaseDataSource {
 
     double totalPiutangKotorAllTime = 0;
     final Set<int> unpaidTransIds = {};
-    for (var doc in unpaidTransDocs) {
-      final t = doc.data() as Map<String, dynamic>;
+    for (var t in unpaidTransactions) {
       if (t['is_legacy_titipan'] == true) continue;
       final double tp = (t['total_price'] as num?)?.toDouble() ?? 0;
       totalPiutangKotorAllTime += tp;
@@ -140,8 +103,7 @@ class DashboardFirebaseDataSource {
 
     double totalCicilanAllTime = 0;
     double totalCicilanMasukHariIni = 0;
-    for (var doc in allDebtPaymentDocs) {
-      final d = doc.data() as Map<String, dynamic>;
+    for (var d in allDebtPayments) {
       final double amount = (d['amount_paid'] as num?)?.toDouble() ?? 0;
       final String pDate = (d['payment_date'] ?? '').toString();
       final int? tid = (d['transaction_id'] as num?)?.toInt();
@@ -155,14 +117,12 @@ class DashboardFirebaseDataSource {
     }
 
     double todayPengeluaranOperasional = 0;
-    for (var doc in todayGasDocs) {
-      final g = doc.data() as Map<String, dynamic>;
+    for (var g in todayGasExpenses) {
       todayPengeluaranOperasional += (g['amount'] as num?)?.toDouble() ?? 0;
     }
 
     double todayBeliStok = 0;
-    for (var doc in todayStockDocs) {
-      final log = doc.data() as Map<String, dynamic>;
+    for (var log in todayStockLogs) {
       final double qty = (log['quantity'] as num?)?.toDouble() ?? 0;
       final double price = (log['price'] as num?)?.toDouble() ?? 0;
       final double itemTotal =
@@ -174,7 +134,8 @@ class DashboardFirebaseDataSource {
 
     final double finalOmsetHarian = todayOmsetLunas + totalCicilanMasukHariIni;
     final double finalSisaPiutang =
-        (totalPiutangKotorAllTime - totalCicilanAllTime).clamp(0.0, double.maxFinite);
+        (totalPiutangKotorAllTime - totalCicilanAllTime)
+            .clamp(0.0, double.maxFinite);
     final double saldoOperasionalHarian =
         todayOngkirMasuk - todayPengeluaranOperasional;
     final double finalProfitBersihHarian =
@@ -186,8 +147,169 @@ class DashboardFirebaseDataSource {
       'uangOperasional': saldoOperasionalHarian,
       'totalPiutang': finalSisaPiutang,
       'totalBeliStok': todayBeliStok,
-      'titipanCount': activeTitipanDocs.length.toDouble(),
+      'titipanCount': activeTitipanCount.toDouble(),
     };
+  }
+
+  static List<Map<String, dynamic>> _docsToMaps(
+    List<QueryDocumentSnapshot> docs,
+  ) =>
+      docs.map((d) => Map<String, dynamic>.from(d.data() as Map)).toList();
+
+  /// Stream REAL-TIME Dashboard untuk Pemilik Toko: angka omset, profit, piutang,
+  /// operasional, beli stok, dan jumlah titipan otomatis berubah seketika begitu
+  /// karyawan menyelesaikan transaksi di HP lain — tanpa perlu tombol refresh!
+  Stream<Map<String, double>> watchSuperDashboardData(String date) {
+    final String startToday = "${date}T00:00:00.000";
+    final String endToday = "${date}T23:59:59.999";
+
+    late final StreamController<Map<String, double>> controller;
+    final List<StreamSubscription<QuerySnapshot>> subs = [];
+    Timer? debounce;
+
+    List<Map<String, dynamic>> todayTrans = [];
+    List<Map<String, dynamic>> unpaidTrans = [];
+    int activeTitipan = 0;
+    List<Map<String, dynamic>> debtPayments = [];
+    List<Map<String, dynamic>> todayGas = [];
+    List<Map<String, dynamic>> todayStocks = [];
+
+    void scheduleEmit() {
+      debounce?.cancel();
+      debounce = Timer(const Duration(milliseconds: 120), () {
+        if (controller.isClosed) return;
+        controller.add(
+          computeDashboardStatsFromMaps(
+            date: date,
+            todayTransactions: todayTrans,
+            unpaidTransactions: unpaidTrans,
+            activeTitipanCount: activeTitipan,
+            allDebtPayments: debtPayments,
+            todayGasExpenses: todayGas,
+            todayStockLogs: todayStocks,
+          ),
+        );
+      });
+    }
+
+    controller = StreamController<Map<String, double>>(
+      onListen: () {
+        subs.add(
+          _col('transactions')
+              .where('transaction_date', isGreaterThanOrEqualTo: startToday)
+              .where('transaction_date', isLessThanOrEqualTo: endToday)
+              .snapshots()
+              .listen((snap) {
+            todayTrans = _docsToMaps(snap.docs);
+            scheduleEmit();
+          }, onError: (_) {}),
+        );
+        subs.add(
+          _col('transactions')
+              .where('payment_status', isNotEqualTo: 'Lunas')
+              .snapshots()
+              .listen((snap) {
+            unpaidTrans = _docsToMaps(snap.docs);
+            scheduleEmit();
+          }, onError: (_) {}),
+        );
+        subs.add(
+          _col('transactions')
+              .where('delivery_status', whereIn: ['Belum Diantar', 'Sebagian'])
+              .snapshots()
+              .listen((snap) {
+            activeTitipan = snap.docs.length;
+            scheduleEmit();
+          }, onError: (_) {}),
+        );
+        subs.add(
+          _col('debt_payments').snapshots().listen((snap) {
+            debtPayments = _docsToMaps(snap.docs);
+            scheduleEmit();
+          }, onError: (_) {}),
+        );
+        subs.add(
+          _col('gas_expenses')
+              .where('date', isGreaterThanOrEqualTo: startToday)
+              .where('date', isLessThanOrEqualTo: endToday)
+              .snapshots()
+              .listen((snap) {
+            todayGas = _docsToMaps(snap.docs);
+            scheduleEmit();
+          }, onError: (_) {}),
+        );
+        subs.add(
+          _col('stock_logs')
+              .where('date', isGreaterThanOrEqualTo: startToday)
+              .where('date', isLessThanOrEqualTo: endToday)
+              .snapshots()
+              .listen((snap) {
+            todayStocks = _docsToMaps(snap.docs);
+            scheduleEmit();
+          }, onError: (_) {}),
+        );
+      },
+      onCancel: () async {
+        debounce?.cancel();
+        for (final sub in subs) {
+          await sub.cancel();
+        }
+        subs.clear();
+      },
+    );
+
+    return controller.stream;
+  }
+
+  /// Stream REAL-TIME jumlah nota barang titipan aktif (dipakai juga di mode Kasir).
+  Stream<int> watchActiveTitipanCount() {
+    return _col('transactions')
+        .where('delivery_status', whereIn: ['Belum Diantar', 'Sebagian'])
+        .snapshots()
+        .map((snap) => snap.docs.length);
+  }
+
+  Future<Map<String, double>> getSuperDashboardData(String date) async {
+    final String startToday = "${date}T00:00:00.000";
+    final String endToday = "${date}T23:59:59.999";
+
+    final results = await Future.wait([
+      _freshOrCache(
+        _col('transactions')
+            .where('transaction_date', isGreaterThanOrEqualTo: startToday)
+            .where('transaction_date', isLessThanOrEqualTo: endToday),
+      ),
+      _freshOrCache(
+        _col('transactions').where('payment_status', isNotEqualTo: 'Lunas'),
+      ),
+      _freshOrCache(
+        _col('transactions').where(
+          'delivery_status',
+          whereIn: ['Belum Diantar', 'Sebagian'],
+        ),
+      ),
+      _cacheThenSync(_col('debt_payments')),
+      _freshOrCache(
+        _col('gas_expenses')
+            .where('date', isGreaterThanOrEqualTo: startToday)
+            .where('date', isLessThanOrEqualTo: endToday),
+      ),
+      _freshOrCache(
+        _col('stock_logs')
+            .where('date', isGreaterThanOrEqualTo: startToday)
+            .where('date', isLessThanOrEqualTo: endToday),
+      ),
+    ]);
+
+    return computeDashboardStatsFromMaps(
+      date: date,
+      todayTransactions: _docsToMaps(results[0]),
+      unpaidTransactions: _docsToMaps(results[1]),
+      activeTitipanCount: results[2].length,
+      allDebtPayments: _docsToMaps(results[3]),
+      todayGasExpenses: _docsToMaps(results[4]),
+      todayStockLogs: _docsToMaps(results[5]),
+    );
   }
 
   Future<int> getActiveTitipanCount() async {

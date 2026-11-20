@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:intl/intl.dart';
 import 'dart:io';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -10,6 +12,7 @@ import '../data/datasources/firebase/employee_firebase_datasource.dart';
 import '../controllers/dashboard_controller.dart';
 import '../helpers/app_notification.dart';
 import '../helpers/employee_access_policy.dart';
+import '../helpers/owner_realtime_notifier.dart';
 import '../helpers/session_manager.dart';
 import '../theme/app_colors.dart';
 import '../theme/glass_widgets.dart';
@@ -50,6 +53,11 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   String _storeName = "Bos Depot & TB";
   String? _logoPath;
+  String _activeDateKey = '';
+
+  StreamSubscription<DashboardStats>? _statsSub;
+  StreamSubscription<int>? _titipanSub;
+  StreamSubscription<OwnerTransactionAlert>? _ownerAlertSub;
 
   bool get _isOwner => SessionManager().isOwner;
 
@@ -66,11 +74,66 @@ class _DashboardScreenState extends State<DashboardScreen>
     initializeDateFormatting('id_ID', null).then((_) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
-          _refreshStats();
+          _startRealtimeSync();
           _loadStoreIdentity();
         }
       });
     });
+  }
+
+  Future<void> _startRealtimeSync({bool forceRebind = false}) async {
+    final String todayKey = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    if (!forceRebind &&
+        _activeDateKey == todayKey &&
+        (_statsSub != null || _titipanSub != null)) {
+      return;
+    }
+
+    await _statsSub?.cancel();
+    await _titipanSub?.cancel();
+    await _ownerAlertSub?.cancel();
+    _statsSub = null;
+    _titipanSub = null;
+    _ownerAlertSub = null;
+    _activeDateKey = todayKey;
+
+    if (_isOwner) {
+      // Mulai notifikasi otomatis khusus Pemilik Toko di Android (non-iOS)
+      OwnerRealtimeNotifier().startListeningIfEligible();
+      _ownerAlertSub = OwnerRealtimeNotifier().onAlert.listen((alert) {
+        if (!mounted) return;
+        AppNotification.show(
+          context,
+          message: '${alert.title}\n${alert.body}',
+          type: AppNotificationType.success,
+        );
+      });
+
+      _statsSub = _controller.watchTodayStats(dateOverride: todayKey).listen(
+        (stats) {
+          if (!mounted) return;
+          setState(() {
+            _omsetKotor = stats.omsetKotor;
+            _profitBersih = stats.profitBersih;
+            _uangOperasional = stats.uangOperasional;
+            _totalPiutang = stats.totalPiutang;
+            _totalBeliStok = stats.totalBeliStok;
+            _titipanCount = stats.titipanCount;
+          });
+        },
+        onError: (e) => debugPrint('Realtime Dashboard stats error: $e'),
+      );
+    } else {
+      // Pastikan pegawai TIDAK pernah menerima notifikasi khusus Pemilik
+      OwnerRealtimeNotifier().stopListening();
+      _titipanSub = _controller.watchActiveTitipanCount().listen(
+        (count) {
+          if (!mounted) return;
+          setState(() => _titipanCount = count);
+        },
+        onError: (e) => debugPrint('Realtime titipan count error: $e'),
+      );
+    }
   }
 
   // SESSION TIMEOUT PER HARI
@@ -136,6 +199,9 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   @override
   void dispose() {
+    _statsSub?.cancel();
+    _titipanSub?.cancel();
+    _ownerAlertSub?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -144,9 +210,15 @@ class _DashboardScreenState extends State<DashboardScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _checkSessionTimeout();
-      Future.delayed(const Duration(milliseconds: 500), () {
-        if (mounted) _refreshStats();
-      });
+      if (mounted) {
+        final String todayKey = DateFormat('yyyy-MM-dd').format(DateTime.now());
+        if (todayKey != _activeDateKey) {
+          _startRealtimeSync(forceRebind: true);
+        }
+        if (_isOwner) {
+          OwnerRealtimeNotifier().startListeningIfEligible();
+        }
+      }
     }
   }
 
@@ -274,6 +346,9 @@ class _DashboardScreenState extends State<DashboardScreen>
               ),
             ),
             onPressed: () async {
+              await OwnerRealtimeNotifier().stopListening(
+                clearNotifications: true,
+              );
               await SessionManager().logout();
               if (!ctx.mounted) return;
               Navigator.pop(ctx);
@@ -469,7 +544,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                                 const SizedBox(width: 6),
                                 Expanded(
                                   child: Text(
-                                    _storeName,
+                                    "$_storeName • Live",
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
@@ -484,17 +559,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                           ],
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      _headerActionBtn(
-                        icon: LucideIcons.refreshCw,
-                        bgColor: AppColors.menuBlueBg,
-                        iconColor: AppColors.menuBlueIcon,
-                        borderColor: AppColors.menuBlueBorder,
-                        tooltip: "Segarkan Data",
-                        onTap: _refreshStats,
-                      ),
                       if (_isOwner) ...[
-                        const SizedBox(width: 7),
+                        const SizedBox(width: 8),
                         _headerActionBtn(
                           icon: LucideIcons.settings,
                           bgColor: AppColors.menuAmberBg,

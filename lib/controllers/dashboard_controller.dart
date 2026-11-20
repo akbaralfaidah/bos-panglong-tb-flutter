@@ -1,10 +1,10 @@
 import 'package:intl/intl.dart';
-import '../data/datasources/firebase/dashboard_firebase_datasource.dart'; 
+import '../data/datasources/firebase/dashboard_firebase_datasource.dart';
 
 class DashboardStats {
   final int omsetKotor;
   final int profitBersih;
-  final int uangOperasional; // 🔥 BERUBAH JADI OPERASIONAL
+  final int uangOperasional;
   final int totalPiutang;
   final int totalBeliStok;
   final int kayuTerjual;
@@ -12,36 +12,62 @@ class DashboardStats {
   final int titipanCount;
 
   DashboardStats({
-    required this.omsetKotor, required this.profitBersih, required this.uangOperasional,
-    required this.totalPiutang, required this.totalBeliStok,
-    required this.kayuTerjual, required this.bangunanTerjual,
+    required this.omsetKotor,
+    required this.profitBersih,
+    required this.uangOperasional,
+    required this.totalPiutang,
+    required this.totalBeliStok,
+    required this.kayuTerjual,
+    required this.bangunanTerjual,
     this.titipanCount = 0,
   });
-}
 
-class DashboardController {
-  final DashboardFirebaseDataSource _dashboardDS = DashboardFirebaseDataSource();
-  
-  Future<DashboardStats> getTodayStats() async {
-    try {
-      String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
-
-      final data = await _dashboardDS.getSuperDashboardData(today);
-
-      return DashboardStats(
+  factory DashboardStats.fromMap(Map<String, double> data) => DashboardStats(
         omsetKotor: (data['omsetKotor'] ?? 0).round(),
-        profitBersih: (data['profitBersih'] ?? 0).round(), 
-        uangOperasional: (data['uangOperasional'] ?? 0).round(), // 🔥 TANGKAP KEY BARU
-        totalPiutang: (data['totalPiutang'] ?? 0).round(), 
+        profitBersih: (data['profitBersih'] ?? 0).round(),
+        uangOperasional: (data['uangOperasional'] ?? 0).round(),
+        totalPiutang: (data['totalPiutang'] ?? 0).round(),
         totalBeliStok: (data['totalBeliStok'] ?? 0).round(),
-        kayuTerjual: 0, 
+        kayuTerjual: 0,
         bangunanTerjual: 0,
         titipanCount: (data['titipanCount'] ?? 0).round(),
       );
-      
+}
+
+class DashboardController {
+  final DashboardFirebaseDataSource _dashboardDS =
+      DashboardFirebaseDataSource();
+
+  /// Stream REAL-TIME statistik hari ini — otomatis update tanpa tombol refresh!
+  Stream<DashboardStats> watchTodayStats({String? dateOverride}) {
+    final String today =
+        dateOverride ?? DateFormat('yyyy-MM-dd').format(DateTime.now());
+    return _dashboardDS
+        .watchSuperDashboardData(today)
+        .map(DashboardStats.fromMap);
+  }
+
+  /// Stream REAL-TIME jumlah titipan aktif.
+  Stream<int> watchActiveTitipanCount() {
+    return _dashboardDS.watchActiveTitipanCount();
+  }
+
+  Future<DashboardStats> getTodayStats() async {
+    try {
+      final String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      final data = await _dashboardDS.getSuperDashboardData(today);
+      return DashboardStats.fromMap(data);
     } catch (e) {
-      print("CRITICAL DASHBOARD ERROR: $e");
-      return DashboardStats(omsetKotor: 0, profitBersih: 0, uangOperasional: 0, totalPiutang: 0, totalBeliStok: 0, kayuTerjual: 0, bangunanTerjual: 0, titipanCount: 0);
+      return DashboardStats(
+        omsetKotor: 0,
+        profitBersih: 0,
+        uangOperasional: 0,
+        totalPiutang: 0,
+        totalBeliStok: 0,
+        kayuTerjual: 0,
+        bangunanTerjual: 0,
+        titipanCount: 0,
+      );
     }
   }
 

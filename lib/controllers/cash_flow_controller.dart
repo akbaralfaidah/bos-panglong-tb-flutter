@@ -81,41 +81,12 @@ class CashFlowController {
     return (startIso: null, endIso: null, isAllTime: true);
   }
 
-  Future<List<CashFlowItem>> getSuperHistory({
-    String filterMode = 'Hari Ini',
-  }) async {
-    final range = resolveDateRange(filterMode);
-    final bool preferServer = !range.isAllTime;
-
-    // Eksekusi 4 koleksi secara PARALEL (bukan berurutan) & dibatasi rentang tanggal aktif
-    final results = await Future.wait([
-      _cashFlowDS.getAllTransactions(
-        startIso: range.startIso,
-        endIso: range.endIso,
-        preferServer: preferServer,
-      ),
-      _cashFlowDS.getAllDebtPayments(
-        startIso: range.startIso,
-        endIso: range.endIso,
-        preferServer: preferServer,
-      ),
-      _cashFlowDS.getAllStockLogsWithProducts(
-        startIso: range.startIso,
-        endIso: range.endIso,
-        preferServer: preferServer,
-      ),
-      _cashFlowDS.getAllGasExpenses(
-        startIso: range.startIso,
-        endIso: range.endIso,
-        preferServer: preferServer,
-      ),
-    ]);
-
-    final trans = results[0];
-    final debts = results[1];
-    final stocks = results[2];
-    final gas = results[3];
-
+  List<CashFlowItem> _buildItems({
+    required List<Map<String, dynamic>> trans,
+    required List<Map<String, dynamic>> debts,
+    required List<Map<String, dynamic>> stocks,
+    required List<Map<String, dynamic>> gas,
+  }) {
     final List<CashFlowItem> items = [];
 
     // 1. PENJUALAN KASIR
@@ -232,10 +203,70 @@ class CashFlowController {
       ));
     }
 
-    // Urutkan aman dari paling baru (ISO-8601 string compare = super cepat & kebal FormatException)
     items.sort((a, b) => b.date.compareTo(a.date));
-
     return items;
+  }
+
+  /// Stream REAL-TIME untuk filter harian/mingguan/bulanan/custom.
+  /// Mengembalikan `null` hanya pada mode `'Semua'` (ribuan dokumen lama tetap pakai 1x cache-first).
+  Stream<List<CashFlowItem>>? watchSuperHistory({
+    String filterMode = 'Hari Ini',
+  }) {
+    final range = resolveDateRange(filterMode);
+    if (range.isAllTime || range.startIso == null || range.endIso == null) {
+      return null;
+    }
+    return _cashFlowDS
+        .watchDateRangeData(
+          startIso: range.startIso!,
+          endIso: range.endIso!,
+        )
+        .map(
+          (bundle) => _buildItems(
+            trans: bundle.transactions,
+            debts: bundle.debtPayments,
+            stocks: bundle.stockLogs,
+            gas: bundle.gasExpenses,
+          ),
+        );
+  }
+
+  Future<List<CashFlowItem>> getSuperHistory({
+    String filterMode = 'Hari Ini',
+  }) async {
+    final range = resolveDateRange(filterMode);
+    final bool preferServer = !range.isAllTime;
+
+    // Eksekusi 4 koleksi secara PARALEL (bukan berurutan) & dibatasi rentang tanggal aktif
+    final results = await Future.wait([
+      _cashFlowDS.getAllTransactions(
+        startIso: range.startIso,
+        endIso: range.endIso,
+        preferServer: preferServer,
+      ),
+      _cashFlowDS.getAllDebtPayments(
+        startIso: range.startIso,
+        endIso: range.endIso,
+        preferServer: preferServer,
+      ),
+      _cashFlowDS.getAllStockLogsWithProducts(
+        startIso: range.startIso,
+        endIso: range.endIso,
+        preferServer: preferServer,
+      ),
+      _cashFlowDS.getAllGasExpenses(
+        startIso: range.startIso,
+        endIso: range.endIso,
+        preferServer: preferServer,
+      ),
+    ]);
+
+    return _buildItems(
+      trans: results[0],
+      debts: results[1],
+      stocks: results[2],
+      gas: results[3],
+    );
   }
 
   Future<Map<String, dynamic>?> getTransactionById(int id) async {

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../controllers/cash_flow_controller.dart';
@@ -27,6 +28,8 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
   List<CashFlowItem> _filteredItems = [];
   bool _isLoading = true;
   int _loadSeq = 0;
+  StreamSubscription<List<CashFlowItem>>? _realtimeSub;
+  Timer? _loadingGuardTimer;
   
   // 🔥 FILTER DEFAULT 🔥
   String _filterMode = 'Hari Ini';
@@ -40,13 +43,51 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
 
   @override
   void dispose() {
+    _loadingGuardTimer?.cancel();
+    _realtimeSub?.cancel();
     _scrollController.dispose();
     super.dispose();
   }
 
   Future<void> _loadData() async {
     final int seq = ++_loadSeq;
+    _loadingGuardTimer?.cancel();
+    await _realtimeSub?.cancel();
+    _realtimeSub = null;
+
     if (mounted) setState(() => _isLoading = true);
+
+    final Stream<List<CashFlowItem>>? liveStream =
+        _controller.watchSuperHistory(filterMode: _filterMode);
+
+    if (liveStream != null) {
+      // Pengaman agar loading tidak pernah macet walau jaringan lambat
+      _loadingGuardTimer = Timer(const Duration(seconds: 6), () {
+        if (mounted && seq == _loadSeq && _isLoading) {
+          setState(() => _isLoading = false);
+        }
+      });
+
+      _realtimeSub = liveStream.listen(
+        (items) {
+          if (!mounted || seq != _loadSeq) return;
+          _loadingGuardTimer?.cancel();
+          setState(() {
+            _filteredItems = items;
+            _isLoading = false;
+          });
+        },
+        onError: (e) {
+          debugPrint('Realtime CashFlow error: $e');
+          if (!mounted || seq != _loadSeq) return;
+          _loadingGuardTimer?.cancel();
+          setState(() => _isLoading = false);
+        },
+      );
+      return;
+    }
+
+    // Mode 'Semua' (ribuan data historis) tetap pakai muatan 1x cache-first super cepat
     try {
       final data = await _controller.getSuperHistory(filterMode: _filterMode);
       if (!mounted || seq != _loadSeq) return;
@@ -58,7 +99,7 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
       if (mounted && seq == _loadSeq) {
         AppNotification.show(
           context,
-          message: 'Gagal memuat riwayat. Tarik ke bawah untuk coba lagi.',
+          message: 'Gagal memuat riwayat. Silakan coba beberapa saat lagi.',
           type: AppNotificationType.error,
         );
       }
@@ -238,13 +279,6 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
         ),
         iconTheme: const IconThemeData(color: AppColors.pureWhite),
         elevation: 0,
-        actions: [
-          IconButton(
-            tooltip: 'Muat ulang',
-            icon: const Icon(Icons.refresh_rounded, color: AppColors.pureWhite),
-            onPressed: _isLoading ? null : _loadData,
-          ),
-        ],
       ),
       body: LiquidAmbientBackground(
         child: Column(
