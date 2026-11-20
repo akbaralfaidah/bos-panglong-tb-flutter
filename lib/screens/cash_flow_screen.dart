@@ -320,100 +320,151 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
                           ),
                         ),
                         const SizedBox(height: 5),
-                        Text(
-                          _formatRp(saldo),
-                          style: TextStyle(
-                            color: saldo >= 0
-                                ? AppColors.pureWhite
-                                : AppColors.statusRed,
-                            fontSize: 36,
-                            fontWeight: FontWeight.w900,
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            _formatRp(saldo),
+                            style: TextStyle(
+                              color: saldo >= 0
+                                  ? AppColors.pureWhite
+                                  : const Color(0xFFFFD6DC),
+                              fontSize: 36,
+                              fontWeight: FontWeight.w900,
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 18),
                         Row(
                           children: [
                             Expanded(
                               child: Container(
-                                padding: const EdgeInsets.all(13),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 12,
+                                ),
                                 decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(16),
+                                  color: Colors.white.withValues(alpha: 0.96),
+                                  borderRadius: BorderRadius.circular(18),
                                   border: Border.all(
-                                    color: Colors.white.withValues(alpha: 0.22),
+                                    color: Colors.white,
+                                    width: 1.2,
                                   ),
+                                  boxShadow: const [
+                                    BoxShadow(
+                                      color: Color(0x1F0F172A),
+                                      blurRadius: 12,
+                                      offset: Offset(0, 4),
+                                    ),
+                                  ],
                                 ),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    const Row(
+                                    Row(
                                       children: [
-                                        Icon(
-                                          Icons.arrow_downward,
-                                          color: AppColors.statusGreen,
-                                          size: 16,
+                                        Container(
+                                          padding: const EdgeInsets.all(4),
+                                          decoration: BoxDecoration(
+                                            color: AppColors.menuTealBg,
+                                            borderRadius:
+                                                BorderRadius.circular(7),
+                                          ),
+                                          child: const Icon(
+                                            Icons.arrow_downward_rounded,
+                                            color: Color(0xFF047857),
+                                            size: 14,
+                                          ),
                                         ),
-                                        SizedBox(width: 5),
-                                        Text(
+                                        const SizedBox(width: 7),
+                                        const Text(
                                           "Pemasukan",
                                           style: TextStyle(
-                                            color: Colors.white70,
-                                            fontSize: 11,
+                                            color: AppColors.textGrey,
+                                            fontSize: 11.5,
+                                            fontWeight: FontWeight.w700,
                                           ),
                                         ),
                                       ],
                                     ),
-                                    const SizedBox(height: 5),
-                                    Text(
-                                      _formatRp(totalIn),
-                                      style: const TextStyle(
-                                        color: AppColors.statusGreen,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 14,
+                                    const SizedBox(height: 7),
+                                    FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      alignment: Alignment.centerLeft,
+                                      child: Text(
+                                        _formatRp(totalIn),
+                                        style: const TextStyle(
+                                          color: Color(0xFF047857),
+                                          fontWeight: FontWeight.w900,
+                                          fontSize: 16,
+                                        ),
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 14),
+                            const SizedBox(width: 12),
                             Expanded(
                               child: Container(
-                                padding: const EdgeInsets.all(13),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 12,
+                                ),
                                 decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(16),
+                                  color: Colors.white.withValues(alpha: 0.96),
+                                  borderRadius: BorderRadius.circular(18),
                                   border: Border.all(
-                                    color: Colors.white.withValues(alpha: 0.22),
+                                    color: Colors.white,
+                                    width: 1.2,
                                   ),
+                                  boxShadow: const [
+                                    BoxShadow(
+                                      color: Color(0x1F0F172A),
+                                      blurRadius: 12,
+                                      offset: Offset(0, 4),
+                                    ),
+                                  ],
                                 ),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    const Row(
+                                    Row(
                                       children: [
-                                        Icon(
-                                          Icons.arrow_upward,
-                                          color: AppColors.statusRed,
-                                          size: 16,
+                                        Container(
+                                          padding: const EdgeInsets.all(4),
+                                          decoration: BoxDecoration(
+                                            color: AppColors.menuRoseBg,
+                                            borderRadius:
+                                                BorderRadius.circular(7),
+                                          ),
+                                          child: const Icon(
+                                            Icons.arrow_upward_rounded,
+                                            color: Color(0xFFBE123C),
+                                            size: 14,
+                                          ),
                                         ),
-                                        SizedBox(width: 5),
-                                        Text(
+                                        const SizedBox(width: 7),
+                                        const Text(
                                           "Pengeluaran",
                                           style: TextStyle(
-                                            color: Colors.white70,
-                                            fontSize: 11,
+                                            color: AppColors.textGrey,
+                                            fontSize: 11.5,
+                                            fontWeight: FontWeight.w700,
                                           ),
                                         ),
                                       ],
                                     ),
-                                    const SizedBox(height: 5),
-                                    Text(
-                                      _formatRp(totalOut),
-                                      style: const TextStyle(
-                                        color: AppColors.statusRed,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 14,
+                                    const SizedBox(height: 7),
+                                    FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      alignment: Alignment.centerLeft,
+                                      child: Text(
+                                        _formatRp(totalOut),
+                                        style: const TextStyle(
+                                          color: Color(0xFFBE123C),
+                                          fontWeight: FontWeight.w900,
+                                          fontSize: 16,
+                                        ),
                                       ),
                                     ),
                                   ],
