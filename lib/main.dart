@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:animations/animations.dart';
 import 'package:firebase_core/firebase_core.dart'; // 🔥 Wajib di-import
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:get/get.dart'; // 🔥 Wajib untuk fitur notifikasi Get.snackbar()
 import 'package:google_fonts/google_fonts.dart';
 import 'screens/splash_screen.dart';
 import 'helpers/app_orientation_policy.dart';
+import 'helpers/owner_realtime_notifier.dart';
 import 'theme/app_colors.dart';
 import 'firebase_options.dart'; // 🔥 Wajib untuk konfigurasi Firebase
 
@@ -13,17 +15,30 @@ import 'package:flutter/foundation.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // 🔥 Perbaikan Layar Putih di Android
   // Di Android, firebase_options.dart melempar UnsupportedError,
   // sehingga kita harus menggunakan inisialisasi native via google-services.json
   try {
     if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
       await Firebase.initializeApp(
-        options: DefaultFirebaseOptions.currentPlatform, 
+        options: DefaultFirebaseOptions.currentPlatform,
       );
     } else {
       await Firebase.initializeApp(); // Menggunakan google-services.json
+    }
+    if (!kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS)) {
+      FirebaseMessaging.onBackgroundMessage(
+        ownerFcmBackgroundMessageHandler,
+      );
+      await FirebaseMessaging.instance
+          .setForegroundNotificationPresentationOptions(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
     }
   } catch (e) {
     debugPrint("Firebase init error: $e");

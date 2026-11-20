@@ -38,6 +38,28 @@ import UserNotifications
           let title = (args["title"] as? String) ?? "Transaksi Baru"
           let body = (args["body"] as? String) ?? ""
           self.showTransactionNotification(id: id, title: title, body: body, result: result)
+        case "startBackgroundMonitor":
+          // Di iOS, pemantauan saat aplikasi ditutup bekerja melalui APNs / FCM Push
+          DispatchQueue.main.async {
+            UIApplication.shared.registerForRemoteNotifications()
+          }
+          result(false)
+        case "stopBackgroundMonitor":
+          result(true)
+        case "isBackgroundMonitorRunning":
+          result(false)
+        case "isBatteryOptimizationIgnored":
+          result(true)
+        case "requestIgnoreBatteryOptimization":
+          result(true)
+        case "openChannelSettings":
+          DispatchQueue.main.async {
+            if let url = URL(string: UIApplication.openSettingsURLString),
+               UIApplication.shared.canOpenURL(url) {
+              UIApplication.shared.open(url, options: [:], completionHandler: nil)
+            }
+          }
+          result(true)
         case "cancelAll":
           let notifCenter = UNUserNotificationCenter.current()
           notifCenter.removeAllDeliveredNotifications()
@@ -56,6 +78,9 @@ import UserNotifications
     let center = UNUserNotificationCenter.current()
     center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
       DispatchQueue.main.async {
+        if granted {
+          UIApplication.shared.registerForRemoteNotifications()
+        }
         result(granted)
       }
     }
@@ -71,6 +96,10 @@ import UserNotifications
     content.title = title
     content.body = body
     content.sound = .default
+    if #available(iOS 15.0, *) {
+      content.interruptionLevel = .active
+      content.relevanceScore = 1.0
+    }
 
     let request = UNNotificationRequest(
       identifier: "owner_tx_\(id)",
@@ -91,9 +120,9 @@ import UserNotifications
     withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
   ) {
     if #available(iOS 14.0, *) {
-      completionHandler([.banner, .list, .sound])
+      completionHandler([.banner, .list, .sound, .badge])
     } else {
-      completionHandler([.alert, .sound])
+      completionHandler([.alert, .sound, .badge])
     }
   }
 }

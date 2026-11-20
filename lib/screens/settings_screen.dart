@@ -28,7 +28,8 @@ class SettingsScreen extends StatefulWidget {
   State<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends State<SettingsScreen> {
+class _SettingsScreenState extends State<SettingsScreen>
+    with WidgetsBindingObserver {
   bool _isLoading = false;
 
   final SettingsController _controller = SettingsController();
@@ -43,11 +44,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
   int _paperWidthMm = ThermalReceiptEncoder.paper80mm;
   double _receiptScale = 1.0;
   bool _notifyEmployeeTx = true;
+  bool _batteryOptIgnored = true;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadStoreSettings();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _nameController.dispose();
+    _phoneController.dispose();
+    _addressController.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && Platform.isAndroid && mounted) {
+      _refreshBatteryOptimizationStatus();
+    }
+  }
+
+  Future<void> _refreshBatteryOptimizationStatus() async {
+    final ignored = await OwnerRealtimeNotifier.isBatteryOptimizationIgnored();
+    if (mounted) {
+      setState(() => _batteryOptIgnored = ignored);
+    }
   }
 
   Future<void> _loadStoreSettings() async {
@@ -56,6 +82,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final savedPaperMm = await PrinterHelper.getPaperWidthMm();
     final savedReceiptScale = await PrinterHelper.getReceiptScale();
     final savedNotifyEmp = await OwnerRealtimeNotifier.isEnabled();
+    final batteryIgnored =
+        await OwnerRealtimeNotifier.isBatteryOptimizationIgnored();
 
     if (mounted) {
       setState(() {
@@ -73,6 +101,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _paperWidthMm = savedPaperMm;
         _receiptScale = savedReceiptScale;
         _notifyEmployeeTx = savedNotifyEmp;
+        _batteryOptIgnored = batteryIgnored;
         _isLoading = false;
       });
     }
@@ -1190,38 +1219,141 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               ],
                             ),
                             if (_notifyEmployeeTx) ...[
-                              const SizedBox(height: 8),
-                              Align(
-                                alignment: Alignment.centerRight,
-                                child: TextButton.icon(
-                                  onPressed: () async {
-                                    final ok = await OwnerRealtimeNotifier()
-                                        .sendTestNotification();
-                                    if (!mounted) return;
-                                    AppNotification.show(
-                                      context,
-                                      message: ok
-                                          ? "Notifikasi percobaan dikirim ke bilah notifikasi!"
-                                          : "Pastikan izin notifikasi aplikasi sudah diizinkan di pengaturan HP.",
-                                      type: ok
-                                          ? AppNotificationType.success
-                                          : AppNotificationType.warning,
-                                    );
-                                  },
-                                  icon: const Icon(
-                                    Icons.send_rounded,
-                                    size: 15,
-                                    color: AppColors.primaryNavy,
-                                  ),
-                                  label: const Text(
-                                    "Tes Notifikasi",
-                                    style: TextStyle(
-                                      color: AppColors.primaryNavy,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 12,
+                              if (Platform.isAndroid) ...[
+                                const SizedBox(height: 10),
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.all(11),
+                                  decoration: BoxDecoration(
+                                    color: _batteryOptIgnored
+                                        ? AppColors.menuTealBg
+                                        : AppColors.menuAmberBg,
+                                    borderRadius: BorderRadius.circular(13),
+                                    border: Border.all(
+                                      color: _batteryOptIgnored
+                                          ? AppColors.menuEmeraldBorder
+                                          : AppColors.menuVioletBorder,
                                     ),
                                   ),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        _batteryOptIgnored
+                                            ? Icons.verified_rounded
+                                            : Icons.battery_alert_rounded,
+                                        size: 19,
+                                        color: _batteryOptIgnored
+                                            ? AppColors.menuTealIcon
+                                            : AppColors.menuAmberIcon,
+                                      ),
+                                      const SizedBox(width: 9),
+                                      Expanded(
+                                        child: Text(
+                                          _batteryOptIgnored
+                                              ? "Bebas Penghemat Baterai • Notif tetap masuk 24 jam saat HP terkunci atau aplikasi lama tidak dibuka."
+                                              : "Penghemat baterai aktif (bisa menunda notif saat HP dikunci). Ketuk Izinkan agar aktif 24 jam.",
+                                          style: TextStyle(
+                                            fontSize: 11.5,
+                                            fontWeight: FontWeight.w600,
+                                            color: _batteryOptIgnored
+                                                ? AppColors.menuTealDark
+                                                : AppColors.textDark,
+                                            height: 1.35,
+                                          ),
+                                        ),
+                                      ),
+                                      if (!_batteryOptIgnored) ...[
+                                        const SizedBox(width: 8),
+                                        ElevatedButton(
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor:
+                                                AppColors.menuAmberIcon,
+                                            foregroundColor: Colors.white,
+                                            elevation: 0,
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 10,
+                                              vertical: 7,
+                                            ),
+                                            minimumSize: Size.zero,
+                                            tapTargetSize: MaterialTapTargetSize
+                                                .shrinkWrap,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                            ),
+                                          ),
+                                          onPressed: () async {
+                                            await OwnerRealtimeNotifier
+                                                .requestIgnoreBatteryOptimization();
+                                          },
+                                          child: const Text(
+                                            "Izinkan",
+                                            style: TextStyle(
+                                              fontSize: 11.5,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
                                 ),
+                              ],
+                              const SizedBox(height: 8),
+                              Wrap(
+                                alignment: WrapAlignment.end,
+                                spacing: 6,
+                                runSpacing: 4,
+                                children: [
+                                  TextButton.icon(
+                                    onPressed: () async {
+                                      await OwnerRealtimeNotifier
+                                          .openNotificationSettings();
+                                    },
+                                    icon: const Icon(
+                                      Icons.volume_up_rounded,
+                                      size: 15,
+                                      color: AppColors.menuAmberIcon,
+                                    ),
+                                    label: const Text(
+                                      "Atur Suara & Layar Kunci",
+                                      style: TextStyle(
+                                        color: AppColors.menuAmberIcon,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ),
+                                  TextButton.icon(
+                                    onPressed: () async {
+                                      final ok = await OwnerRealtimeNotifier()
+                                          .sendTestNotification();
+                                      if (!mounted) return;
+                                      AppNotification.show(
+                                        context,
+                                        message: ok
+                                            ? "Notifikasi percobaan dikirim dengan suara & getar!"
+                                            : "Pastikan izin notifikasi aplikasi sudah diizinkan di pengaturan HP.",
+                                        type: ok
+                                            ? AppNotificationType.success
+                                            : AppNotificationType.warning,
+                                      );
+                                    },
+                                    icon: const Icon(
+                                      Icons.send_rounded,
+                                      size: 15,
+                                      color: AppColors.primaryNavy,
+                                    ),
+                                    label: const Text(
+                                      "Tes Notifikasi",
+                                      style: TextStyle(
+                                        color: AppColors.primaryNavy,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ],

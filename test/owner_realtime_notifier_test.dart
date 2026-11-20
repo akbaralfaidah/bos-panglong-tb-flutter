@@ -165,6 +165,19 @@ void main() {
         isFalse,
       );
     });
+
+    test('buildFcmTokenDocId menghasilkan ID Firestore aman dan stabil untuk token panjang', () {
+      const longToken =
+          'fcmToken1234567890:APA91bF_veryLongFirebaseCloudMessagingTokenExample_XYZ9876543210_end';
+      final docId = OwnerTransactionAlertPolicy.buildFcmTokenDocId(longToken);
+      expect(docId.length, lessThanOrEqualTo(49));
+      expect(docId.contains(':'), isFalse);
+      expect(docId.contains('/'), isFalse);
+      expect(
+        OwnerTransactionAlertPolicy.buildFcmTokenDocId(longToken),
+        equals(docId),
+      );
+    });
   });
 
   group('ProfitFirebaseDataSource.buildProfitSummaryFromMaps - Sinkronisasi Real-Time Profit', () {

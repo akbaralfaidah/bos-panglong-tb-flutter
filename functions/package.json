@@ -1,0 +1,12 @@
+{
+  "name": "bos-panglong-owner-push",
+  "description": "Cloud Function push FCM khusus Pemilik Toko (Android & iOS) saat kasir transaksi",
+  "engines": {
+    "node": "20"
+  },
+  "main": "index.js",
+  "dependencies": {
+    "firebase-admin": "^13.0.0",
+    "firebase-functions": "^6.0.0"
+  }
+}
