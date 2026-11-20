@@ -39,6 +39,10 @@ class ProductController {
     );
   }
 
+  Future<void> resetReservedStockToZero(Product product) async {
+    await _productDS.resetReservedStockToZero(product);
+  }
+
   // 🔥 UPDATE: MENDUKUNG TANGGAL CUSTOM & AUDIT FIELDS 🔥
   Future<void> addStockLog(
     int pid,

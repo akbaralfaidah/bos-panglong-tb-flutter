@@ -64,11 +64,29 @@ class ProductFirebaseDataSource {
           if (data[key] != null) data[key] = (data[key] as num).toInt();
         });
 
+        double parsedStock = 0.0;
         if (data['stock'] != null) {
-          data['stock'] = (data['stock'] as num).toDouble();
+          parsedStock = (data['stock'] as num).toDouble();
+          data['stock'] = parsedStock;
         }
+        double parsedReserved = 0.0;
         if (data['reserved_stock'] != null) {
-          data['reserved_stock'] = (data['reserved_stock'] as num).toDouble();
+          parsedReserved = (data['reserved_stock'] as num).toDouble();
+          if (parsedReserved < 0) {
+            // Self-heal data lama dengan reserved_stock negatif (mis. -1 Sak)
+            // tanpa mengubah jumlah Fisik Depot aktual (fisik = stock + reserved).
+            final double actualPhysical = double.parse(
+              (parsedStock + parsedReserved).toStringAsFixed(2),
+            );
+            data['reserved_stock'] = 0.0;
+            data['stock'] = actualPhysical;
+            _col('products').doc(doc.id).set({
+              'reserved_stock': 0.0,
+              'stock': actualPhysical,
+            }, SetOptions(merge: true)).catchError((_) {});
+          } else {
+            data['reserved_stock'] = parsedReserved;
+          }
         } else {
           data['reserved_stock'] = 0.0;
         }
@@ -305,6 +323,42 @@ class ProductFirebaseDataSource {
         stokSesudah: newPhysicalStock,
       );
     }
+  }
+
+  /// Sinkronisasi / reset catatan `reserved_stock` menjadi 0 tanpa mengubah Fisik Depot aktual.
+  /// Berguna untuk membersihkan sisa titipan hantu/yatim ketika semua nota titipan sudah selesai.
+  Future<void> resetReservedStockToZero(Product product) async {
+    if (product.id == null) {
+      throw Exception('ID produk tidak valid untuk reset titipan.');
+    }
+    final DocumentReference docRef = _col('products').doc(product.id.toString());
+    double latestStock = product.stock;
+    double latestReserved = product.reservedStock;
+
+    try {
+      DocumentSnapshot snap;
+      try {
+        snap = await docRef
+            .get(const GetOptions(source: Source.server))
+            .timeout(const Duration(seconds: 4));
+      } catch (_) {
+        snap = await docRef.get(const GetOptions(source: Source.cache));
+      }
+      if (snap.exists && snap.data() != null) {
+        final Map<String, dynamic> data = snap.data() as Map<String, dynamic>;
+        latestStock = (data['stock'] as num?)?.toDouble() ?? product.stock;
+        latestReserved =
+            (data['reserved_stock'] as num?)?.toDouble() ?? product.reservedStock;
+      }
+    } catch (_) {}
+
+    final double actualPhysical = double.parse(
+      (latestStock + latestReserved).toStringAsFixed(2),
+    );
+    await docRef.set({
+      'reserved_stock': 0.0,
+      'stock': actualPhysical,
+    }, SetOptions(merge: true));
   }
 
   // 🔥 UPDATE: MENDUKUNG TANGGAL CUSTOM (exactDate) & AUDIT FIELDS (modal/stok sebelum & sesudah) 🔥

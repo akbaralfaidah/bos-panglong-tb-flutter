@@ -100,6 +100,7 @@ class PrinterHelper {
   }
 
   /// Menangkap [RepaintBoundary] secara stabil setelah layout & paint frame benar-benar selesai.
+  /// Aman di mode Debug maupun Release (tidak pernah memanggil properti `debug*`).
   /// Saat [forPrint] = true, pixelRatio dihitung otomatis agar pas 1:1 dengan lebar dot printer
   /// baik di HP maupun Tablet.
   static Future<Uint8List?> captureBoundaryPng(
@@ -107,19 +108,25 @@ class PrinterHelper {
     bool forPrint = true,
     double sharePixelRatio = 3.0,
   }) async {
-    await WidgetsBinding.instance.endOfFrame;
-    await Future.delayed(const Duration(milliseconds: 60));
+    final WidgetsBinding binding = WidgetsBinding.instance;
+    binding.scheduleFrame();
+    await binding.endOfFrame;
+    await Future.delayed(const Duration(milliseconds: 50));
 
-    RenderRepaintBoundary? boundary =
-        boundaryKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
-    if (boundary == null) return null;
-
-    if (boundary.debugNeedsPaint) {
-      await WidgetsBinding.instance.endOfFrame;
-      await Future.delayed(const Duration(milliseconds: 40));
+    RenderRepaintBoundary? boundary;
+    for (int attempt = 0; attempt < 4; attempt++) {
       boundary =
           boundaryKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
-      if (boundary == null) return null;
+      if (boundary != null && boundary.hasSize && !boundary.size.isEmpty) {
+        break;
+      }
+      binding.scheduleFrame();
+      await binding.endOfFrame;
+      await Future.delayed(const Duration(milliseconds: 40));
+    }
+    if (boundary == null || !boundary.hasSize || boundary.size.isEmpty) {
+      debugPrint('captureBoundaryPng: RenderRepaintBoundary tidak ditemukan / ukuran kosong.');
+      return null;
     }
 
     double pixelRatio = sharePixelRatio;
@@ -131,7 +138,29 @@ class PrinterHelper {
       );
     }
 
-    final ui.Image image = await boundary.toImage(pixelRatio: pixelRatio);
+    ui.Image? image;
+    Object? lastError;
+    for (int attempt = 0; attempt < 3; attempt++) {
+      final RenderRepaintBoundary? activeBoundary = boundary;
+      if (activeBoundary == null) break;
+      try {
+        image = await activeBoundary.toImage(pixelRatio: pixelRatio);
+        break;
+      } catch (e) {
+        lastError = e;
+        binding.scheduleFrame();
+        await binding.endOfFrame;
+        await Future.delayed(const Duration(milliseconds: 60));
+        boundary =
+            boundaryKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+      }
+    }
+
+    if (image == null) {
+      debugPrint('captureBoundaryPng gagal toImage: $lastError');
+      return null;
+    }
+
     try {
       final ByteData? byteData = await image.toByteData(
         format: ui.ImageByteFormat.png,

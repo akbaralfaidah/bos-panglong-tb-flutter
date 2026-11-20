@@ -34,6 +34,27 @@ class Product {
   }) =>
       double.parse((targetPhysical - reservedStock).toStringAsFixed(2));
 
+  /// Mengurangi jumlah titipan secara aman agar tidak pernah jatuh di bawah 0.
+  static double clampReleasedReservedStock({
+    required double currentReserved,
+    required double releaseQty,
+  }) {
+    final double safeCurrent = currentReserved < 0 ? 0.0 : currentReserved;
+    final double safeRelease = releaseQty < 0 ? 0.0 : releaseQty;
+    final double next = safeCurrent - safeRelease;
+    return next <= 0.001 ? 0.0 : double.parse(next.toStringAsFixed(2));
+  }
+
+  /// Menghitung nilai `reserved_stock` baru dari perubahan delta (bisa positif/negatif) tanpa pernah negatif.
+  static double clampReservedStockDelta({
+    required double currentReserved,
+    required double delta,
+  }) {
+    final double safeCurrent = currentReserved < 0 ? 0.0 : currentReserved;
+    final double next = safeCurrent + delta;
+    return next <= 0.001 ? 0.0 : double.parse(next.toStringAsFixed(2));
+  }
+
   static String _formatCleanDouble(double value) {
     final double normalized = value == 0 ? 0.0 : value;
     if (normalized == normalized.roundToDouble()) {

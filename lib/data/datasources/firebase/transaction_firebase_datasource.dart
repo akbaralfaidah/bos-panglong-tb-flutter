@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../helpers/session_manager.dart';
+import '../../../models/product.dart';
 
 class TransactionFirebaseDataSource {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -43,6 +44,25 @@ class TransactionFirebaseDataSource {
         ? (item['delivered_qty'] as num).toDouble()
         : qty; // backward compatibility: transaksi lama dianggap sudah diantar
     return double.parse((qty - delivered).clamp(0.0, qty).toStringAsFixed(2));
+  }
+
+  Future<double> _readCurrentReservedStock(String productId) async {
+    final docRef = _col('products').doc(productId);
+    try {
+      DocumentSnapshot snap;
+      try {
+        snap = await docRef
+            .get(const GetOptions(source: Source.server))
+            .timeout(const Duration(seconds: 3));
+      } catch (_) {
+        snap = await docRef.get(const GetOptions(source: Source.cache));
+      }
+      if (snap.exists && snap.data() != null) {
+        final data = snap.data() as Map<String, dynamic>;
+        return (data['reserved_stock'] as num?)?.toDouble() ?? 0.0;
+      }
+    } catch (_) {}
+    return 0.0;
   }
 
   Future<void> payDebt(int transId, int amount, String note) async {
@@ -113,28 +133,57 @@ class TransactionFirebaseDataSource {
        }
     }
 
+    Map<String, double> stockRestoreByProduct = {};
+    Map<String, double> modalReverseByProduct = {};
+    Map<String, double> undeliveredByProduct = {};
+
     for (var item in dbItems) {
       if (item['product_id'] != null && item['quantity'] != null) {
-        double qtyToRestore = (item['quantity'] as num).toDouble();
-        double capTotal = _getItemCapitalTotal(item);
-        double undeliveredToRelease = _getUndeliveredQty(item);
+        final String pid = item['product_id'].toString();
+        final double qtyToRestore = (item['quantity'] as num).toDouble();
+        final double capTotal = _getItemCapitalTotal(item);
+        final double undeliveredToRelease = _getUndeliveredQty(item);
 
-        DocumentReference prodRef = _col('products').doc(item['product_id'].toString());
-        
-        Map<String, dynamic> updateMap = {};
         if (!isLegacyTitipan || deductedFromStock) {
-          updateMap['stock'] = FieldValue.increment(qtyToRestore);
+          stockRestoreByProduct[pid] =
+              (stockRestoreByProduct[pid] ?? 0.0) + qtyToRestore;
         }
         if (wasLunas && !isLegacyTitipan && capTotal > 0) {
-          // KARENA BATAL JUAL, DUIT MODAL DITARIK LAGI BIAR GAK MINUS! (-)
-          updateMap['modal_cair'] = FieldValue.increment(-capTotal);
+          modalReverseByProduct[pid] =
+              (modalReverseByProduct[pid] ?? 0.0) + capTotal;
         }
         if (undeliveredToRelease > 0) {
-          updateMap['reserved_stock'] = FieldValue.increment(-undeliveredToRelease);
+          undeliveredByProduct[pid] =
+              (undeliveredByProduct[pid] ?? 0.0) + undeliveredToRelease;
         }
-        if (updateMap.isNotEmpty) {
-          batch.set(prodRef, updateMap, SetOptions(merge: true));
-        }
+      }
+    }
+
+    final Set<String> affectedProductIds = {
+      ...stockRestoreByProduct.keys,
+      ...modalReverseByProduct.keys,
+      ...undeliveredByProduct.keys,
+    };
+
+    for (final pid in affectedProductIds) {
+      final DocumentReference prodRef = _col('products').doc(pid);
+      final Map<String, dynamic> updateMap = {};
+      if (stockRestoreByProduct.containsKey(pid)) {
+        updateMap['stock'] = FieldValue.increment(stockRestoreByProduct[pid]!);
+      }
+      if (modalReverseByProduct.containsKey(pid)) {
+        // KARENA BATAL JUAL, DUIT MODAL DITARIK LAGI BIAR GAK MINUS! (-)
+        updateMap['modal_cair'] = FieldValue.increment(-modalReverseByProduct[pid]!);
+      }
+      if (undeliveredByProduct.containsKey(pid)) {
+        final double currentReserved = await _readCurrentReservedStock(pid);
+        updateMap['reserved_stock'] = Product.clampReleasedReservedStock(
+          currentReserved: currentReserved,
+          releaseQty: undeliveredByProduct[pid]!,
+        );
+      }
+      if (updateMap.isNotEmpty) {
+        batch.set(prodRef, updateMap, SetOptions(merge: true));
       }
     }
 
@@ -163,45 +212,77 @@ class TransactionFirebaseDataSource {
 
     bool isNowLunas = (updatedTransData['payment_status'] ?? '').toString().toLowerCase() == 'lunas';
 
+    // Gabungkan selisih stok, modal_cair, dan reserved_stock per produk agar 1x write per doc & reserved_stock >= 0
+    final Map<String, double> stockDeltaByProduct = {};
+    final Map<String, double> modalDeltaByProduct = {};
+    final Map<String, double> reservedDeltaByProduct = {};
+
     // 1. REVERSE OLD ITEMS (Kembalikan stok, lepas titipan lama, & tarik modal)
     for (var item in oldItems) {
       if (item['product_id'] != null && item['quantity'] != null) {
-        double qtyToRestore = (item['quantity'] as num).toDouble();
-        double capTotal = _getItemCapitalTotal(item);
-        double oldUndelivered = _getUndeliveredQty(item);
-        DocumentReference prodRef = _col('products').doc(item['product_id'].toString());
-        
-        Map<String, dynamic> reverseMap = {
-          'stock': FieldValue.increment(qtyToRestore),
-        };
+        final String pid = item['product_id'].toString();
+        final double qtyToRestore = (item['quantity'] as num).toDouble();
+        final double capTotal = _getItemCapitalTotal(item);
+        final double oldUndelivered = _getUndeliveredQty(item);
+
+        stockDeltaByProduct[pid] = (stockDeltaByProduct[pid] ?? 0.0) + qtyToRestore;
         if (wasLunas && capTotal > 0) {
-          reverseMap['modal_cair'] = FieldValue.increment(-capTotal);
+          modalDeltaByProduct[pid] = (modalDeltaByProduct[pid] ?? 0.0) - capTotal;
         }
         if (oldUndelivered > 0) {
-          reverseMap['reserved_stock'] = FieldValue.increment(-oldUndelivered);
+          reservedDeltaByProduct[pid] =
+              (reservedDeltaByProduct[pid] ?? 0.0) - oldUndelivered;
         }
-        batch.set(prodRef, reverseMap, SetOptions(merge: true));
       }
     }
 
     // 2. APPLY NEW ITEMS (Potong stok, tambah titipan baru, & tambah modal)
     for (var item in newItems) {
       if (item['product_id'] != null && item['quantity'] != null) {
-        double qtyToDeduct = (item['quantity'] as num).toDouble();
-        double capTotal = _getItemCapitalTotal(item);
-        double newUndelivered = _getUndeliveredQty(item);
-        DocumentReference prodRef = _col('products').doc(item['product_id'].toString());
-        
-        Map<String, dynamic> applyMap = {
-          'stock': FieldValue.increment(-qtyToDeduct),
-        };
+        final String pid = item['product_id'].toString();
+        final double qtyToDeduct = (item['quantity'] as num).toDouble();
+        final double capTotal = _getItemCapitalTotal(item);
+        final double newUndelivered = _getUndeliveredQty(item);
+
+        stockDeltaByProduct[pid] = (stockDeltaByProduct[pid] ?? 0.0) - qtyToDeduct;
         if (isNowLunas && capTotal > 0) {
-          applyMap['modal_cair'] = FieldValue.increment(capTotal);
+          modalDeltaByProduct[pid] = (modalDeltaByProduct[pid] ?? 0.0) + capTotal;
         }
         if (newUndelivered > 0) {
-          applyMap['reserved_stock'] = FieldValue.increment(newUndelivered);
+          reservedDeltaByProduct[pid] =
+              (reservedDeltaByProduct[pid] ?? 0.0) + newUndelivered;
         }
-        batch.set(prodRef, applyMap, SetOptions(merge: true));
+      }
+    }
+
+    final Set<String> affectedProductIds = {
+      ...stockDeltaByProduct.keys,
+      ...modalDeltaByProduct.keys,
+      ...reservedDeltaByProduct.keys,
+    };
+
+    for (final pid in affectedProductIds) {
+      final DocumentReference prodRef = _col('products').doc(pid);
+      final Map<String, dynamic> updateMap = {};
+      final double stockDelta = stockDeltaByProduct[pid] ?? 0.0;
+      final double modalDelta = modalDeltaByProduct[pid] ?? 0.0;
+      final double reservedDelta = reservedDeltaByProduct[pid] ?? 0.0;
+
+      if (stockDelta.abs() > 0.0001) {
+        updateMap['stock'] = FieldValue.increment(stockDelta);
+      }
+      if (modalDelta.abs() > 0.0001) {
+        updateMap['modal_cair'] = FieldValue.increment(modalDelta);
+      }
+      if (reservedDelta.abs() > 0.0001) {
+        final double currentReserved = await _readCurrentReservedStock(pid);
+        updateMap['reserved_stock'] = Product.clampReservedStockDelta(
+          currentReserved: currentReserved,
+          delta: reservedDelta,
+        );
+      }
+      if (updateMap.isNotEmpty) {
+        batch.set(prodRef, updateMap, SetOptions(merge: true));
       }
     }
 
@@ -290,8 +371,13 @@ class TransactionFirebaseDataSource {
     }
 
     for (var entry in releaseByProduct.entries) {
+      final double currentReserved = await _readCurrentReservedStock(entry.key);
+      final double nextReserved = Product.clampReleasedReservedStock(
+        currentReserved: currentReserved,
+        releaseQty: entry.value,
+      );
       batch.set(_col('products').doc(entry.key), {
-        'reserved_stock': FieldValue.increment(-entry.value),
+        'reserved_stock': nextReserved,
       }, SetOptions(merge: true));
     }
 

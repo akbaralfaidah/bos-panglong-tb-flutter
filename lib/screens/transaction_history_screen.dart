@@ -4,7 +4,9 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../theme/app_colors.dart';
 import '../theme/glass_widgets.dart';
 import '../controllers/transaction_history_controller.dart';
+import '../helpers/employee_access_policy.dart';
 import '../helpers/search_helper.dart';
+import '../helpers/session_manager.dart';
 import 'transaction_detail_screen.dart';
 import 'legacy_titipan_sheet.dart';
 
@@ -41,17 +43,29 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> wit
   int _totalBensin = 0; 
 
   late String _selectedFilter;
-  
-  final List<String> _filters = ['Hari Ini', 'Kemarin', '7 Hari', 'Bulan Ini', 'Semua', 'Pilih Tanggal'];
+  bool get _isOwner => SessionManager().isOwner;
+
+  List<String> get _filters =>
+      EmployeeAccessPolicy.allowedHistoryFilters(isOwner: _isOwner);
 
   @override
   void initState() {
     super.initState();
-    _selectedFilter = widget.initialTabIndex == 2 ? 'Semua' : 'Hari Ini';
+    _selectedFilter = EmployeeAccessPolicy.resolveHistoryFilter(
+      isOwner: _isOwner,
+      tabIndex: widget.initialTabIndex,
+      requestedFilter: widget.initialTabIndex == 2 ? 'Semua' : 'Hari Ini',
+    );
     _tabController = TabController(length: 3, vsync: this, initialIndex: widget.initialTabIndex);
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging) {
-        if (_tabController.index == 2 && _selectedFilter == 'Hari Ini') {
+        if (!_isOwner) {
+          _selectedFilter = EmployeeAccessPolicy.resolveHistoryFilter(
+            isOwner: false,
+            tabIndex: _tabController.index,
+            requestedFilter: 'Hari Ini',
+          );
+        } else if (_tabController.index == 2 && _selectedFilter == 'Hari Ini') {
           _selectedFilter = 'Semua';
         }
         _fetchData();
@@ -73,8 +87,15 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> wit
     String tabType = 'LUNAS';
     if (_tabController.index == 1) tabType = 'HUTANG';
     if (_tabController.index == 2) tabType = 'TITIPAN';
+
+    final String effectiveFilter = EmployeeAccessPolicy.resolveHistoryFilter(
+      isOwner: _isOwner,
+      tabIndex: _tabController.index,
+      requestedFilter: _selectedFilter,
+    );
+    _selectedFilter = effectiveFilter;
     
-    final data = await _controller.getTransactions(tabType, _selectedFilter);
+    final data = await _controller.getTransactions(tabType, effectiveFilter);
     
     if (mounted) {
       setState(() { 
@@ -208,16 +229,29 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> wit
     int totalNominal = currentKayu + currentBgn + currentBensin;
 
     String summaryTitle = _tabController.index == 0
-        ? "Total Omset Masuk"
-        : (_tabController.index == 1 ? "Total Piutang Berjalan" : "Total Nilai Titipan");
+        ? (_isOwner ? "Total Omset Masuk" : "Omset Hari Ini")
+        : (_tabController.index == 1
+            ? (_isOwner ? "Total Piutang Berjalan" : "Piutang Hari Ini")
+            : "Total Nilai Titipan");
     Color summaryColor = _tabController.index == 0
         ? AppColors.menuBlueIcon
         : (_tabController.index == 1 ? AppColors.statusRed : AppColors.menuAmberIcon);
+    final bool canInputTitipan =
+        EmployeeAccessPolicy.canInputLegacyTitipan(isOwner: _isOwner);
+    final bool canBrowseDates =
+        EmployeeAccessPolicy.canBrowseAllHistoryDates(isOwner: _isOwner);
+    final bool showMonetarySummary = EmployeeAccessPolicy.shouldShowMonetarySummary(
+      isOwner: _isOwner,
+      tabIndex: _tabController.index,
+    );
 
     return Scaffold(
       backgroundColor: AppColors.liquidBackground,
       appBar: AppBar(
-        title: const Text("Riwayat Omset & Penjualan", style: TextStyle(color: AppColors.pureWhite, fontWeight: FontWeight.bold)),
+        title: Text(
+          _isOwner ? "Riwayat Omset & Penjualan" : "Riwayat Nota Hari Ini",
+          style: const TextStyle(color: AppColors.pureWhite, fontWeight: FontWeight.bold),
+        ),
         backgroundColor: AppColors.navyGlassStart,
         flexibleSpace: Container(
           decoration: const BoxDecoration(
@@ -231,20 +265,21 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> wit
         iconTheme: const IconThemeData(color: AppColors.pureWhite),
         elevation: 0,
         actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 10),
-            child: TextButton.icon(
-              onPressed: () async {
-                final saved = await showLegacyTitipanDialog(context);
-                if (saved == true) _fetchData();
-              },
-              icon: const Icon(LucideIcons.circlePlus, color: AppColors.accentGold, size: 17),
-              label: const Text(
-                "Titipan Lama",
-                style: TextStyle(color: AppColors.accentGold, fontWeight: FontWeight.bold, fontSize: 12),
+          if (canInputTitipan)
+            Padding(
+              padding: const EdgeInsets.only(right: 10),
+              child: TextButton.icon(
+                onPressed: () async {
+                  final saved = await showLegacyTitipanDialog(context);
+                  if (saved == true) _fetchData();
+                },
+                icon: const Icon(LucideIcons.circlePlus, color: AppColors.accentGold, size: 17),
+                label: const Text(
+                  "Titipan Lama",
+                  style: TextStyle(color: AppColors.accentGold, fontWeight: FontWeight.bold, fontSize: 12),
+                ),
               ),
             ),
-          ),
         ],
         bottom: TabBar(
           controller: _tabController,
@@ -256,7 +291,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> wit
           ],
         ),
       ),
-      floatingActionButton: _tabController.index == 2
+      floatingActionButton: canInputTitipan && _tabController.index == 2
           ? FloatingActionButton.extended(
               backgroundColor: AppColors.menuAmberIcon,
               onPressed: () async {
@@ -281,52 +316,87 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> wit
                 maxWidth: 960,
                 child: Column(
                   children: [
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                      child: Row(
-                        children: _filters.map((filter) {
-                          bool isSelected = false;
-                          String displayLabel = filter;
+                    if (canBrowseDates)
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                        child: Row(
+                          children: _filters.map((filter) {
+                            bool isSelected = false;
+                            String displayLabel = filter;
 
-                          if (filter == 'Pilih Tanggal') {
-                            if (_selectedFilter.startsWith('CUSTOM|')) {
-                              isSelected = true;
-                              var parts = _selectedFilter.split('|');
-                              displayLabel = "${_shortDateFmt.format(DateTime.parse(parts[1]))} - ${_shortDateFmt.format(DateTime.parse(parts[2]))}";
+                            if (filter == 'Pilih Tanggal') {
+                              if (_selectedFilter.startsWith('CUSTOM|')) {
+                                isSelected = true;
+                                var parts = _selectedFilter.split('|');
+                                displayLabel = "${_shortDateFmt.format(DateTime.parse(parts[1]))} - ${_shortDateFmt.format(DateTime.parse(parts[2]))}";
+                              }
+                            } else {
+                              isSelected = _selectedFilter == filter;
                             }
-                          } else {
-                            isSelected = _selectedFilter == filter;
-                          }
 
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 10),
-                            child: InkWell(
-                              onTap: () {
-                                if (filter == 'Pilih Tanggal') {
-                                  _pickDateRange();
-                                } else {
-                                  setState(() => _selectedFilter = filter);
-                                  _fetchData();
-                                }
-                              },
-                              borderRadius: BorderRadius.circular(22),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                decoration: AppColors.glassFilterPill(isSelected: isSelected),
-                                child: Row(
-                                  children: [
-                                    if (isSelected && filter != 'Pilih Tanggal') const Padding(padding: EdgeInsets.only(right: 6), child: Icon(LucideIcons.check, color: AppColors.primaryNavy, size: 15)),
-                                    if (filter == 'Pilih Tanggal') Padding(padding: EdgeInsets.only(right: 6), child: Icon(LucideIcons.calendar, color: isSelected ? AppColors.primaryNavy : Colors.white70, size: 15)),
-                                    Text(displayLabel, style: TextStyle(color: isSelected ? AppColors.primaryNavy : Colors.white70, fontWeight: FontWeight.bold, fontSize: 13)),
-                                  ],
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 10),
+                              child: InkWell(
+                                onTap: () {
+                                  if (filter == 'Pilih Tanggal') {
+                                    _pickDateRange();
+                                  } else {
+                                    setState(() => _selectedFilter = filter);
+                                    _fetchData();
+                                  }
+                                },
+                                borderRadius: BorderRadius.circular(22),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                  decoration: AppColors.glassFilterPill(isSelected: isSelected),
+                                  child: Row(
+                                    children: [
+                                      if (isSelected && filter != 'Pilih Tanggal') const Padding(padding: EdgeInsets.only(right: 6), child: Icon(LucideIcons.check, color: AppColors.primaryNavy, size: 15)),
+                                      if (filter == 'Pilih Tanggal') Padding(padding: EdgeInsets.only(right: 6), child: Icon(LucideIcons.calendar, color: isSelected ? AppColors.primaryNavy : Colors.white70, size: 15)),
+                                      Text(displayLabel, style: TextStyle(color: isSelected ? AppColors.primaryNavy : Colors.white70, fontWeight: FontWeight.bold, fontSize: 13)),
+                                    ],
+                                  ),
                                 ),
                               ),
+                            );
+                          }).toList(),
+                        ),
+                      )
+                    else
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                            decoration: AppColors.glassFilterPill(isSelected: true),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  _tabController.index == 2
+                                      ? LucideIcons.warehouse
+                                      : LucideIcons.lock,
+                                  color: AppColors.primaryNavy,
+                                  size: 14,
+                                ),
+                                const SizedBox(width: 7),
+                                Text(
+                                  _tabController.index == 2
+                                      ? "Titipan Aktif (Belum Diantar)"
+                                      : "Hari Ini • Mode Kasir",
+                                  style: const TextStyle(
+                                    color: AppColors.primaryNavy,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12.5,
+                                  ),
+                                ),
+                              ],
                             ),
-                          );
-                        }).toList(),
+                          ),
+                        ),
                       ),
-                    ),
                     const SizedBox(height: 10),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -368,70 +438,123 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> wit
                     child: GlassContainer(
                       borderRadius: 20,
                       padding: const EdgeInsets.all(20),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: Column(
+                      child: showMonetarySummary
+                          ? Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(summaryTitle, style: const TextStyle(color: AppColors.textGrey, fontSize: 12, fontWeight: FontWeight.bold)),
-                                const SizedBox(height: 5),
-                                AnimatedMoneyText(
-                                  value: totalNominal,
-                                  style: TextStyle(color: summaryColor, fontSize: 22, fontWeight: FontWeight.w900),
-                                ),
-                                const SizedBox(height: 8),
-                                Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(color: summaryColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
+                                Expanded(
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(LucideIcons.trees, size: 12, color: summaryColor),
-                                          const SizedBox(width: 5),
-                                          Text("Kayu: ${_formatRp(currentKayu)}", style: TextStyle(fontSize: 10, color: summaryColor, fontWeight: FontWeight.bold)),
-                                        ],
+                                      Text(summaryTitle, style: const TextStyle(color: AppColors.textGrey, fontSize: 12, fontWeight: FontWeight.bold)),
+                                      const SizedBox(height: 5),
+                                      AnimatedMoneyText(
+                                        value: totalNominal,
+                                        style: TextStyle(color: summaryColor, fontSize: 22, fontWeight: FontWeight.w900),
                                       ),
-                                      const SizedBox(height: 3),
-                                      Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(LucideIcons.brickWall, size: 12, color: summaryColor),
-                                          const SizedBox(width: 5),
-                                          Text("Bgn : ${_formatRp(currentBgn)}", style: TextStyle(fontSize: 10, color: summaryColor, fontWeight: FontWeight.bold)),
-                                        ],
+                                      const SizedBox(height: 8),
+                                      Container(
+                                        padding: const EdgeInsets.all(8),
+                                        decoration: BoxDecoration(color: summaryColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(LucideIcons.trees, size: 12, color: summaryColor),
+                                                const SizedBox(width: 5),
+                                                Text("Kayu: ${_formatRp(currentKayu)}", style: TextStyle(fontSize: 10, color: summaryColor, fontWeight: FontWeight.bold)),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 3),
+                                            Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(LucideIcons.brickWall, size: 12, color: summaryColor),
+                                                const SizedBox(width: 5),
+                                                Text("Bgn : ${_formatRp(currentBgn)}", style: TextStyle(fontSize: 10, color: summaryColor, fontWeight: FontWeight.bold)),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 3),
+                                            Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(LucideIcons.fuel, size: 12, color: summaryColor),
+                                                const SizedBox(width: 5),
+                                                Text("Bensin: ${_formatRp(currentBensin)}", style: TextStyle(fontSize: 10, color: summaryColor, fontWeight: FontWeight.bold)),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
+                                      )
+                                    ],
+                                  ),
+                                ),
+                                Container(height: 80, width: 1, color: Colors.grey.shade300),
+                                const SizedBox(width: 15),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    const Text("Total Transaksi", style: TextStyle(color: AppColors.textGrey, fontSize: 12, fontWeight: FontWeight.bold)),
+                                    const SizedBox(height: 5),
+                                    Text("${displayedList.length} Nota", style: const TextStyle(color: AppColors.primaryNavy, fontSize: 18, fontWeight: FontWeight.w900)),
+                                  ],
+                                ),
+                              ],
+                            )
+                          : Row(
+                              children: [
+                                const GlassIconBadge(
+                                  icon: LucideIcons.warehouse,
+                                  iconColor: AppColors.menuAmberIcon,
+                                  bgColor: AppColors.menuAmberBg,
+                                  size: 46,
+                                  iconSize: 22,
+                                  radius: 14,
+                                ),
+                                const SizedBox(width: 14),
+                                const Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        "Daftar Barang Titipan Aktif",
+                                        style: TextStyle(
+                                          color: AppColors.primaryNavy,
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w800,
+                                        ),
                                       ),
-                                      const SizedBox(height: 3),
-                                      Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(LucideIcons.fuel, size: 12, color: summaryColor),
-                                          const SizedBox(width: 5),
-                                          Text("Bensin: ${_formatRp(currentBensin)}", style: TextStyle(fontSize: 10, color: summaryColor, fontWeight: FontWeight.bold)),
-                                        ],
+                                      SizedBox(height: 3),
+                                      Text(
+                                        "Ketuk nota untuk mencatat pengambilan / pengantaran barang",
+                                        style: TextStyle(
+                                          color: AppColors.textGrey,
+                                          fontSize: 11.5,
+                                        ),
                                       ),
                                     ],
                                   ),
-                                )
+                                ),
+                                const SizedBox(width: 10),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.menuAmberBg,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text(
+                                    "${displayedList.length} Nota",
+                                    style: const TextStyle(
+                                      color: AppColors.menuAmberIcon,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                ),
                               ],
                             ),
-                          ),
-                          Container(height: 80, width: 1, color: Colors.grey.shade300),
-                          const SizedBox(width: 15),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              const Text("Total Transaksi", style: TextStyle(color: AppColors.textGrey, fontSize: 12, fontWeight: FontWeight.bold)),
-                              const SizedBox(height: 5),
-                              Text("${displayedList.length} Nota", style: const TextStyle(color: AppColors.primaryNavy, fontSize: 18, fontWeight: FontWeight.w900)),
-                            ],
-                          ),
-                        ],
-                      ),
                     ),
                   ),
                 ),

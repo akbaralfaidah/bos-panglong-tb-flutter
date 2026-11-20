@@ -9,6 +9,7 @@ import '../data/datasources/firebase/core_firebase_datasource.dart';
 import '../data/datasources/firebase/employee_firebase_datasource.dart';
 import '../controllers/dashboard_controller.dart';
 import '../helpers/app_notification.dart';
+import '../helpers/employee_access_policy.dart';
 import '../helpers/session_manager.dart';
 import '../theme/app_colors.dart';
 import '../theme/glass_widgets.dart';
@@ -492,33 +493,46 @@ class _DashboardScreenState extends State<DashboardScreen>
                           pillTextColor: AppColors.menuTealIcon,
                         ),
                         const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _wondrMenuBtnWide(
-                                "Kasir",
-                                "Transaksi & Cetak Struk",
-                                LucideIcons.calculator,
-                                const Color(0xFF2563EB),
-                                const Color(0xFF3B82F6),
-                                "Buka Kasir",
-                                () => _nav(const CashierScreen()),
+                        if (EmployeeAccessPolicy.canAccessWarehouse(
+                          isOwner: _isOwner,
+                        ))
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _wondrMenuBtnWide(
+                                  "Kasir",
+                                  "Transaksi & Cetak Struk",
+                                  LucideIcons.calculator,
+                                  const Color(0xFF2563EB),
+                                  const Color(0xFF3B82F6),
+                                  "Buka Kasir",
+                                  () => _nav(const CashierScreen()),
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: _wondrMenuBtnWide(
-                                "Gudang",
-                                "Stok, Modal & Harga",
-                                LucideIcons.package,
-                                const Color(0xFF059669),
-                                const Color(0xFF10B981),
-                                "Kelola Stok",
-                                () => _nav(const ProductListScreen()),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _wondrMenuBtnWide(
+                                  "Gudang",
+                                  "Stok, Modal & Harga",
+                                  LucideIcons.package,
+                                  const Color(0xFF059669),
+                                  const Color(0xFF10B981),
+                                  "Kelola Stok",
+                                  () => _nav(const ProductListScreen()),
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
+                            ],
+                          )
+                        else
+                          _wondrMenuBtnWide(
+                            "Kasir",
+                            "Buat Transaksi Penjualan & Cetak Struk",
+                            LucideIcons.calculator,
+                            const Color(0xFF2563EB),
+                            const Color(0xFF3B82F6),
+                            "Buka Kasir",
+                            () => _nav(const CashierScreen()),
+                          ),
                       ],
                     ),
                   ),
@@ -783,45 +797,49 @@ class _DashboardScreenState extends State<DashboardScreen>
                                   ),
                                 ),
                               ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: ElevatedButton.icon(
-                                  onPressed: () async {
-                                    final saved = await showLegacyTitipanDialog(
-                                      context,
-                                    );
-                                    if (saved == true) _refreshStats();
-                                  },
-                                  icon: const Icon(
-                                    LucideIcons.circlePlus,
-                                    size: 16,
-                                    color: Colors.white,
-                                  ),
-                                  label: const FittedBox(
-                                    fit: BoxFit.scaleDown,
-                                    child: Text(
-                                      "Input Titipan Lama",
-                                      maxLines: 1,
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w700,
-                                        color: Colors.white,
+                              if (EmployeeAccessPolicy.canInputLegacyTitipan(
+                                isOwner: _isOwner,
+                              )) ...[
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: ElevatedButton.icon(
+                                    onPressed: () async {
+                                      final saved = await showLegacyTitipanDialog(
+                                        context,
+                                      );
+                                      if (saved == true) _refreshStats();
+                                    },
+                                    icon: const Icon(
+                                      LucideIcons.circlePlus,
+                                      size: 16,
+                                      color: Colors.white,
+                                    ),
+                                    label: const FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      child: Text(
+                                        "Input Titipan Lama",
+                                        maxLines: 1,
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.menuAmberIcon,
+                                      elevation: 0,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 11,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(13),
                                       ),
                                     ),
                                   ),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppColors.menuAmberIcon,
-                                    elevation: 0,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 11,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(13),
-                                    ),
-                                  ),
                                 ),
-                              ),
+                              ],
                             ],
                           ),
                         ],

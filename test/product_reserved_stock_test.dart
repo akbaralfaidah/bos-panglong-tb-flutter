@@ -281,5 +281,36 @@ void main() {
       expect(decimalProd.stockDeficit, equals(0.75));
       expect(decimalProd.stockDeficitDisplay, equals('0.75'));
     });
+
+    test('clampReleasedReservedStock mencegah reserved_stock menjadi negatif (bug -1 Sak Semen Padang)', () {
+      // Skenario normal: 10 sak titipan, diambil 4 sak -> sisa 6 sak
+      expect(
+        Product.clampReleasedReservedStock(currentReserved: 10.0, releaseQty: 4.0),
+        equals(6.0),
+      );
+      // Skenario over-release (penyebab bug -1 Sak): tercatat 0, dilepas 1 -> tetap 0.0 (BUKAN -1.0!)
+      expect(
+        Product.clampReleasedReservedStock(currentReserved: 0.0, releaseQty: 1.0),
+        equals(0.0),
+      );
+      // Skenario data lama korup (-1 Sak) -> otomatis sembuh ke 0.0
+      expect(
+        Product.clampReleasedReservedStock(currentReserved: -1.0, releaseQty: 2.0),
+        equals(0.0),
+      );
+      // Skenario delta edit transaksi tidak pernah menembus negatif
+      expect(
+        Product.clampReservedStockDelta(currentReserved: 3.0, delta: -5.0),
+        equals(0.0),
+      );
+      expect(
+        Product.clampReservedStockDelta(currentReserved: -1.0, delta: 4.0),
+        equals(4.0),
+      );
+      expect(
+        Product.clampReservedStockDelta(currentReserved: 2.5, delta: 1.25),
+        equals(3.75),
+      );
+    });
   });
 }

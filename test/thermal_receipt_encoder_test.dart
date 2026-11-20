@@ -1,11 +1,16 @@
+import 'dart:async';
+import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:bos_panglong_app/helpers/printer_helper.dart';
 import 'package:bos_panglong_app/helpers/thermal_receipt_encoder.dart';
+import 'package:bos_panglong_app/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
+import 'package:shared_preferences/shared_preferences.dart';
 
 Uint8List _makePng(
   int width,
@@ -380,6 +385,131 @@ void main() {
         );
         expect(parsedTablet.bands.every((b) => b.widthBytes == 72), isTrue);
       });
+    });
+
+    test('PrinterHelper source must never call debug* getters (release-mode LateInitializationError guard)', () {
+      final src = File('lib/helpers/printer_helper.dart').readAsStringSync();
+      expect(
+        RegExp(r'\.debug[A-Z]\w*').hasMatch(src),
+        isFalse,
+        reason: 'Calling debug* getters (e.g. debugNeedsPaint) throws LateInitializationError in release APK!',
+      );
+    });
+
+    testWidgets('captureBoundaryPng succeeds across false -> true -> false print toggles without reparent crash',
+        (tester) async {
+      SharedPreferences.setMockInitialValues({'printer_paper_width_mm': 80});
+      tester.view.physicalSize = const Size(1280, 800); // Landscape tablet
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final printKey = GlobalKey();
+      bool isGenerating = false;
+      late StateSetter updateState;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: StatefulBuilder(
+              builder: (context, setState) {
+                updateState = setState;
+                return SingleChildScrollView(
+                  padding: isGenerating ? EdgeInsets.zero : const EdgeInsets.all(16),
+                  child: Container(
+                    padding: isGenerating ? EdgeInsets.zero : const EdgeInsets.all(4),
+                    decoration: isGenerating
+                        ? const BoxDecoration()
+                        : AppColors.liquidGlassCard(radius: 20),
+                    child: RepaintBoundary(
+                      key: printKey,
+                      child: MediaQuery(
+                        data: MediaQuery.of(context).copyWith(
+                          textScaler: TextScaler.linear(isGenerating ? 1.0 : 1.0),
+                        ),
+                        child: Theme(
+                          data: Theme.of(context).copyWith(
+                            textTheme: ThemeData.light().textTheme,
+                          ),
+                          child: Container(
+                            width: isGenerating
+                                ? ThermalReceiptEncoder.receiptLogicalWidth
+                                : double.infinity,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: isGenerating
+                                  ? BorderRadius.zero
+                                  : BorderRadius.circular(16),
+                            ),
+                            child: const Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  'DEPOT KAYU JAYA',
+                                  style: TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.w900,
+                                    color: Colors.black,
+                                  ),
+                                ),
+                                SizedBox(height: 8),
+                                Text(
+                                  'TOTAL: Rp 350.000',
+                                  style: TextStyle(fontSize: 18, color: Colors.black),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Jalankan 2 kali siklus cetak berurutan (false -> true -> capture -> false)
+      for (int cycle = 0; cycle < 2; cycle++) {
+        updateState(() => isGenerating = true);
+        await tester.pump();
+
+        Uint8List? pngBytes;
+        await tester.runAsync(() async {
+          final captureFuture = PrinterHelper.captureBoundaryPng(
+            printKey,
+            forPrint: true,
+          );
+          final pumper = Timer.periodic(
+            const Duration(milliseconds: 16),
+            (_) => tester.binding.scheduleFrame(),
+          );
+          try {
+            // Di TestWidgetsFlutterBinding, pompa frame secara eksplisit sampai selesai
+            while (true) {
+              bool done = false;
+              captureFuture.whenComplete(() => done = true);
+              await tester.pump(const Duration(milliseconds: 20));
+              if (done) break;
+              await Future.delayed(const Duration(milliseconds: 20));
+            }
+            pngBytes = await captureFuture;
+          } finally {
+            pumper.cancel();
+          }
+        });
+
+        expect(pngBytes, isNotNull, reason: 'Cycle $cycle must capture non-null PNG bytes');
+        final decoded = img.decodePng(pngBytes!);
+        expect(decoded, isNotNull);
+        expect(decoded!.width, 576);
+
+        updateState(() => isGenerating = false);
+        await tester.pump();
+      }
     });
   });
 }

@@ -8,6 +8,7 @@ import '../models/product.dart';
 import '../controllers/product_controller.dart';
 import '../controllers/profit_history_controller.dart'; 
 import '../helpers/session_manager.dart';
+import '../helpers/employee_access_policy.dart';
 import 'product_form_screen.dart';
 import 'review_stock_screen.dart';
 import 'product_barcode_screen.dart';
@@ -833,19 +834,59 @@ class _ProductListScreenState extends State<ProductListScreen>
                 ),
         ),
         actions: [
-          ElevatedButton.icon(
-            onPressed: () async {
-              Navigator.pop(ctx);
-              final saved = await showLegacyTitipanDialog(context, initialProduct: p);
-              if (saved == true) _loadProducts();
-            },
-            icon: const Icon(Icons.add_circle_outline, size: 16, color: Colors.white),
-            label: const Text("Catat Titipan Lama", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.menuAmberIcon,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          if (matchingOrders.isEmpty && p.reservedStock != 0 && _isOwner)
+            OutlinedButton.icon(
+              onPressed: () async {
+                Navigator.pop(ctx);
+                try {
+                  await _controller.resetReservedStockToZero(p);
+                  if (mounted) {
+                    AppNotification.show(
+                      context,
+                      message:
+                          "Titipan disinkronkan ke 0. Fisik depot tetap terjaga.",
+                      type: AppNotificationType.success,
+                    );
+                    _loadProducts();
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    AppNotification.show(
+                      context,
+                      message: "Gagal reset titipan: $e",
+                      type: AppNotificationType.error,
+                    );
+                  }
+                }
+              },
+              icon: const Icon(Icons.sync_rounded, size: 16, color: AppColors.primaryNavy),
+              label: const Text(
+                "Reset Titipan ke 0",
+                style: TextStyle(
+                  color: AppColors.primaryNavy,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: AppColors.primaryNavy),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
             ),
-          ),
+          if (EmployeeAccessPolicy.canInputLegacyTitipan(isOwner: _isOwner))
+            ElevatedButton.icon(
+              onPressed: () async {
+                Navigator.pop(ctx);
+                final saved = await showLegacyTitipanDialog(context, initialProduct: p);
+                if (saved == true) _loadProducts();
+              },
+              icon: const Icon(Icons.add_circle_outline, size: 16, color: Colors.white),
+              label: const Text("Catat Titipan Lama", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.menuAmberIcon,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text("TUTUP", style: TextStyle(color: AppColors.primaryNavy, fontWeight: FontWeight.bold)),
@@ -1704,33 +1745,35 @@ class _ProductListScreenState extends State<ProductListScreen>
           collapsedIconColor: AppColors.textGrey,
           tilePadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
           trailing: SizedBox(
-            width: 68,
+            width: _isOwner ? 68 : 28,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                GestureDetector(
-                  onTap: () => _showQuickAddStock(p, displayName),
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [Color(0xFF0D9488), Color(0xFF059669)],
-                      ),
-                      borderRadius: BorderRadius.circular(11),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF059669).withValues(alpha: 0.22),
-                          blurRadius: 8,
-                          offset: const Offset(0, 3),
+                if (_isOwner) ...[
+                  GestureDetector(
+                    onTap: () => _showQuickAddStock(p, displayName),
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [Color(0xFF0D9488), Color(0xFF059669)],
                         ),
-                      ],
+                        borderRadius: BorderRadius.circular(11),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF059669).withValues(alpha: 0.22),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(LucideIcons.plus, color: Colors.white, size: 18),
                     ),
-                    child: const Icon(LucideIcons.plus, color: Colors.white, size: 18),
                   ),
-                ),
-                const SizedBox(width: 6),
+                  const SizedBox(width: 6),
+                ],
                 const Icon(LucideIcons.chevronDown, size: 18, color: AppColors.textGrey),
               ],
             ),
@@ -1856,53 +1899,55 @@ class _ProductListScreenState extends State<ProductListScreen>
                       ],
                     ),
                   ),
-                  InkWell(
-                    onTap: () => _showProductTitipanDialog(p, displayName, unitShort),
-                    borderRadius: BorderRadius.circular(10),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: p.reservedStock > 0
-                            ? AppColors.menuAmberBg
-                            : const Color(0xFFF1F5F9),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
+                  if (p.reservedStock > 0 ||
+                      EmployeeAccessPolicy.canInputLegacyTitipan(isOwner: _isOwner))
+                    InkWell(
+                      onTap: () => _showProductTitipanDialog(p, displayName, unitShort),
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                        decoration: BoxDecoration(
                           color: p.reservedStock > 0
-                              ? const Color(0xFFC4B5FD)
-                              : const Color(0xFFCBD5E1),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            p.reservedStock > 0
-                                ? LucideIcons.warehouse
-                                : LucideIcons.circlePlus,
-                            size: 13,
+                              ? AppColors.menuAmberBg
+                              : const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
                             color: p.reservedStock > 0
-                                ? AppColors.menuAmberIcon
-                                : AppColors.textGrey,
+                                ? const Color(0xFFC4B5FD)
+                                : const Color(0xFFCBD5E1),
                           ),
-                          const SizedBox(width: 5),
-                          Flexible(
-                            child: Text(
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
                               p.reservedStock > 0
-                                  ? "Titipan: ${p.reservedStockDisplay} $unitShort"
-                                  : "+ Catat Titipan",
-                              style: TextStyle(
-                                color: p.reservedStock > 0
-                                    ? AppColors.menuAmberIcon
-                                    : AppColors.textGrey,
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w700,
+                                  ? LucideIcons.warehouse
+                                  : LucideIcons.circlePlus,
+                              size: 13,
+                              color: p.reservedStock > 0
+                                  ? AppColors.menuAmberIcon
+                                  : AppColors.textGrey,
+                            ),
+                            const SizedBox(width: 5),
+                            Flexible(
+                              child: Text(
+                                p.reservedStock > 0
+                                    ? "Titipan: ${p.reservedStockDisplay} $unitShort"
+                                    : "+ Catat Titipan",
+                                style: TextStyle(
+                                  color: p.reservedStock > 0
+                                      ? AppColors.menuAmberIcon
+                                      : AppColors.textGrey,
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
-                  ),
                   if (p.reservedStock > 0)
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
@@ -2584,6 +2629,7 @@ class _ProductListScreenState extends State<ProductListScreen>
   }
 
   void _showQuickAddStock(Product p, String displayName) async {
+    if (!EmployeeAccessPolicy.canAccessWarehouse(isOwner: _isOwner)) return;
     final TextEditingController stockController = TextEditingController();
 
     final TextEditingController bgnGrosirCtrl = TextEditingController();

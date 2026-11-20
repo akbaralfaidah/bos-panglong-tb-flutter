@@ -16,6 +16,7 @@ import '../controllers/transaction_detail_controller.dart';
 import '../theme/app_colors.dart';
 import '../theme/glass_widgets.dart';
 import '../helpers/session_manager.dart';
+import '../helpers/employee_access_policy.dart';
 import 'edit_transaction_screen.dart';
 import '../helpers/app_notification.dart';
 
@@ -1397,6 +1398,11 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
 
   Widget _buildDeliveryControlSection() {
     if (_deliveryStatus == 'Selesai' && _deliveryLogs.isEmpty) {
+      if (!EmployeeAccessPolicy.canConvertToTitipan(
+        isOwner: SessionManager().isOwner,
+      )) {
+        return const SizedBox.shrink();
+      }
       return Container(
         margin: const EdgeInsets.only(bottom: 20),
         padding: const EdgeInsets.all(14),
@@ -1632,6 +1638,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
         sharePixelRatio: pixelRatio,
       );
     } catch (e) {
+      debugPrint('Generate receipt PNG error: $e');
       return null;
     } finally {
       if (mounted) {
@@ -1896,7 +1903,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                             ? EdgeInsets.zero
                             : const EdgeInsets.all(4),
                         decoration: _isGeneratingReceipt
-                            ? null
+                            ? const BoxDecoration()
                             : AppColors.liquidGlassCard(radius: 20),
                         child: RepaintBoundary(
                           key: _printKey,

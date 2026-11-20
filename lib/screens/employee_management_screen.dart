@@ -71,11 +71,15 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
               ),
             ],
           ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 440),
+            child: SizedBox(
+              width: double.maxFinite,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                 // Mode pilihan akses karyawan
                 Row(
                   children: [
@@ -221,6 +225,8 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
                 ],
               ],
             ),
+          ),
+          ),
           ),
           actions: [
             TextButton(

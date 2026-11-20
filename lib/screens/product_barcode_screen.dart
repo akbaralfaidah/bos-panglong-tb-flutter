@@ -66,6 +66,7 @@ class _ProductBarcodeScreenState extends State<ProductBarcodeScreen> {
         forPrint: true,
       );
     } catch (e) {
+      debugPrint('Generate barcode PNG error: $e');
       return null;
     }
   }
@@ -275,7 +276,7 @@ class _ProductBarcodeScreenState extends State<ProductBarcodeScreen> {
                         ? EdgeInsets.zero
                         : const EdgeInsets.all(6),
                     decoration: _isPrinting
-                        ? null
+                        ? const BoxDecoration()
                         : AppColors.liquidGlassCard(radius: 20),
                     child: RepaintBoundary(
                       key: _printKey,
