@@ -56,4 +56,25 @@ class EmployeeAccessPolicy {
     if (isOwner) return true;
     return tabIndex != 2;
   }
+
+  /// Menjamin perangkat yang login dengan akun karyawan mandiri TIDAK PERNAH
+  /// diizinkan masuk ke halaman login / mode Pemilik (Bos).
+  static bool canAccessOwnerLoginScreen({
+    required bool hasPairedStandaloneEmployee,
+    required bool firebaseUidIsEmployeeAccount,
+  }) {
+    if (hasPairedStandaloneEmployee) return false;
+    if (firebaseUidIsEmployeeAccount) return false;
+    return true;
+  }
+
+  /// Menentukan apakah aplikasi saat dibuka ulang harus menampilkan Layar Kunci Khusus Karyawan
+  /// (Sidik Jari / Kunci Layar HP) alih-alih meminta ketik ulang Email & Password atau Login Bos.
+  static bool shouldRouteToEmployeeLockScreen({
+    required bool isStandaloneEmployee,
+    required bool hasFirebaseUser,
+    required bool isAccountActive,
+  }) {
+    return isStandaloneEmployee && hasFirebaseUser && isAccountActive;
+  }
 }

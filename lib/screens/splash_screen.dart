@@ -4,10 +4,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:lottie/lottie.dart';
 import '../data/datasources/firebase/employee_firebase_datasource.dart';
+import '../helpers/employee_account_helper.dart';
 import '../helpers/session_manager.dart';
 import '../theme/app_colors.dart';
 import '../theme/glass_widgets.dart';
 import 'dashboard_screen.dart';
+import 'employee_lock_screen.dart';
 import 'login_screen.dart';
 import 'auth_screen.dart';
 
@@ -39,9 +41,14 @@ class _SplashScreenState extends State<SplashScreen> {
       setState(() => _statusText = "Menghubungkan Cloud Toko...");
 
       Widget nextScreen;
-      if (SessionManager().isLoggedIn) {
-        bool employeeStillValid = true;
-        if (SessionManager().isStandaloneEmployee) {
+      final User? currentFirebaseUser = FirebaseAuth.instance.currentUser;
+
+      if (SessionManager().isStandaloneEmployee) {
+        if (currentFirebaseUser == null) {
+          await SessionManager().logout();
+          nextScreen = const AuthScreen();
+        } else {
+          bool employeeStillValid = true;
           try {
             final link = await EmployeeFirebaseDataSource()
                 .getEmployeeAccountByAuthUid(
@@ -52,18 +59,66 @@ class _SplashScreenState extends State<SplashScreen> {
               employeeStillValid = false;
               await FirebaseAuth.instance.signOut();
               await SessionManager().logout();
+            } else if (link.name != SessionManager().userName) {
+              await SessionManager().loginAsEmployee(
+                name: link.name,
+                email: link.email,
+                userId: link.storeId,
+                employeeAuthUid: link.authUid,
+              );
             }
           } catch (_) {
-            // Mode offline: tetap izinkan lanjut menggunakan cache lokal
+            // Mode offline: tetap izinkan buka kunci lokal memakai sesi terenkripsi
+          }
+          if (employeeStillValid) {
+            await SessionManager().lockEmployeeSession();
+            nextScreen = const EmployeeLockScreen(autoPromptBiometric: true);
+          } else {
+            nextScreen = const AuthScreen();
           }
         }
-        nextScreen = employeeStillValid
-            ? const DashboardScreen()
-            : const AuthScreen();
+      } else if (SessionManager().isLoggedIn) {
+        nextScreen = const DashboardScreen();
+      } else if (currentFirebaseUser == null) {
+        nextScreen = const AuthScreen();
       } else {
-        nextScreen = FirebaseAuth.instance.currentUser == null
-            ? const AuthScreen()
-            : const LoginScreen();
+        // Pengaman lapis ekstra: jika storage lokal sempat ter-reset namun FirebaseAuth
+        // masih tertaut akun karyawan, JANGAN pernah arahkan ke LoginScreen milik Pemilik!
+        EmployeeAccountLink? empLink;
+        try {
+          empLink = await EmployeeFirebaseDataSource()
+              .getEmployeeAccountByAuthUid(
+            currentFirebaseUser.uid,
+            forceServer: true,
+          );
+        } catch (_) {
+          try {
+            empLink = await EmployeeFirebaseDataSource()
+                .getEmployeeAccountByAuthUid(
+              currentFirebaseUser.uid,
+              forceServer: false,
+            );
+          } catch (_) {}
+        }
+
+        if (empLink != null) {
+          if (empLink.isActive) {
+            await SessionManager().loginAsEmployee(
+              name: empLink.name,
+              email: empLink.email,
+              userId: empLink.storeId,
+              employeeAuthUid: empLink.authUid,
+            );
+            await SessionManager().lockEmployeeSession();
+            nextScreen = const EmployeeLockScreen(autoPromptBiometric: true);
+          } else {
+            await FirebaseAuth.instance.signOut();
+            await SessionManager().logout();
+            nextScreen = const AuthScreen();
+          }
+        } else {
+          nextScreen = const LoginScreen();
+        }
       }
 
       await Future.delayed(const Duration(milliseconds: 850));

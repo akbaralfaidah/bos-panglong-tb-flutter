@@ -1622,8 +1622,12 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
   Future<Uint8List?> _generateImageBytes({
     bool forPrint = true,
     double pixelRatio = 3.0,
+    int? paperWidthMm,
+    double? receiptScale,
   }) async {
-    final scale = forPrint ? await PrinterHelper.getReceiptScale() : 1.0;
+    final scale = forPrint
+        ? (receiptScale ?? await PrinterHelper.getReceiptScale())
+        : 1.0;
     if (!mounted) return null;
     setState(() {
       _receiptScale = scale;
@@ -1636,6 +1640,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
         _printKey,
         forPrint: forPrint,
         sharePixelRatio: pixelRatio,
+        paperWidthMm: paperWidthMm,
       );
     } catch (e) {
       debugPrint('Generate receipt PNG error: $e');
@@ -1668,6 +1673,10 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
 
   Future<void> _captureAndPrint() async {
     try {
+      final ReceiptPrintOptions? options =
+          await PrinterHelper.showPrintSizeSelector(context);
+      if (options == null || !mounted) return;
+
       PrinterHelper printer = PrinterHelper();
 
       if (Platform.isIOS) {
@@ -1693,11 +1702,23 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
           paymentStatus: _status,
           deliveryStatus: _deliveryStatus,
           logoPath: _logoPath, // 🔥 INI DIA KUNCI LOGONYA 🔥
+          paperWidthMm: options.paperWidthMm,
+          forceSelectDevice: options.switchPrinter,
         );
       } else {
-        Uint8List? pngBytes = await _generateImageBytes(forPrint: true);
+        Uint8List? pngBytes = await _generateImageBytes(
+          forPrint: true,
+          paperWidthMm: options.paperWidthMm,
+          receiptScale: options.receiptScale,
+        );
         if (pngBytes == null) throw Exception("Gagal memproses gambar");
-        await printer.printReceiptImage(context, pngBytes);
+        if (!mounted) return;
+        await printer.printReceiptImage(
+          context,
+          pngBytes,
+          paperWidthMm: options.paperWidthMm,
+          forceSelectDevice: options.switchPrinter,
+        );
       }
     } catch (e) {
       if (mounted)

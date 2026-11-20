@@ -14,6 +14,7 @@ import '../helpers/session_manager.dart';
 import '../theme/app_colors.dart';
 import '../theme/glass_widgets.dart';
 import 'auth_screen.dart';
+import 'employee_lock_screen.dart';
 import 'profit_history_screen.dart';
 import 'product_list_screen.dart';
 import 'cashier_screen.dart';
@@ -150,6 +151,96 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   void _logout() {
+    final bool isStandaloneEmp = SessionManager().isStandaloneEmployee;
+
+    if (isStandaloneEmp) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: AppColors.pureWhite,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text(
+            "Kunci Layar atau Ganti Akun?",
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: AppColors.primaryNavy,
+              fontSize: 17,
+            ),
+          ),
+          content: const Text(
+            "Pilih Kunci Layar agar nanti cukup masuk lagi pakai Sidik Jari / Kunci Layar HP tanpa ketik ulang email & password.",
+            style: TextStyle(color: AppColors.textGrey, fontSize: 13),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text(
+                "Batal",
+                style: TextStyle(color: AppColors.textGrey),
+              ),
+            ),
+            TextButton(
+              onPressed: () async {
+                await FirebaseAuth.instance.signOut();
+                await SessionManager().logout();
+                if (!ctx.mounted) return;
+                Navigator.pop(ctx);
+                if (!mounted) return;
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  GlassPageRoute(builder: (_) => const AuthScreen()),
+                  (route) => false,
+                );
+              },
+              child: const Text(
+                "Ganti Akun",
+                style: TextStyle(
+                  color: AppColors.menuRoseIcon,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.menuTealIcon,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              onPressed: () async {
+                await SessionManager().lockEmployeeSession();
+                if (!ctx.mounted) return;
+                Navigator.pop(ctx);
+                if (!mounted) return;
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  GlassPageRoute(
+                    builder: (_) =>
+                        const EmployeeLockScreen(autoPromptBiometric: false),
+                  ),
+                  (route) => false,
+                );
+              },
+              icon: const Icon(
+                LucideIcons.lock,
+                color: Colors.white,
+                size: 16,
+              ),
+              label: const Text(
+                "Kunci Layar",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -183,22 +274,13 @@ class _DashboardScreenState extends State<DashboardScreen>
               ),
             ),
             onPressed: () async {
-              final bool wasStandaloneEmp =
-                  SessionManager().isStandaloneEmployee;
-              if (wasStandaloneEmp) {
-                await FirebaseAuth.instance.signOut();
-              }
               await SessionManager().logout();
               if (!ctx.mounted) return;
               Navigator.pop(ctx);
               if (!mounted) return;
               Navigator.pushAndRemoveUntil(
                 context,
-                GlassPageRoute(
-                  builder: (context) => wasStandaloneEmp
-                      ? const AuthScreen()
-                      : const LoginScreen(),
-                ),
+                GlassPageRoute(builder: (context) => const LoginScreen()),
                 (route) => false,
               );
             },

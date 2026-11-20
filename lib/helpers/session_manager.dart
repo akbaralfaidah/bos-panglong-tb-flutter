@@ -13,14 +13,23 @@ class SessionManager {
   String? userEmail;
   String? uid;
   String? employeeAuthUid;
+  bool _isEmployeeLocked = false;
 
-  bool get isLoggedIn => _activeRole != null;
+  bool get isLoggedIn => _activeRole != null && !isEmployeeLocked;
   bool get isOwner => _activeRole == 'OWNER';
   bool get isEmployee => _activeRole == 'EMPLOYEE';
 
   /// True jika karyawan login menggunakan akun Email & Password mandiri (tanpa akun Google Bos di HP).
   bool get isStandaloneEmployee =>
       isEmployee && employeeAuthUid != null && employeeAuthUid!.isNotEmpty;
+
+  /// True jika perangkat karyawan sedang terkunci dan menunggu verifikasi Sidik Jari / Kunci Layar HP.
+  bool get isEmployeeLocked => isStandaloneEmployee && _isEmployeeLocked;
+
+  String get employeeDisplayName =>
+      (userName != null && userName!.trim().isNotEmpty)
+          ? userName!.trim()
+          : 'Karyawan';
 
   Future<void> init() async {
     // Baca dari brankas enkripsi
@@ -29,6 +38,8 @@ class SessionManager {
     userEmail = await _storage.read(key: 'email');
     uid = await _storage.read(key: 'uid');
     employeeAuthUid = await _storage.read(key: 'employee_auth_uid');
+    _isEmployeeLocked =
+        (await _storage.read(key: 'employee_session_locked')) == 'true';
   }
 
   Future<void> loginAsOwner({
@@ -41,7 +52,9 @@ class SessionManager {
     userEmail = email;
     uid = userId;
     employeeAuthUid = null;
+    _isEmployeeLocked = false;
     await _storage.delete(key: 'employee_auth_uid');
+    await _storage.delete(key: 'employee_session_locked');
     await _saveToLocal();
   }
 
@@ -56,10 +69,33 @@ class SessionManager {
     userEmail = email;
     uid = userId;
     this.employeeAuthUid = employeeAuthUid;
+    _isEmployeeLocked = false;
     if (employeeAuthUid == null || employeeAuthUid.isEmpty) {
       await _storage.delete(key: 'employee_auth_uid');
+      await _storage.delete(key: 'employee_session_locked');
+    } else {
+      await _storage.write(key: 'employee_session_locked', value: 'false');
     }
     await _saveToLocal();
+  }
+
+  /// Mengunci sesi HP karyawan tanpa menghapus ikatan Email & Password toko,
+  /// sehingga buka ulang cukup pakai Sidik Jari / Kunci Layar HP (tanpa akses mode Pemilik).
+  Future<void> lockEmployeeSession() async {
+    if (!isStandaloneEmployee) return;
+    _isEmployeeLocked = true;
+    await _storage.write(key: 'employee_session_locked', value: 'true');
+  }
+
+  /// Membuka kunci sesi HP karyawan setelah verifikasi biometrik/kunci layar berhasil.
+  Future<void> unlockEmployeeSession({String? updatedName}) async {
+    if (!isStandaloneEmployee) return;
+    _isEmployeeLocked = false;
+    if (updatedName != null && updatedName.trim().isNotEmpty) {
+      userName = updatedName.trim();
+      await _storage.write(key: 'name', value: userName!);
+    }
+    await _storage.write(key: 'employee_session_locked', value: 'false');
   }
 
   Future<void> _saveToLocal() async {
@@ -79,6 +115,7 @@ class SessionManager {
     userEmail = null;
     uid = null;
     employeeAuthUid = null;
+    _isEmployeeLocked = false;
     // Hancurkan semua kunci saat logout
     await _storage.deleteAll();
   }

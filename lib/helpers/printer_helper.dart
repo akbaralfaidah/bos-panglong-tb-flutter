@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../helpers/app_notification.dart';
 import '../helpers/thermal_receipt_encoder.dart';
+import '../theme/app_colors.dart';
 import 'package:blue_thermal_printer/blue_thermal_printer.dart' as btp;
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart' as pbt;
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
@@ -19,6 +20,19 @@ class PrinterDevice {
   final String mac;
   final dynamic rawDevice; 
   PrinterDevice({required this.name, required this.mac, required this.rawDevice});
+}
+
+/// Pilihan ukuran cetakan yang dipilih pengguna sesaat sebelum mencetak nota.
+class ReceiptPrintOptions {
+  final int paperWidthMm;
+  final double receiptScale;
+  final bool switchPrinter;
+
+  const ReceiptPrintOptions({
+    required this.paperWidthMm,
+    required this.receiptScale,
+    this.switchPrinter = false,
+  });
 }
 
 class PrinterHelper {
@@ -99,6 +113,369 @@ class PrinterHelper {
     );
   }
 
+  /// Menampilkan pilihan ukuran cetak nota SETIAP KALI user menekan tombol Cetak Nota,
+  /// agar ukuran kertas (`80mm Sedang` / `58mm Kecil`) & besar huruf tidak terkunci
+  /// dan pengguna bisa langsung pindah printer Bluetooth kapan saja tanpa tutup aplikasi.
+  static Future<ReceiptPrintOptions?> showPrintSizeSelector(
+    BuildContext context, {
+    bool? isConnectedOverride,
+  }) async {
+    int selectedPaperMm = await getPaperWidthMm();
+    double selectedScale = await getReceiptScale();
+    bool currentlyConnected = false;
+    if (isConnectedOverride != null) {
+      currentlyConnected = isConnectedOverride;
+    } else {
+      try {
+        currentlyConnected = await PrinterHelper().isConnected;
+      } catch (_) {
+        currentlyConnected = false;
+      }
+    }
+
+    if (!context.mounted) return null;
+
+    return showModalBottomSheet<ReceiptPrintOptions>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetCtx) => StatefulBuilder(
+        builder: (innerCtx, setSheetState) {
+          final ThermalPrintSize activePreset =
+              ThermalReceiptEncoder.presetForScale(selectedScale);
+
+          Widget buildPaperCard({
+            required int mm,
+            required String title,
+            required String subtitle,
+            required Color accentColor,
+            required Color softBg,
+            required IconData icon,
+          }) {
+            final bool isSelected = selectedPaperMm == mm;
+            return Expanded(
+              child: InkWell(
+                onTap: () => setSheetState(() => selectedPaperMm = mm),
+                borderRadius: BorderRadius.circular(16),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: isSelected ? softBg : const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: isSelected ? accentColor : AppColors.borderLight,
+                      width: isSelected ? 2.0 : 1.1,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(7),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? accentColor
+                                  : accentColor.withValues(alpha: 0.14),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Icon(
+                              icon,
+                              size: 17,
+                              color: isSelected ? Colors.white : accentColor,
+                            ),
+                          ),
+                          const Spacer(),
+                          Icon(
+                            isSelected
+                                ? Icons.check_circle_rounded
+                                : Icons.radio_button_unchecked_rounded,
+                            size: 20,
+                            color: isSelected
+                                ? accentColor
+                                : Colors.grey.shade400,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        title,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14,
+                          color: isSelected
+                              ? accentColor
+                              : AppColors.primaryNavy,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textGrey,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }
+
+          Future<void> confirmPrint({required bool switchPrinter}) async {
+            await setPaperWidthMm(selectedPaperMm);
+            await setReceiptScale(selectedScale);
+            if (!sheetCtx.mounted) return;
+            Navigator.pop(
+              sheetCtx,
+              ReceiptPrintOptions(
+                paperWidthMm: selectedPaperMm,
+                receiptScale: selectedScale,
+                switchPrinter: switchPrinter,
+              ),
+            );
+          }
+
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
+                decoration: BoxDecoration(
+                  color: AppColors.pureWhite,
+                  borderRadius: BorderRadius.circular(26),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x260F172A),
+                      blurRadius: 24,
+                      offset: Offset(0, -4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 42,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(9),
+                          decoration: BoxDecoration(
+                            color: AppColors.menuBlueBg,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.print_rounded,
+                            color: AppColors.menuBlueIcon,
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                "Pilih Ukuran Cetak Nota",
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 16.5,
+                                  color: AppColors.primaryNavy,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                currentlyConnected
+                                    ? "Printer Bluetooth aktif • Pilih ukuran sebelum cetak"
+                                    : "Pilih ukuran kertas & printer Bluetooth saat cetak",
+                                style: const TextStyle(
+                                  fontSize: 11.5,
+                                  color: AppColors.textGrey,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    const Text(
+                      "Ukuran Kertas Thermal",
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12.5,
+                        color: AppColors.textDark,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        buildPaperCard(
+                          mm: ThermalReceiptEncoder.paper80mm,
+                          title: "Sedang (80mm)",
+                          subtitle: "576 dot • Lebar standar",
+                          accentColor: AppColors.menuBlueIcon,
+                          softBg: AppColors.menuBlueBg,
+                          icon: Icons.receipt_long_rounded,
+                        ),
+                        const SizedBox(width: 10),
+                        buildPaperCard(
+                          mm: ThermalReceiptEncoder.paper58mm,
+                          title: "Kecil (58mm)",
+                          subtitle: "384 dot • Mini / hemat",
+                          accentColor: AppColors.menuTealIcon,
+                          softBg: AppColors.menuTealBg,
+                          icon: Icons.receipt_rounded,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+
+                    const Text(
+                      "Besar Huruf Nota",
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12.5,
+                        color: AppColors.textDark,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        for (final entry in const [
+                          (ThermalPrintSize.small, "Kecil"),
+                          (ThermalPrintSize.normal, "Normal"),
+                          (ThermalPrintSize.large, "Besar"),
+                        ]) ...[
+                          Expanded(
+                            child: ChoiceChip(
+                              selectedColor: AppColors.menuBlueBg,
+                              checkmarkColor: AppColors.primaryNavy,
+                              side: BorderSide(
+                                color: activePreset == entry.$1
+                                    ? AppColors.primaryNavy
+                                    : AppColors.borderLight,
+                                width: activePreset == entry.$1 ? 1.5 : 1.0,
+                              ),
+                              label: Center(
+                                child: Text(
+                                  entry.$2,
+                                  style: TextStyle(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: activePreset == entry.$1
+                                        ? AppColors.primaryNavy
+                                        : AppColors.textDark,
+                                  ),
+                                ),
+                              ),
+                              selected: activePreset == entry.$1,
+                              onSelected: (v) {
+                                if (!v) return;
+                                setSheetState(() {
+                                  selectedScale =
+                                      ThermalReceiptEncoder.scaleForPreset(
+                                    entry.$1,
+                                  );
+                                });
+                              },
+                            ),
+                          ),
+                          if (entry.$1 != ThermalPrintSize.large)
+                            const SizedBox(width: 8),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+
+                    Row(
+                      children: [
+                        if (currentlyConnected) ...[
+                          OutlinedButton.icon(
+                            onPressed: () => confirmPrint(switchPrinter: true),
+                            icon: const Icon(
+                              Icons.bluetooth_searching_rounded,
+                              size: 17,
+                              color: AppColors.primaryNavy,
+                            ),
+                            label: const Text(
+                              "Ganti Printer",
+                              style: TextStyle(
+                                color: AppColors.primaryNavy,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 12.5,
+                              ),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(
+                                color: AppColors.menuBlueBorder,
+                                width: 1.4,
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 14,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                        ],
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () => confirmPrint(switchPrinter: false),
+                            icon: const Icon(
+                              Icons.print_rounded,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                            label: const Text(
+                              "Cetak Sekarang",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 14,
+                              ),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primaryNavy,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   /// Menangkap [RepaintBoundary] secara stabil setelah layout & paint frame benar-benar selesai.
   /// Aman di mode Debug maupun Release (tidak pernah memanggil properti `debug*`).
   /// Saat [forPrint] = true, pixelRatio dihitung otomatis agar pas 1:1 dengan lebar dot printer
@@ -107,6 +484,7 @@ class PrinterHelper {
     GlobalKey boundaryKey, {
     bool forPrint = true,
     double sharePixelRatio = 3.0,
+    int? paperWidthMm,
   }) async {
     final WidgetsBinding binding = WidgetsBinding.instance;
     binding.scheduleFrame();
@@ -131,7 +509,9 @@ class PrinterHelper {
 
     double pixelRatio = sharePixelRatio;
     if (forPrint) {
-      final int targetDots = await getPaperWidthDots();
+      final int targetDots = paperWidthMm != null
+          ? ThermalReceiptEncoder.dotsForPaperMm(paperWidthMm)
+          : await getPaperWidthDots();
       pixelRatio = ThermalReceiptEncoder.computeCapturePixelRatio(
         logicalWidth: boundary.size.width,
         targetDots: targetDots,
@@ -176,14 +556,35 @@ class PrinterHelper {
     return await _androidPrinter.isConnected ?? false;
   }
 
-  Future<void> printReceiptImage(BuildContext context, Uint8List imageBytes) async {
+  Future<void> _disconnectSafely() async {
+    try {
+      if (Platform.isIOS) {
+        await pbt.PrintBluetoothThermal.disconnect;
+      } else {
+        if (await _androidPrinter.isConnected ?? false) {
+          await _androidPrinter.disconnect();
+        }
+      }
+    } catch (_) {}
+  }
+
+  Future<void> printReceiptImage(
+    BuildContext context,
+    Uint8List imageBytes, {
+    int? paperWidthMm,
+    bool forceSelectDevice = false,
+  }) async {
     if (!await _checkPermissions()) {
       _showSnack(context, "Izin Bluetooth/Lokasi wajib diaktifkan!", Colors.red);
       return;
     }
 
+    if (forceSelectDevice) {
+      await _disconnectSafely();
+    }
+
     bool connected = await isConnected;
-    if (!connected) {
+    if (!connected || forceSelectDevice) {
       await _scanDevices(context);
       if (_devices.isNotEmpty) {
         bool? selected = await _showDeviceSelectionDialog(context);
@@ -198,7 +599,7 @@ class PrinterHelper {
       if (await isConnected) {
         _showSnack(context, "Mencetak Struk...", Colors.blue);
 
-        final int paperMm = await getPaperWidthMm();
+        final int paperMm = paperWidthMm ?? await getPaperWidthMm();
         final int targetDots = ThermalReceiptEncoder.dotsForPaperMm(paperMm);
 
         if (Platform.isAndroid) {
@@ -262,14 +663,20 @@ class PrinterHelper {
     required String paymentStatus, 
     String deliveryStatus = 'Selesai',
     String? logoPath, // 🔥 PARAMETER LOGO DITAMBAHKAN 🔥
+    int? paperWidthMm,
+    bool forceSelectDevice = false,
   }) async {
     if (!await _checkPermissions()) {
       _showSnack(context, "Izin Bluetooth/Lokasi wajib diaktifkan!", Colors.red);
       return;
     }
 
+    if (forceSelectDevice) {
+      await _disconnectSafely();
+    }
+
     bool connected = await pbt.PrintBluetoothThermal.connectionStatus;
-    if (!connected) {
+    if (!connected || forceSelectDevice) {
       await _scanDevices(context);
       if (_devices.isNotEmpty) {
         bool? selected = await _showDeviceSelectionDialog(context);
@@ -284,8 +691,13 @@ class PrinterHelper {
       if (await pbt.PrintBluetoothThermal.connectionStatus) {
         _showSnack(context, "Mencetak Struk Teks...", Colors.blue);
 
+        final int resolvedPaperMm = paperWidthMm ?? await getPaperWidthMm();
+        final PaperSize paperSize =
+            resolvedPaperMm <= ThermalReceiptEncoder.paper58mm
+                ? PaperSize.mm58
+                : PaperSize.mm80;
         final profile = await CapabilityProfile.load();
-        final generator = Generator(PaperSize.mm80, profile);
+        final generator = Generator(paperSize, profile);
         List<int> bytes = [];
         final currency = NumberFormat('#,##0', 'id_ID');
 
@@ -438,14 +850,20 @@ class PrinterHelper {
     required List<Map<String, dynamic>> items,
     required int totalExpense,
     String? logoPath, // 🔥 PARAMETER LOGO DITAMBAHKAN 🔥
+    int? paperWidthMm,
+    bool forceSelectDevice = false,
   }) async {
     if (!await _checkPermissions()) {
       _showSnack(context, "Izin Bluetooth/Lokasi wajib diaktifkan!", Colors.red);
       return;
     }
 
+    if (forceSelectDevice) {
+      await _disconnectSafely();
+    }
+
     bool connected = await pbt.PrintBluetoothThermal.connectionStatus;
-    if (!connected) {
+    if (!connected || forceSelectDevice) {
       await _scanDevices(context);
       if (_devices.isNotEmpty) {
         bool? selected = await _showDeviceSelectionDialog(context);
@@ -457,8 +875,13 @@ class PrinterHelper {
       if (await pbt.PrintBluetoothThermal.connectionStatus) {
         _showSnack(context, "Mencetak Bukti Stok...", Colors.blue);
 
+        final int resolvedPaperMm = paperWidthMm ?? await getPaperWidthMm();
+        final PaperSize paperSize =
+            resolvedPaperMm <= ThermalReceiptEncoder.paper58mm
+                ? PaperSize.mm58
+                : PaperSize.mm80;
         final profile = await CapabilityProfile.load();
-        final generator = Generator(PaperSize.mm80, profile);
+        final generator = Generator(paperSize, profile);
         List<int> bytes = [];
         final currency = NumberFormat('#,##0', 'id_ID');
 
@@ -767,6 +1190,7 @@ class PrinterHelper {
   Future<void> _connectToDevice(BuildContext context, PrinterDevice device) async {
     try {
       _showSnack(context, "Menyambungkan ke printer...", Colors.blue);
+      await _disconnectSafely();
       bool status = false;
 
       if (Platform.isIOS) {

@@ -1,4 +1,6 @@
 import 'package:bos_panglong_app/helpers/employee_access_policy.dart';
+import 'package:bos_panglong_app/screens/employee_lock_screen.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -83,6 +85,95 @@ void main() {
       expect(EmployeeAccessPolicy.shouldShowMonetarySummary(isOwner: false, tabIndex: 1), isTrue);
       // Tab TITIPAN mencakup multi-hari -> total nominal rupiah wajib disembunyikan
       expect(EmployeeAccessPolicy.shouldShowMonetarySummary(isOwner: false, tabIndex: 2), isFalse);
+    });
+
+    test('Perangkat karyawan mandiri dilarang total masuk halaman login mode Pemilik', () {
+      expect(
+        EmployeeAccessPolicy.canAccessOwnerLoginScreen(
+          hasPairedStandaloneEmployee: true,
+          firebaseUidIsEmployeeAccount: false,
+        ),
+        isFalse,
+      );
+      expect(
+        EmployeeAccessPolicy.canAccessOwnerLoginScreen(
+          hasPairedStandaloneEmployee: false,
+          firebaseUidIsEmployeeAccount: true,
+        ),
+        isFalse,
+      );
+      expect(
+        EmployeeAccessPolicy.canAccessOwnerLoginScreen(
+          hasPairedStandaloneEmployee: false,
+          firebaseUidIsEmployeeAccount: false,
+        ),
+        isTrue,
+      );
+
+      expect(
+        EmployeeAccessPolicy.shouldRouteToEmployeeLockScreen(
+          isStandaloneEmployee: true,
+          hasFirebaseUser: true,
+          isAccountActive: true,
+        ),
+        isTrue,
+      );
+      expect(
+        EmployeeAccessPolicy.shouldRouteToEmployeeLockScreen(
+          isStandaloneEmployee: true,
+          hasFirebaseUser: true,
+          isAccountActive: false,
+        ),
+        isFalse,
+      );
+    });
+
+    testWidgets('EmployeeLockScreen membuka sesi dengan biometrik dan TIDAK punya tombol Pemilik (Bos)',
+        (tester) async {
+      bool unlocked = false;
+      bool authCalled = false;
+      bool verifyCalled = false;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: EmployeeLockScreen(
+            autoPromptBiometric: false,
+            employeeNameOverride: 'Azis',
+            employeeEmailOverride: 'azis@depot.com',
+            storeNameOverride: 'Depot Kayu Jaya',
+            deviceSupportedOverride: () async => true,
+            authenticateOverride: () async {
+              authCalled = true;
+              return true;
+            },
+            verifyActiveOverride: () async {
+              verifyCalled = true;
+              return (active: true, updatedName: 'Azis');
+            },
+            onUnlockedOverride: () {
+              unlocked = true;
+            },
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 600));
+
+      expect(find.text('Halo, Azis'), findsOneWidget);
+      expect(find.text('azis@depot.com'), findsOneWidget);
+      expect(find.text('PERANGKAT KASIR TERKUNCI'), findsOneWidget);
+      expect(find.text('Buka dengan Sidik Jari / Kunci HP'), findsOneWidget);
+
+      // Pastikan ZERO akses / teks mode Pemilik di layar kunci karyawan
+      expect(find.textContaining('Pemilik'), findsNothing);
+      expect(find.textContaining('Bos'), findsNothing);
+      expect(find.textContaining('PIN Keamanan'), findsNothing);
+
+      await tester.tap(find.text('Buka dengan Sidik Jari / Kunci HP'));
+      await tester.pump(const Duration(milliseconds: 200));
+
+      expect(authCalled, isTrue);
+      expect(verifyCalled, isTrue);
+      expect(unlocked, isTrue);
     });
   });
 }

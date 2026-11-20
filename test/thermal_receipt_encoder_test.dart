@@ -511,5 +511,84 @@ void main() {
         await tester.pump();
       }
     });
+
+    testWidgets('showPrintSizeSelector asks every print and allows switching 80mm <-> 58mm & Ganti Printer without locking',
+        (tester) async {
+      SharedPreferences.setMockInitialValues({
+        'printer_paper_width_mm': 80,
+        'printer_receipt_scale': 1.0,
+      });
+
+      ReceiptPrintOptions? result1;
+      ReceiptPrintOptions? result2;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => Column(
+                children: [
+                  ElevatedButton(
+                    onPressed: () async {
+                      result1 = await PrinterHelper.showPrintSizeSelector(
+                        context,
+                        isConnectedOverride: true,
+                      );
+                    },
+                    child: const Text('Print 1'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () async {
+                      result2 = await PrinterHelper.showPrintSizeSelector(
+                        context,
+                        isConnectedOverride: true,
+                      );
+                    },
+                    child: const Text('Print 2'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+
+      // Cetakan 1: ubah dari 80mm -> Kecil (58mm) + huruf Besar -> Cetak Sekarang
+      await tester.tap(find.text('Print 1'));
+      await tester.pumpAndSettle();
+      expect(find.text('Pilih Ukuran Cetak Nota'), findsOneWidget);
+      expect(find.text('Sedang (80mm)'), findsOneWidget);
+      expect(find.text('Kecil (58mm)'), findsOneWidget);
+      expect(find.text('Ganti Printer'), findsOneWidget);
+
+      await tester.tap(find.text('Kecil (58mm)'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Besar'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Cetak Sekarang'));
+      await tester.pumpAndSettle();
+
+      expect(result1, isNotNull);
+      expect(result1!.paperWidthMm, 58);
+      expect(result1!.receiptScale, closeTo(1.18, 0.001));
+      expect(result1!.switchPrinter, isFalse);
+
+      // Cetakan 2 (tanpa tutup aplikasi): bebas ubah balik ke Sedang (80mm) + Normal + Ganti Printer
+      await tester.tap(find.text('Print 2'));
+      await tester.pumpAndSettle();
+      expect(find.text('Pilih Ukuran Cetak Nota'), findsOneWidget);
+
+      await tester.tap(find.text('Sedang (80mm)'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Normal'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Ganti Printer'));
+      await tester.pumpAndSettle();
+
+      expect(result2, isNotNull);
+      expect(result2!.paperWidthMm, 80);
+      expect(result2!.receiptScale, closeTo(1.0, 0.001));
+      expect(result2!.switchPrinter, isTrue);
+    });
   });
 }
