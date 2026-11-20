@@ -54,6 +54,7 @@ dependencies:
   blue_thermal_printer: ^1.2.3
   flutter_animate: ^4.5.2
   animations: ^2.2.0
+  lottie: ^3.3.3
 
 dev_dependencies:
   flutter_test:
@@ -68,3 +69,5 @@ flutter_icons:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/animations/

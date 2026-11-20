@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:lottie/lottie.dart';
 import '../data/datasources/firebase/employee_firebase_datasource.dart';
 import '../helpers/session_manager.dart';
 import '../theme/app_colors.dart';
@@ -18,6 +19,8 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
+  String _statusText = "Menyiapkan Sistem Kasir...";
+
   @override
   void initState() {
     super.initState();
@@ -31,8 +34,9 @@ class _SplashScreenState extends State<SplashScreen> {
       );
       await SessionManager().init();
 
-      await Future.delayed(const Duration(milliseconds: 950));
+      await Future.delayed(const Duration(milliseconds: 850));
       if (!mounted) return;
+      setState(() => _statusText = "Menghubungkan Cloud Toko...");
 
       Widget nextScreen;
       if (SessionManager().isLoggedIn) {
@@ -62,6 +66,9 @@ class _SplashScreenState extends State<SplashScreen> {
             : const LoginScreen();
       }
 
+      await Future.delayed(const Duration(milliseconds: 850));
+      if (!mounted) return;
+
       Navigator.pushReplacement(
         context,
         GlassPageRoute(builder: (_) => nextScreen),
@@ -83,126 +90,116 @@ class _SplashScreenState extends State<SplashScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                LiquidEntrance(
-                  delayMs: 0,
-                  child: LiquidFloatBadge(
-                    child: LiquidShimmerSweep(
-                      borderRadius: 28,
-                      initialDelayMs: 180,
-                      child: Container(
-                        width: 108,
-                        height: 108,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.16),
-                          borderRadius: BorderRadius.circular(28),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.48),
-                            width: 1.5,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.16),
-                              blurRadius: 16,
-                              offset: const Offset(0, 8),
-                            ),
-                          ],
-                        ),
-                        alignment: Alignment.center,
-                        child: Container(
-                          width: 78,
-                          height: 78,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: const Icon(
-                            LucideIcons.store,
-                            size: 40,
-                            color: AppColors.primaryNavy,
-                          ),
-                        ),
-                      ),
+                // Hero Custom Lottie Motion Emblem (Orbiting Rings + Radar Ripples + Animated Storefront)
+                RepaintBoundary(
+                  child: SizedBox(
+                    width: 210,
+                    height: 210,
+                    child: Lottie.asset(
+                      'assets/animations/splash_store_motion.json',
+                      repeat: true,
+                      fit: BoxFit.contain,
                     ),
                   ),
-                ),
-                const SizedBox(height: 30),
-                LiquidEntrance(
-                  delayMs: 140,
-                  child: Column(
+                )
+                    .animate()
+                    .fadeIn(duration: 420.ms)
+                    .scale(
+                      begin: const Offset(0.86, 0.86),
+                      end: const Offset(1.0, 1.0),
+                      duration: 500.ms,
+                      curve: Curves.easeOutBack,
+                    ),
+
+                const SizedBox(height: 18),
+
+                Column(
+                  children: [
+                    const Text(
+                      "BOS DEPOT KAYU",
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: AppColors.pureWhite,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.6,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      width: 44,
+                      height: 3,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF67E8F9), Color(0xFF6EE7B7)],
+                        ),
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    const Text(
+                      "& TOKO BANGUNAN",
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Color(0xFFDBEAFE),
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 2.4,
+                      ),
+                    ),
+                  ],
+                )
+                    .animate()
+                    .fadeIn(delay: 160.ms, duration: 420.ms)
+                    .slideY(begin: 0.16, end: 0, curve: Curves.easeOutCubic),
+
+                const SizedBox(height: 44),
+
+                // Status Pill dengan Custom Lottie Elastic Wave Loader
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.34),
+                      width: 1.2,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Text(
-                        "BOS DEPOT KAYU",
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: AppColors.pureWhite,
-                          fontSize: 24,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 1.6,
+                      SizedBox(
+                        width: 60,
+                        height: 20,
+                        child: Lottie.asset(
+                          'assets/animations/splash_loading_wave.json',
+                          repeat: true,
+                          fit: BoxFit.contain,
                         ),
                       ),
-                      const SizedBox(height: 10),
-                      Container(
-                        width: 36,
-                        height: 2.5,
-                        decoration: BoxDecoration(
-                          color: AppColors.accentAmberBright,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      const Text(
-                        "& TOKO BANGUNAN",
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Color(0xFFDBEAFE),
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 2.4,
+                      const SizedBox(width: 8),
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 260),
+                        child: Text(
+                          _statusText,
+                          key: ValueKey<String>(_statusText),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     ],
                   ),
-                ),
-                const SizedBox(height: 46),
-                LiquidEntrance(
-                  delayMs: 260,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 18,
-                      vertical: 11,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.14),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.34),
-                        width: 1.2,
-                      ),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            color: AppColors.accentAmberBright,
-                            strokeWidth: 2.2,
-                          ),
-                        ),
-                        SizedBox(width: 10),
-                        Text(
-                          "Menyiapkan Sistem Kasir...",
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                )
+                    .animate()
+                    .fadeIn(delay: 280.ms, duration: 400.ms)
+                    .slideY(begin: 0.2, end: 0, curve: Curves.easeOutCubic),
               ],
             ),
           ),

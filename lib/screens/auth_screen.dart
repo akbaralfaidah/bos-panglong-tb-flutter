@@ -7,7 +7,7 @@ import '../data/datasources/firebase/employee_firebase_datasource.dart';
 import '../helpers/employee_account_helper.dart';
 import '../helpers/session_manager.dart';
 import '../helpers/app_notification.dart';
-import 'dashboard_screen.dart';
+import 'auth_success_transition_screen.dart';
 import 'login_screen.dart';
 
 class AuthScreen extends StatefulWidget {
@@ -53,10 +53,16 @@ class _AuthScreenState extends State<AuthScreen> {
     );
   }
 
-  void _navigateToDashboard() {
+  void _navigateToEmployeeDashboard(String empName) {
     Navigator.pushReplacement(
       context,
-      GlassPageRoute(builder: (_) => const DashboardScreen()),
+      GlassPageRoute(
+        builder: (_) => AuthSuccessTransitionScreen(
+          userName: empName,
+          methodLabel: 'Login Karyawan Berhasil',
+          roleLabel: 'Terhubung ke Toko • Mode Kasir',
+        ),
+      ),
     );
   }
 
@@ -108,11 +114,7 @@ class _AuthScreenState extends State<AuthScreen> {
           );
 
           if (mounted) {
-            _showSnack(
-              "Selamat datang ${empLink.name}! Terhubung ke toko.",
-              AppColors.statusGreen,
-            );
-            _navigateToDashboard();
+            _navigateToEmployeeDashboard(empLink.name);
           }
           return;
         }

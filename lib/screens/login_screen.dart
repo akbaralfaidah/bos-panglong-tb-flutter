@@ -5,13 +5,14 @@ import 'package:local_auth/local_auth.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:lottie/lottie.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/datasources/firebase/core_firebase_datasource.dart';
 import '../data/datasources/firebase/employee_firebase_datasource.dart';
 import '../helpers/employee_account_helper.dart';
 import '../helpers/session_manager.dart';
-import 'dashboard_screen.dart';
+import 'auth_success_transition_screen.dart';
 import '../theme/app_colors.dart';
 import '../theme/glass_widgets.dart';
 import '../helpers/app_notification.dart';
@@ -168,7 +169,7 @@ class _LoginScreenState extends State<LoginScreen> {
   void _onOwnerLoginButtonPressed() async {
     bool result = await _showBossPinDialog();
     if (result) {
-      _processOwnerLogin(); // 🔥 Panggil fungsi sentral login Bos
+      _processOwnerLogin(methodLabel: 'Verifikasi PIN Pemilik Berhasil');
     }
   }
 
@@ -330,7 +331,11 @@ class _LoginScreenState extends State<LoginScreen> {
                         Navigator.pushReplacement(
                           context,
                           GlassPageRoute(
-                            builder: (_) => const DashboardScreen(),
+                            builder: (_) => AuthSuccessTransitionScreen(
+                              userName: link.name,
+                              methodLabel: 'Login Karyawan Berhasil',
+                              roleLabel: 'Mode Kasir & Operasional Toko',
+                            ),
                           ),
                         );
                       } on FirebaseAuthException catch (e) {
@@ -487,16 +492,18 @@ class _LoginScreenState extends State<LoginScreen> {
                           userId: bossId,
                         );
 
-                        Future.delayed(const Duration(milliseconds: 500), () {
-                          if (mounted) {
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const DashboardScreen(),
+                        if (mounted) {
+                          Navigator.pushReplacement(
+                            context,
+                            GlassPageRoute(
+                              builder: (_) => AuthSuccessTransitionScreen(
+                                userName: empName,
+                                methodLabel: 'Shift Kasir Dimulai',
+                                roleLabel: 'Mode Kasir & Operasional Toko',
                               ),
-                            );
-                          }
-                        });
+                            ),
+                          );
+                        }
                       },
                     ),
                   );
@@ -526,7 +533,9 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Future<void> _loginWithGoogle() async {
+  Future<void> _loginWithGoogle({
+    String methodLabel = 'Verifikasi Pemilik Berhasil',
+  }) async {
     try {
       User? currentUser = FirebaseAuth.instance.currentUser;
 
@@ -547,8 +556,9 @@ class _LoginScreenState extends State<LoginScreen> {
         SharedPreferences prefs = await SharedPreferences.getInstance();
         await prefs.setString('saved_store_id', currentUser.uid);
 
+        final ownerName = currentUser.displayName ?? "Bos";
         await SessionManager().loginAsOwner(
-          name: currentUser.displayName ?? "Bos",
+          name: ownerName,
           email: currentUser.email ?? "",
           userId: currentUser.uid,
         );
@@ -556,7 +566,13 @@ class _LoginScreenState extends State<LoginScreen> {
         if (mounted) {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (context) => const DashboardScreen()),
+            GlassPageRoute(
+              builder: (_) => AuthSuccessTransitionScreen(
+                userName: ownerName,
+                methodLabel: methodLabel,
+                roleLabel: 'Mode Pemilik Toko • Akses Penuh',
+              ),
+            ),
           );
         }
         return;
@@ -583,8 +599,9 @@ class _LoginScreenState extends State<LoginScreen> {
         SharedPreferences prefs = await SharedPreferences.getInstance();
         await prefs.setString('saved_store_id', user.uid);
 
+        final ownerName = user.displayName ?? "Bos";
         await SessionManager().loginAsOwner(
-          name: user.displayName ?? "Bos",
+          name: ownerName,
           email: user.email ?? "",
           userId: user.uid,
         );
@@ -592,7 +609,13 @@ class _LoginScreenState extends State<LoginScreen> {
         if (mounted) {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (context) => const DashboardScreen()),
+            GlassPageRoute(
+              builder: (_) => AuthSuccessTransitionScreen(
+                userName: ownerName,
+                methodLabel: methodLabel,
+                roleLabel: 'Mode Pemilik Toko • Akses Penuh',
+              ),
+            ),
           );
         }
       }
@@ -721,7 +744,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     if (authenticated) {
-      _processOwnerLogin();
+      _processOwnerLogin(methodLabel: 'Verifikasi Sidik Jari Berhasil');
     } else {
       if (mounted) {
         AppNotification.show(context, message: "Autentikasi dibatalkan.", type: AppNotificationType.error);
@@ -730,7 +753,9 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   // 🔥 FUNGSI SENTRAL LOGIN BOS & SET COOKIES WAKTU 🔥
-  Future<void> _processOwnerLogin() async {
+  Future<void> _processOwnerLogin({
+    String methodLabel = 'Verifikasi Pemilik Berhasil',
+  }) async {
     setState(() => _isLoading = true);
     final prefs = await SharedPreferences.getInstance();
 
@@ -739,7 +764,7 @@ class _LoginScreenState extends State<LoginScreen> {
     await prefs.setInt('boss_session_timestamp', currentTimestamp);
 
     // Jalankan integrasi ke Google / Database
-    await _loginWithGoogle();
+    await _loginWithGoogle(methodLabel: methodLabel);
   }
 
   @override
@@ -763,35 +788,43 @@ class _LoginScreenState extends State<LoginScreen> {
                           children: [
                             LiquidEntrance(
                               delayMs: 40,
-                              child: LiquidFloatBadge(
-                                child: LiquidShimmerSweep(
-                                  borderRadius: 24,
-                                  child: GlassContainer(
-                                    borderRadius: 24,
-                                    padding: const EdgeInsets.all(14),
-                                    borderColor: Colors.white.withValues(alpha: 0.96),
-                                    borderWidth: 1.6,
-                                    child: SizedBox(
-                                      width: 72,
-                                      height: 72,
-                                      child: (_logoPath != null &&
-                                              File(_logoPath!).existsSync())
-                                          ? ClipRRect(
-                                              borderRadius: BorderRadius.circular(14),
+                              child: (_logoPath != null &&
+                                      File(_logoPath!).existsSync())
+                                  ? LiquidFloatBadge(
+                                      child: LiquidShimmerSweep(
+                                        borderRadius: 24,
+                                        child: GlassContainer(
+                                          borderRadius: 24,
+                                          padding: const EdgeInsets.all(14),
+                                          borderColor:
+                                              Colors.white.withValues(alpha: 0.96),
+                                          borderWidth: 1.6,
+                                          child: SizedBox(
+                                            width: 72,
+                                            height: 72,
+                                            child: ClipRRect(
+                                              borderRadius:
+                                                  BorderRadius.circular(14),
                                               child: Image.file(
                                                 File(_logoPath!),
                                                 fit: BoxFit.contain,
                                               ),
-                                            )
-                                          : const Icon(
-                                              LucideIcons.store,
-                                              size: 46,
-                                              color: AppColors.primaryNavy,
                                             ),
+                                          ),
+                                        ),
+                                      ),
+                                    )
+                                  : RepaintBoundary(
+                                      child: SizedBox(
+                                        width: 176,
+                                        height: 176,
+                                        child: Lottie.asset(
+                                          'assets/animations/splash_store_motion.json',
+                                          repeat: true,
+                                          fit: BoxFit.contain,
+                                        ),
+                                      ),
                                     ),
-                                  ),
-                                ),
-                              ),
                             ),
                             const SizedBox(height: 22),
                             LiquidEntrance(
@@ -1107,10 +1140,44 @@ class _LoginScreenState extends State<LoginScreen> {
 
             if (_isLoading)
               Container(
-                color: AppColors.primaryNavy.withValues(alpha: 0.68),
-                child: const Center(
-                  child: CircularProgressIndicator(
-                    color: AppColors.accentAmberBright,
+                color: AppColors.primaryNavy.withValues(alpha: 0.72),
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 18,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.34),
+                        width: 1.2,
+                      ),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 96,
+                          height: 30,
+                          child: Lottie.asset(
+                            'assets/animations/splash_loading_wave.json',
+                            repeat: true,
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        const Text(
+                          "Memverifikasi Akses...",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
