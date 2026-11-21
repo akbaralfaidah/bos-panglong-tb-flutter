@@ -46,6 +46,7 @@ class DebtFirebaseDataSource {
     List<Map<String, dynamic>> activeDebts = [];
     for (var doc in tDocs) {
       Map<String, dynamic> transData = doc.data() as Map<String, dynamic>;
+      if (transData['is_legacy_titipan'] == true) continue;
       int transId = transData['id'] as int;
       transData['total_dicicil'] = paymentMap[transId] ?? 0;
       

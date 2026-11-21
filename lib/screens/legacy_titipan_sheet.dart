@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../controllers/product_controller.dart';
 import '../data/datasources/firebase/review_transaction_firebase_datasource.dart';
@@ -26,21 +27,74 @@ Future<bool?> showLegacyTitipanDialog(
 }
 
 class _LegacyTitipanItemEntry {
+  static final NumberFormat _priceFmt = NumberFormat('#,###', 'id_ID');
+
   final Product product;
   int unitMode = 0;
   double reqQty;
+  int unitSellPrice;
   final TextEditingController qtyCtrl;
+  final TextEditingController priceCtrl;
 
   _LegacyTitipanItemEntry({
     required this.product,
     this.reqQty = 1.0,
-  }) : qtyCtrl = TextEditingController(
-          text: reqQty == reqQty.roundToDouble()
-              ? reqQty.round().toString()
-              : reqQty.toString(),
-        );
+    int? initialUnitSellPrice,
+  }) : unitSellPrice =
+           initialUnitSellPrice ?? _computeDefaultUnitPrice(product, 0),
+       qtyCtrl = TextEditingController(
+         text: reqQty == reqQty.roundToDouble()
+             ? reqQty.round().toString()
+             : reqQty.toString(),
+       ),
+       priceCtrl = TextEditingController(
+         text:
+             (initialUnitSellPrice ?? _computeDefaultUnitPrice(product, 0)) > 0
+             ? _priceFmt.format(
+                 initialUnitSellPrice ?? _computeDefaultUnitPrice(product, 0),
+               )
+             : '',
+       );
 
-  void dispose() => qtyCtrl.dispose();
+  static int _computeDefaultUnitPrice(Product p, int mode) {
+    if (p.type == 'RENG') {
+      if (mode == 0) return p.sellPriceUnit;
+      if (mode == 1) {
+        final double pack = p.packContent > 0 ? p.packContent : 1.0;
+        return (p.sellPriceUnit * pack).round();
+      }
+      return p.sellPriceCubic > 0 ? p.sellPriceCubic : p.sellPriceUnit;
+    }
+    if (p.type == 'KAYU') {
+      if (mode == 1) {
+        return p.sellPriceCubic > 0 ? p.sellPriceCubic : p.sellPriceUnit;
+      }
+      return p.sellPriceUnit;
+    }
+    if (p.type == 'BANGUNAN') {
+      if (mode == 1) {
+        if (p.sellPriceCubic > 0) return p.sellPriceCubic;
+        final double pack = p.packContent > 0 ? p.packContent : 1.0;
+        return (p.sellPriceUnit * pack).round();
+      }
+      return p.sellPriceUnit;
+    }
+    return p.sellPriceUnit;
+  }
+
+  void setUnitMode(int mode) {
+    unitMode = mode;
+    unitSellPrice = _computeDefaultUnitPrice(product, mode);
+    priceCtrl.text = unitSellPrice > 0 ? _priceFmt.format(unitSellPrice) : '';
+  }
+
+  int get lineTotal =>
+      (reqQty > 0 && unitSellPrice > 0) ? (reqQty * unitSellPrice).round() : 0;
+
+  void dispose() {
+    qtyCtrl.dispose();
+    priceCtrl.dispose();
+  }
 
   List<int> availableModes() {
     if (product.type == 'RENG') {
@@ -217,6 +271,18 @@ class _LegacyTitipanSheetState extends State<_LegacyTitipanSheet> {
     }
     return clean.isEmpty ? p.name : clean;
   }
+
+  static final NumberFormat _rpFmt = NumberFormat.currency(
+    locale: 'id',
+    symbol: 'Rp ',
+    decimalDigits: 0,
+  );
+  static final NumberFormat _thousandFmt = NumberFormat('#,###', 'id_ID');
+
+  String _formatRp(num v) => _rpFmt.format(v);
+
+  int get _totalReferenceValue =>
+      _items.fold<int>(0, (sum, entry) => sum + entry.lineTotal);
 
   String _fmtNum(double v) {
     if ((v - v.roundToDouble()).abs() < 0.001) return v.round().toString();
@@ -426,18 +492,24 @@ class _LegacyTitipanSheetState extends State<_LegacyTitipanSheet> {
           'quantity': bQty,
           'request_qty': rQty,
           'unit_type': entry.unitLabel(entry.unitMode),
+          'sell_price': entry.unitSellPrice,
+          'agreed_total': entry.lineTotal,
         };
       }).toList();
 
-      final savedTrans = await _transDS.createLegacyTitipan(
-        customerName: _nameCtrl.text.trim(),
-        customerPhone: _phoneCtrl.text.trim(),
-        customerAddress: _addressCtrl.text.trim(),
-        cashierName: SessionManager().userName ?? 'Admin',
-        transactionDate: _selectedDate.toIso8601String(),
-        items: payloadItems,
-        deductFromStock: _deductFromStock,
-        note: _noteCtrl.text.trim(),
+      final savedTrans = await DepotLoadingIndicator.runWithDialog(
+        context,
+        message: 'Menyimpan data titipan lama...',
+        task: () => _transDS.createLegacyTitipan(
+          customerName: _nameCtrl.text.trim(),
+          customerPhone: _phoneCtrl.text.trim(),
+          customerAddress: _addressCtrl.text.trim(),
+          cashierName: SessionManager().userName ?? 'Admin',
+          transactionDate: _selectedDate.toIso8601String(),
+          items: payloadItems,
+          deductFromStock: _deductFromStock,
+          note: _noteCtrl.text.trim(),
+        ),
       );
 
       if (!mounted) return;
@@ -631,7 +703,7 @@ class _LegacyTitipanSheetState extends State<_LegacyTitipanSheet> {
                               SizedBox(width: 10),
                               Expanded(
                                 child: Text(
-                                  'Pencatatan ini TIDAK menambah Omset, Laba, atau Arus Kas karena uangnya dianggap sudah masuk di transaksi sebelumnya.',
+                                  'Harga pada nota Titipan Lama otomatis diisi dari katalog (bisa diubah sesuai nota lama) hanya sebagai catatan referensi. Pencatatan ini TIDAK menambah Omset, Laba, Modal Cair, atau Arus Kas baru.',
                                   style: TextStyle(
                                     fontSize: 11.5,
                                     fontWeight: FontWeight.w600,
@@ -974,37 +1046,100 @@ class _LegacyTitipanSheetState extends State<_LegacyTitipanSheet> {
                   ),
                   child: SafeArea(
                     top: false,
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: _isSaving ? null : _saveLegacyTitipan,
-                        icon: _isSaving
-                            ? DepotLoadingIndicator.compact(
-                                size: 20,
-                                color: Colors.white,
-                              )
-                            : const Icon(
-                                Icons.save_rounded,
-                                color: AppColors.accentGold,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (_items.isNotEmpty) ...[
+                          Container(
+                            width: double.infinity,
+                            margin: const EdgeInsets.only(bottom: 10),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 9,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.menuTealBg.withValues(alpha: 0.65),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: AppColors.menuTealIcon.withValues(
+                                  alpha: 0.25,
+                                ),
                               ),
-                        label: Text(
-                          _isSaving
-                              ? 'MENYIMPAN...'
-                              : 'SIMPAN DATA TITIPAN LAMA',
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w900,
-                            color: Colors.white,
+                            ),
+                            child: Row(
+                              children: [
+                                const Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Total Nilai Catatan (Lunas Dulu)',
+                                        style: TextStyle(
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.w800,
+                                          color: AppColors.primaryNavy,
+                                        ),
+                                      ),
+                                      Text(
+                                        'Referensi nota lama • Tidak masuk omset baru',
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w600,
+                                          color: AppColors.textGrey,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  _totalReferenceValue > 0
+                                      ? _formatRp(_totalReferenceValue)
+                                      : 'Tanpa Nominal',
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w900,
+                                    color: AppColors.menuTealIcon,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: _isSaving ? null : _saveLegacyTitipan,
+                            icon: _isSaving
+                                ? DepotLoadingIndicator.compact(
+                                    size: 20,
+                                    color: Colors.white,
+                                  )
+                                : const Icon(
+                                    Icons.save_rounded,
+                                    color: AppColors.accentGold,
+                                  ),
+                            label: Text(
+                              _isSaving
+                                  ? 'MENYIMPAN...'
+                                  : 'SIMPAN DATA TITIPAN LAMA',
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.white,
+                              ),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primaryNavy,
+                              padding: const EdgeInsets.symmetric(vertical: 15),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                            ),
                           ),
                         ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primaryNavy,
-                          padding: const EdgeInsets.symmetric(vertical: 15),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
-                      ),
+                      ],
                     ),
                   ),
                 ),
@@ -1148,7 +1283,7 @@ class _LegacyTitipanSheetState extends State<_LegacyTitipanSheet> {
                   selected: selected,
                   selectedColor: AppColors.primaryNavy,
                   backgroundColor: Colors.grey.shade100,
-                  onSelected: (_) => setState(() => entry.unitMode = m),
+                  onSelected: (_) => setState(() => entry.setUnitMode(m)),
                 );
               }).toList(),
             ),
@@ -1224,6 +1359,97 @@ class _LegacyTitipanSheetState extends State<_LegacyTitipanSheet> {
                     fontWeight: FontWeight.bold,
                     color: AppColors.primaryNavy,
                   ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: entry.priceCtrl,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                    color: AppColors.primaryNavy,
+                  ),
+                  decoration: InputDecoration(
+                    labelText:
+                        'Harga Catatan / ${entry.unitLabel(entry.unitMode)} (Opsional)',
+                    labelStyle: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textGrey,
+                    ),
+                    prefixText: 'Rp ',
+                    prefixStyle: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.menuTealIcon,
+                      fontSize: 13,
+                    ),
+                    hintText: '0 (stok saja)',
+                    filled: true,
+                    fillColor: Colors.white,
+                    contentPadding: const EdgeInsets.symmetric(
+                      vertical: 8,
+                      horizontal: 10,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                    isDense: true,
+                  ),
+                  onChanged: (raw) {
+                    final String digits = raw.replaceAll(RegExp(r'[^0-9]'), '');
+                    final int parsed = int.tryParse(digits) ?? 0;
+                    final String formatted = parsed > 0
+                        ? _thousandFmt.format(parsed)
+                        : '';
+                    if (entry.priceCtrl.text != formatted) {
+                      entry.priceCtrl.value = TextEditingValue(
+                        text: formatted,
+                        selection: TextSelection.collapsed(
+                          offset: formatted.length,
+                        ),
+                      );
+                    }
+                    setState(() => entry.unitSellPrice = parsed);
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.menuTealBg.withValues(alpha: 0.7),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    const Text(
+                      'Subtotal Nota',
+                      style: TextStyle(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textGrey,
+                      ),
+                    ),
+                    Text(
+                      entry.lineTotal > 0 ? _formatRp(entry.lineTotal) : '-',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.menuTealIcon,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],

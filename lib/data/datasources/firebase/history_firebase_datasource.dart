@@ -38,6 +38,7 @@ class HistoryFirebaseDataSource {
 
     for (var doc in tDocs) {
       var t = doc.data() as Map<String, dynamic>;
+      if (t['is_legacy_titipan'] == true) continue;
       int tid = t['id'];
       String status = t['payment_status'] ?? '';
       
@@ -107,6 +108,7 @@ class HistoryFirebaseDataSource {
 
     for (var doc in tDocs) {
       var t = doc.data() as Map<String, dynamic>;
+      if (t['is_legacy_titipan'] == true) continue;
       if (t['payment_status'] == 'Lunas') {
         List<dynamic> items = t['items'] ?? [];
         for (var i in items) {
@@ -141,6 +143,7 @@ class HistoryFirebaseDataSource {
 
     for (var doc in tDocs) {
       var t = doc.data() as Map<String, dynamic>;
+      if (t['is_legacy_titipan'] == true) continue;
       double bensin = (t['operational_cost'] as num?)?.toDouble() ?? 0;
       if (bensin > 0) {
         data.add(t);
@@ -161,6 +164,7 @@ class HistoryFirebaseDataSource {
 
     for (var doc in tDocs) {
       var t = doc.data() as Map<String, dynamic>;
+      if (t['is_legacy_titipan'] == true) continue;
       data.add(t);
       if (t['payment_status'] == 'Lunas') {
         double grand = (t['total_price'] as num?)?.toDouble() ?? 0;

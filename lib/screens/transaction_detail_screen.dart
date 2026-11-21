@@ -12,7 +12,9 @@ import 'package:http/http.dart' as http;
 import 'package:connectivity_plus/connectivity_plus.dart';
 import '../helpers/printer_helper.dart';
 import '../helpers/thermal_receipt_encoder.dart';
+import '../controllers/product_controller.dart';
 import '../controllers/transaction_detail_controller.dart';
+import '../models/product.dart';
 import '../theme/app_colors.dart';
 import '../theme/glass_widgets.dart';
 import '../helpers/session_manager.dart';
@@ -1796,9 +1798,443 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
     );
   }
 
+  Future<void> _showEditLegacyPricesSheet() async {
+    if (_items.isEmpty) return;
+
+    final NumberFormat thousandFmt = NumberFormat('#,###', 'id_ID');
+    final List<TextEditingController> controllers = [];
+    final List<double> qtys = [];
+
+    for (final item in _items) {
+      final double reqQty =
+          (item['request_qty'] as num?)?.toDouble() ??
+          (item['quantity'] as num?)?.toDouble() ??
+          1.0;
+      qtys.add(reqQty);
+      int unitPrice = (item['sell_price'] as num?)?.round() ?? 0;
+      if (unitPrice <= 0) {
+        final int agreed = (item['agreed_total'] as num?)?.round() ?? 0;
+        if (agreed > 0 && reqQty > 0) {
+          unitPrice = (agreed / reqQty).round();
+        }
+      }
+      controllers.add(
+        TextEditingController(
+          text: unitPrice > 0 ? thousandFmt.format(unitPrice) : '',
+        ),
+      );
+    }
+
+    int parseCtrl(TextEditingController c) =>
+        int.tryParse(c.text.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+
+    int computeTotal() {
+      int sum = 0;
+      for (int i = 0; i < controllers.length; i++) {
+        sum += (parseCtrl(controllers[i]) * qtys[i]).round();
+      }
+      return sum;
+    }
+
+    bool isFetchingCatalog = false;
+
+    final bool? saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetCtx) => StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          final double bottomInset = MediaQuery.viewInsetsOf(ctx).bottom;
+          final int grandTotal = computeTotal();
+
+          Future<void> fillFromCatalog() async {
+            setSheetState(() => isFetchingCatalog = true);
+            try {
+              final List<Product> products = await ProductController()
+                  .getAllProducts();
+              final Map<int, Product> byId = {
+                for (final p in products)
+                  if (p.id != null) p.id!: p,
+              };
+              for (int i = 0; i < _items.length; i++) {
+                final rawPid = _items[i]['product_id'];
+                final int? pid = rawPid is num
+                    ? rawPid.toInt()
+                    : int.tryParse(rawPid?.toString() ?? '');
+                final Product? prod = pid != null ? byId[pid] : null;
+                if (prod == null) continue;
+                final String unitLower = (_items[i]['unit_type'] ?? '')
+                    .toString()
+                    .toLowerCase();
+                int suggested = prod.sellPriceUnit;
+                if (unitLower.contains('m³') ||
+                    unitLower.contains('m3') ||
+                    unitLower.contains('kubik')) {
+                  suggested = prod.sellPriceCubic > 0
+                      ? prod.sellPriceCubic
+                      : prod.sellPriceUnit;
+                } else if (unitLower.contains('ikat')) {
+                  final double pack = prod.packContent > 0
+                      ? prod.packContent
+                      : 1.0;
+                  suggested = (prod.sellPriceUnit * pack).round();
+                } else if (prod.type == 'BANGUNAN' &&
+                    (prod.grosirUnit ?? '').trim().isNotEmpty &&
+                    unitLower == prod.grosirUnit!.trim().toLowerCase()) {
+                  suggested = prod.sellPriceCubic > 0
+                      ? prod.sellPriceCubic
+                      : (prod.sellPriceUnit *
+                                (prod.packContent > 0 ? prod.packContent : 1.0))
+                            .round();
+                }
+                if (suggested > 0) {
+                  controllers[i].text = thousandFmt.format(suggested);
+                }
+              }
+            } finally {
+              if (ctx.mounted) {
+                setSheetState(() => isFetchingCatalog = false);
+              }
+            }
+          }
+
+          return Padding(
+            padding: EdgeInsets.only(bottom: bottomInset),
+            child: Container(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.sizeOf(ctx).height * 0.85,
+              ),
+              decoration: const BoxDecoration(
+                color: Color(0xFFF3F7FD),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(height: 10),
+                  Container(
+                    width: 44,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryNavy.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(18, 12, 12, 8),
+                    child: Row(
+                      children: [
+                        const GlassIconBadge(
+                          icon: Icons.sell_outlined,
+                          iconColor: AppColors.menuTealIcon,
+                          bgColor: AppColors.menuTealBg,
+                          size: 40,
+                          iconSize: 20,
+                          radius: 12,
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Isi / Edit Harga Catatan',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w900,
+                                  color: AppColors.primaryNavy,
+                                ),
+                              ),
+                              Text(
+                                'Hanya catatan nota lama • Tidak mengubah omset/profit/stok',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textGrey,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(
+                            Icons.close_rounded,
+                            color: AppColors.textGrey,
+                          ),
+                          onPressed: () => Navigator.pop(sheetCtx, false),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 18),
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        onPressed: isFetchingCatalog ? null : fillFromCatalog,
+                        icon: isFetchingCatalog
+                            ? DepotLoadingIndicator.compact(
+                                size: 15,
+                                color: AppColors.menuTealIcon,
+                              )
+                            : const Icon(
+                                Icons.auto_fix_high_rounded,
+                                size: 16,
+                                color: AppColors.menuTealIcon,
+                              ),
+                        label: const Text(
+                          'Isi Otomatis dari Harga Katalog',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.menuTealIcon,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Flexible(
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      padding: const EdgeInsets.fromLTRB(18, 4, 18, 14),
+                      itemCount: _items.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      itemBuilder: (_, idx) {
+                        final item = _items[idx];
+                        final String pName =
+                            (item['product_name'] ?? 'Barang').toString();
+                        final String unit =
+                            (item['unit_type'] ?? 'Pcs').toString();
+                        final double q = qtys[idx];
+                        final String qStr = q == q.roundToDouble()
+                            ? q.round().toString()
+                            : q.toStringAsFixed(2);
+                        final int sub =
+                            (parseCtrl(controllers[idx]) * q).round();
+
+                        return Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: AppColors.liquidGlassCard(radius: 14),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      pName,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 13.5,
+                                        color: AppColors.primaryNavy,
+                                      ),
+                                    ),
+                                  ),
+                                  Text(
+                                    '$qStr $unit',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w800,
+                                      color: AppColors.menuAmberIcon,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: TextField(
+                                      controller: controllers[idx],
+                                      keyboardType: TextInputType.number,
+                                      inputFormatters: [
+                                        FilteringTextInputFormatter.digitsOnly,
+                                      ],
+                                      decoration: InputDecoration(
+                                        labelText: 'Harga / $unit',
+                                        prefixText: 'Rp ',
+                                        hintText: '0',
+                                        filled: true,
+                                        fillColor: Colors.white,
+                                        isDense: true,
+                                        contentPadding:
+                                            const EdgeInsets.symmetric(
+                                              horizontal: 10,
+                                              vertical: 9,
+                                            ),
+                                        border: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                        ),
+                                      ),
+                                      onChanged: (raw) {
+                                        final String digits = raw.replaceAll(
+                                          RegExp(r'[^0-9]'),
+                                          '',
+                                        );
+                                        final int parsed =
+                                            int.tryParse(digits) ?? 0;
+                                        final String formatted = parsed > 0
+                                            ? thousandFmt.format(parsed)
+                                            : '';
+                                        if (controllers[idx].text !=
+                                            formatted) {
+                                          controllers[idx].value =
+                                              TextEditingValue(
+                                                text: formatted,
+                                                selection:
+                                                    TextSelection.collapsed(
+                                                      offset: formatted.length,
+                                                    ),
+                                              );
+                                        }
+                                        setSheetState(() {});
+                                      },
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Text(
+                                    sub > 0 ? _formatRp(sub) : '-',
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w900,
+                                      color: AppColors.menuTealIcon,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
+                    color: Colors.white,
+                    child: SafeArea(
+                      top: false,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                'Total Nilai Catatan',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.primaryNavy,
+                                ),
+                              ),
+                              Text(
+                                grandTotal > 0
+                                    ? _formatRp(grandTotal)
+                                    : 'Tanpa Nominal',
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w900,
+                                  color: AppColors.menuTealIcon,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              icon: const Icon(
+                                Icons.save_rounded,
+                                color: Colors.white,
+                                size: 19,
+                              ),
+                              label: const Text(
+                                'SIMPAN HARGA CATATAN',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.menuTealIcon,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                              ),
+                              onPressed: () => Navigator.pop(sheetCtx, true),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+
+    if (saved == true && mounted) {
+      final List<Map<String, dynamic>> updatedItems = [];
+      int newTotalPrice = 0;
+      for (int i = 0; i < _items.length; i++) {
+        final Map<String, dynamic> copy = Map<String, dynamic>.from(_items[i]);
+        final int unitPrice = parseCtrl(controllers[i]);
+        final int agreed = (unitPrice * qtys[i]).round();
+        copy['sell_price'] = unitPrice;
+        copy['agreed_total'] = agreed;
+        copy['capital_price'] = 0;
+        copy['capital_total'] = 0;
+        newTotalPrice += agreed;
+        updatedItems.add(copy);
+      }
+
+      try {
+        await DepotLoadingIndicator.runWithDialog(
+          context,
+          message: 'Menyimpan harga catatan...',
+          task: () => _controller.updateLegacyTitipanPrices(
+            transId: _transId,
+            updatedItems: updatedItems,
+            totalPrice: newTotalPrice,
+          ),
+        );
+        if (!mounted) return;
+        await _fetchData();
+        if (!mounted) return;
+        AppNotification.show(
+          context,
+          message:
+              'Harga catatan titipan lama diperbarui (tidak menambah omset/profit).',
+          type: AppNotificationType.success,
+        );
+      } catch (e) {
+        if (mounted) {
+          AppNotification.show(
+            context,
+            message: 'Gagal menyimpan harga catatan: $e',
+            type: AppNotificationType.error,
+          );
+        }
+      }
+    }
+
+    for (final c in controllers) {
+      c.dispose();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     bool isLunas = _status == "Lunas";
+    bool isLegacyTitipan = _currentTransaction['is_legacy_titipan'] == true;
     String dateFormatted = DateFormat(
       'dd/MM/yyyy HH:mm',
     ).format(DateTime.parse(_dateStr));
@@ -1840,7 +2276,9 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
           title: Text(
             widget.isNewTransaction
                 ? "Transaksi Berhasil"
-                : "Invoice #$_transId",
+                : (isLegacyTitipan
+                    ? "Titipan Lama #$_transId"
+                    : "Invoice #$_transId"),
             style: const TextStyle(
               color: AppColors.pureWhite,
               fontWeight: FontWeight.bold,
@@ -1886,7 +2324,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                     maxWidth: 860,
                     child: Column(
                       children: [
-                        if (_currentTransaction['is_legacy_titipan'] == true) ...[
+                        if (isLegacyTitipan) ...[
                           Container(
                             margin: const EdgeInsets.only(bottom: 14),
                             padding: const EdgeInsets.all(12),
@@ -1901,7 +2339,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                                 SizedBox(width: 10),
                                 Expanded(
                                   child: Text(
-                                    "Catatan Barang Titipan Lama (Tanpa Transaksi Ulang — Tidak Menambah Omset, Profit, atau Arus Kas).",
+                                    "Catatan Barang Titipan Lama — Nominal pada nota ini hanya catatan historis (sudah lunas dulu) dan TIDAK menambah Omset, Profit, atau Arus Kas baru.",
                                     style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primaryNavy),
                                   ),
                                 ),
@@ -2049,15 +2487,17 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                const Text(
-                                  "Invoice:",
-                                  style: TextStyle(
+                                Text(
+                                  isLegacyTitipan ? "No. Titipan:" : "Invoice:",
+                                  style: const TextStyle(
                                     color: Colors.black,
                                     fontSize: 18,
                                   ),
                                 ),
                                 Text(
-                                  "INV-$_transId",
+                                  isLegacyTitipan
+                                      ? "TITIP-$_transId"
+                                      : "INV-$_transId",
                                   style: const TextStyle(
                                     color: Colors.black,
                                     fontSize: 18,
@@ -2596,7 +3036,9 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                                             children: [
                                               Expanded(
                                                 child: Text(
-                                                  isKubikInput
+                                                  (isKubikInput ||
+                                                          (isLegacyTitipan &&
+                                                              subtotalItem == 0))
                                                       ? "$qtyStr $displayUnit"
                                                       : "$qtyStr $displayUnit x ${_formatRpStr(displayPrice)}",
                                                   style: const TextStyle(
@@ -2607,7 +3049,10 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                                               ),
                                               const SizedBox(width: 8),
                                               Text(
-                                                _formatRpStr(subtotalItem),
+                                                (isLegacyTitipan &&
+                                                        subtotalItem == 0)
+                                                    ? "-"
+                                                    : _formatRpStr(subtotalItem),
                                                 style: const TextStyle(
                                                   color: Colors.black,
                                                   fontSize: 20,
@@ -2632,110 +3077,139 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                               const SizedBox(height: 10),
                             ],
 
-                            Column(
-                              children: [
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    const Text(
-                                      "Subtotal",
-                                      style: TextStyle(
-                                        color: Colors.black,
-                                        fontSize: 20,
-                                      ),
-                                    ),
-                                    Text(
-                                      _formatRp(subtotalBarangMurni),
-                                      style: const TextStyle(
-                                        color: Colors.black,
-                                        fontSize: 20,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                if (_discount > 0)
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 6),
-                                    child: Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        const Text(
-                                          "Diskon",
-                                          style: TextStyle(
-                                            color: Colors.black,
-                                            fontSize: 20,
-                                          ),
-                                        ),
-                                        Text(
-                                          "- ${_formatRp(_discount)}",
-                                          style: const TextStyle(
-                                            color: Colors.black,
-                                            fontSize: 20,
-                                          ),
-                                        ),
-                                      ],
+                            if (isLegacyTitipan && _totalPrice == 0)
+                              const Column(
+                                children: [
+                                  Text(
+                                    "CATATAN STOK TITIPAN LAMA",
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w900,
+                                      color: Colors.black,
+                                      fontSize: 19,
                                     ),
                                   ),
-                                if (_opCost > 0)
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 6),
-                                    child: Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        const Text(
-                                          "Ongkir",
-                                          style: TextStyle(
-                                            color: Colors.black,
-                                            fontSize: 18,
-                                          ),
-                                        ),
-                                        Text(
-                                          _formatRp(_opCost),
-                                          style: const TextStyle(
-                                            color: Colors.black,
-                                            fontSize: 18,
-                                          ),
-                                        ),
-                                      ],
+                                  SizedBox(height: 4),
+                                  Text(
+                                    "(Tanpa nominal harga • Sudah lunas sebelumnya)",
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      color: Colors.black87,
+                                      fontSize: 15,
                                     ),
                                   ),
-                                const SizedBox(height: 8),
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    const Expanded(
-                                      child: Text(
-                                        "Total Bayar",
+                                ],
+                              )
+                            else
+                              Column(
+                                children: [
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      const Text(
+                                        "Subtotal",
                                         style: TextStyle(
-                                          fontWeight: FontWeight.bold,
                                           color: Colors.black,
-                                          fontSize: 22,
+                                          fontSize: 20,
                                         ),
                                       ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      _formatRp(_totalPrice),
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w900,
-                                        color: Colors.black,
-                                        fontSize: 26,
+                                      Text(
+                                        _formatRp(subtotalBarangMurni),
+                                        style: const TextStyle(
+                                          color: Colors.black,
+                                          fontSize: 20,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  if (_discount > 0)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 6),
+                                      child: Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          const Text(
+                                            "Diskon",
+                                            style: TextStyle(
+                                              color: Colors.black,
+                                              fontSize: 20,
+                                            ),
+                                          ),
+                                          Text(
+                                            "- ${_formatRp(_discount)}",
+                                            style: const TextStyle(
+                                              color: Colors.black,
+                                              fontSize: 20,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                  ],
-                                ),
-                              ],
-                            ),
+                                  if (_opCost > 0)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 6),
+                                      child: Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          const Text(
+                                            "Ongkir",
+                                            style: TextStyle(
+                                              color: Colors.black,
+                                              fontSize: 18,
+                                            ),
+                                          ),
+                                          Text(
+                                            _formatRp(_opCost),
+                                            style: const TextStyle(
+                                              color: Colors.black,
+                                              fontSize: 18,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          isLegacyTitipan
+                                              ? "Total Nilai Nota"
+                                              : "Total Bayar",
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.black,
+                                            fontSize: 22,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        _formatRp(_totalPrice),
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w900,
+                                          color: Colors.black,
+                                          fontSize: 26,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
 
                             const SizedBox(height: 35),
 
                             Container(
                               width: double.infinity,
-                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 8,
+                                horizontal: 8,
+                              ),
                               decoration: BoxDecoration(
                                 border: Border.all(
                                   color: Colors.black,
@@ -2743,16 +3217,33 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                                 ),
                                 borderRadius: BorderRadius.circular(8),
                               ),
-                              child: Center(
-                                child: Text(
-                                  isLunas ? "L U N A S" : "BELUM LUNAS",
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w900,
-                                    fontSize: 18,
-                                    letterSpacing: 1,
-                                    color: Colors.black,
+                              child: Column(
+                                children: [
+                                  Text(
+                                    isLegacyTitipan
+                                        ? "LUNAS (TITIPAN LAMA)"
+                                        : (isLunas ? "L U N A S" : "BELUM LUNAS"),
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 18,
+                                      letterSpacing: 1,
+                                      color: Colors.black,
+                                    ),
                                   ),
-                                ),
+                                  if (isLegacyTitipan) ...[
+                                    const SizedBox(height: 2),
+                                    const Text(
+                                      "Catatan nota lama • Tidak masuk omset baru",
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 13,
+                                        color: Colors.black87,
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ),
                             ),
 
@@ -3094,43 +3585,76 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                         if (!widget.isNewTransaction &&
                             SessionManager().isOwner) ...[
                           const SizedBox(height: 15),
-                          SizedBox(
-                            width: double.infinity,
-                            child: OutlinedButton.icon(
-                              icon: const Icon(Icons.edit, color: AppColors.menuAmberIcon, size: 20),
-                              label: const Text(
-                                "EDIT TRANSAKSI",
-                                style: TextStyle(
-                                  color: AppColors.menuAmberIcon,
-                                  fontWeight: FontWeight.bold,
+                          if (isLegacyTitipan)
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                icon: const Icon(
+                                  Icons.sell_outlined,
+                                  color: AppColors.menuTealIcon,
+                                  size: 20,
                                 ),
-                              ),
-                              style: OutlinedButton.styleFrom(
-                                side: const BorderSide(
-                                  color: AppColors.menuAmberIcon,
-                                  width: 2,
-                                ),
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 15,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                backgroundColor: AppColors.menuAmberBg,
-                              ),
-                              onPressed: () async {
-                                final res = await Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => EditTransactionScreen(transactionData: _currentTransaction),
+                                label: const Text(
+                                  "ISI / EDIT HARGA CATATAN",
+                                  style: TextStyle(
+                                    color: AppColors.menuTealIcon,
+                                    fontWeight: FontWeight.bold,
                                   ),
-                                );
-                                if (res == true) {
-                                  await _fetchData();
-                                }
-                              },
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  side: const BorderSide(
+                                    color: AppColors.menuTealIcon,
+                                    width: 2,
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 15,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  backgroundColor: AppColors.menuTealBg,
+                                ),
+                                onPressed: _showEditLegacyPricesSheet,
+                              ),
+                            )
+                          else
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                icon: const Icon(Icons.edit, color: AppColors.menuAmberIcon, size: 20),
+                                label: const Text(
+                                  "EDIT TRANSAKSI",
+                                  style: TextStyle(
+                                    color: AppColors.menuAmberIcon,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  side: const BorderSide(
+                                    color: AppColors.menuAmberIcon,
+                                    width: 2,
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 15,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  backgroundColor: AppColors.menuAmberBg,
+                                ),
+                                onPressed: () async {
+                                  final res = await Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => EditTransactionScreen(transactionData: _currentTransaction),
+                                    ),
+                                  );
+                                  if (res == true) {
+                                    await _fetchData();
+                                  }
+                                },
+                              ),
                             ),
-                          ),
                           const SizedBox(height: 15),
                           SizedBox(
                             width: double.infinity,
@@ -3148,7 +3672,9 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                               label: Text(
                                 _isVoiding
                                     ? "MEMPROSES PENGHAPUSAN..."
-                                    : "BATALKAN TRANSAKSI",
+                                    : (isLegacyTitipan
+                                        ? "HAPUS CATATAN TITIPAN"
+                                        : "BATALKAN TRANSAKSI"),
                                 style: const TextStyle(
                                   color: AppColors.statusRed,
                                   fontWeight: FontWeight.bold,

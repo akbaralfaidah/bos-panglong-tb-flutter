@@ -102,6 +102,7 @@ class OperationalFirebaseDataSource {
 
     List<Map<String, dynamic>> incomes = [];
     for (var row in results) {
+      if (row['is_legacy_titipan'] == true) continue;
       int opCost = (row['operational_cost'] as num?)?.toInt() ?? 0;
       if (opCost > 0) {
         incomes.add({

@@ -60,16 +60,134 @@ class TransactionHistoryFirebaseDataSource {
     }
   }
 
-  Map<String, dynamic> _processTransactionDocs({
-    required List<QueryDocumentSnapshot> docs,
+  static double _itemAgreedAmount(Map<String, dynamic> item) {
+    if (item.containsKey('agreed_total') && item['agreed_total'] != null) {
+      return (item['agreed_total'] as num).toDouble();
+    }
+    final double sell = (item['sell_price'] as num?)?.toDouble() ?? 0;
+    final double reqQty = (item['request_qty'] as num?)?.toDouble() ?? 0;
+    final double qty = (item['quantity'] as num?)?.toDouble() ?? 0;
+    final double displayQty = reqQty > 0 ? reqQty : qty;
+    return sell * displayQty;
+  }
+
+  static double _remainingUndeliveredRatio(
+    Map<String, dynamic> item,
+    String deliveryStatus,
+  ) {
+    final double qty = (item['quantity'] as num?)?.toDouble() ?? 0.0;
+    if (qty <= 0) {
+      return deliveryStatus == 'Belum Diantar' ? 1.0 : 0.0;
+    }
+    final double deliveredQty =
+        item.containsKey('delivered_qty') && item['delivered_qty'] != null
+            ? (item['delivered_qty'] as num).toDouble()
+            : (deliveryStatus == 'Belum Diantar' ? 0.0 : qty);
+    final double remaining = (qty - deliveredQty).clamp(0.0, qty);
+    return remaining / qty;
+  }
+
+  /// Rumus tunggal metrik ringkasan untuk daftar transaksi yang tampil di layar
+  /// (dipakai oleh query/stream utama maupun saat hasil pencarian difilter).
+  /// - Pada tab `TITIPAN`: menghitung sisa nilai barang yang BELUM diantar (prorata utk `Sebagian`),
+  ///   memisahkan nota kasir vs Titipan Lama agar nominal Titipan Lama tidak pernah tercampur.
+  static Map<String, int> computeMetricsForList({
+    required List<Map<String, dynamic>> transactions,
+    required String statusCondition,
+  }) {
+    double globalOmsetKayu = 0;
+    double globalOmsetBangunan = 0;
+    double globalBensin = 0;
+    double legacyRemainingValue = 0;
+    int kasirTitipanCount = 0;
+    int legacyTitipanCount = 0;
+
+    final bool isTitipanTab = statusCondition == 'TITIPAN';
+
+    for (var t in transactions) {
+      final bool isLegacy = t['is_legacy_titipan'] == true;
+      final String deliveryStatus =
+          t['delivery_status']?.toString() ?? 'Selesai';
+      final List<dynamic> items = t['items'] ?? [];
+
+      if (isTitipanTab) {
+        if (isLegacy) {
+          legacyTitipanCount++;
+          for (var raw in items) {
+            if (raw is! Map) continue;
+            final Map<String, dynamic> item = Map<String, dynamic>.from(raw);
+            final double itemVal = _itemAgreedAmount(item);
+            final double ratio = _remainingUndeliveredRatio(item, deliveryStatus);
+            legacyRemainingValue += itemVal * ratio;
+          }
+          continue;
+        }
+        kasirTitipanCount++;
+      } else if (isLegacy) {
+        continue;
+      }
+
+      double trxGrossTotal = 0;
+      double trxValueKayu = 0;
+      double trxValueBangunan = 0;
+
+      if (!isTitipanTab) {
+        final double opCost = (t['operational_cost'] as num?)?.toDouble() ?? 0;
+        globalBensin += opCost;
+      }
+
+      for (var raw in items) {
+        if (raw is! Map) continue;
+        final Map<String, dynamic> item = Map<String, dynamic>.from(raw);
+        final double fullItemOmset = _itemAgreedAmount(item);
+        trxGrossTotal += fullItemOmset;
+
+        final double effectiveItemOmset = isTitipanTab
+            ? fullItemOmset * _remainingUndeliveredRatio(item, deliveryStatus)
+            : fullItemOmset;
+
+        final String pType = (item['product_type'] ?? '').toString();
+        if (['KAYU', 'RENG', 'BULAT'].contains(pType)) {
+          trxValueKayu += effectiveItemOmset;
+        } else {
+          trxValueBangunan += effectiveItemOmset;
+        }
+      }
+
+      final double discount = (t['discount'] as num?)?.toDouble() ?? 0;
+      if (trxGrossTotal > 0 && discount > 0) {
+        globalOmsetKayu +=
+            (trxValueKayu - (discount * (trxValueKayu / trxGrossTotal)))
+                .clamp(0.0, double.infinity);
+        globalOmsetBangunan +=
+            (trxValueBangunan - (discount * (trxValueBangunan / trxGrossTotal)))
+                .clamp(0.0, double.infinity);
+      } else {
+        globalOmsetKayu += trxValueKayu;
+        globalOmsetBangunan += trxValueBangunan;
+      }
+    }
+
+    return {
+      'omset_kayu': globalOmsetKayu.round(),
+      'omset_bangunan': globalOmsetBangunan.round(),
+      'total_bensin': globalBensin.round(),
+      'kasir_titipan_count': kasirTitipanCount,
+      'legacy_titipan_count': legacyTitipanCount,
+      'legacy_titipan_value': legacyRemainingValue.round(),
+    };
+  }
+
+  /// Proses daftar map transaksi mentah menjadi payload tab riwayat yang terurut & terhitung.
+  static Map<String, dynamic> computeHistorySummaryFromMaps({
+    required List<Map<String, dynamic>> rawDocs,
     required String statusCondition,
     required String start,
     required String end,
     required bool isAllTime,
   }) {
-    List<Map<String, dynamic>> results = docs
-        .map((doc) => Map<String, dynamic>.from(doc.data() as Map))
-        .toList();
+    List<Map<String, dynamic>> results =
+        rawDocs.map((doc) => Map<String, dynamic>.from(doc)).toList();
 
     if (statusCondition == 'LUNAS') {
       results = results
@@ -103,59 +221,39 @@ class TransactionHistoryFirebaseDataSource {
           .compareTo((a['transaction_date'] ?? '').toString()),
     );
 
-    double globalOmsetKayu = 0;
-    double globalOmsetBangunan = 0;
-    double globalBensin = 0;
-
-    for (var t in results) {
-      if (t['is_legacy_titipan'] == true) continue;
-      List<dynamic> items = t['items'] ?? [];
-      double trxOmsetKayu = 0;
-      double trxOmsetBangunan = 0;
-
-      double opCost = (t['operational_cost'] as num?)?.toDouble() ?? 0;
-      globalBensin += opCost;
-
-      for (var i in items) {
-        double itemOmset = 0;
-        if (i.containsKey('agreed_total') && i['agreed_total'] != null) {
-          itemOmset = (i['agreed_total'] as num).toDouble();
-        } else {
-          double sell = (i['sell_price'] as num?)?.toDouble() ?? 0;
-          double reqQty = (i['request_qty'] as num?)?.toDouble() ?? 0;
-          double qty = (i['quantity'] as num?)?.toDouble() ?? 0;
-          double displayQty = reqQty > 0 ? reqQty : qty;
-          itemOmset = sell * displayQty;
-        }
-
-        String pType = i['product_type'] ?? '';
-        if (['KAYU', 'RENG', 'BULAT'].contains(pType)) {
-          trxOmsetKayu += itemOmset;
-        } else {
-          trxOmsetBangunan += itemOmset;
-        }
-      }
-
-      double totalTrxOmset = trxOmsetKayu + trxOmsetBangunan;
-      double discount = (t['discount'] as num?)?.toDouble() ?? 0;
-
-      if (totalTrxOmset > 0 && discount > 0) {
-        globalOmsetKayu +=
-            trxOmsetKayu - (discount * (trxOmsetKayu / totalTrxOmset));
-        globalOmsetBangunan +=
-            trxOmsetBangunan - (discount * (trxOmsetBangunan / totalTrxOmset));
-      } else {
-        globalOmsetKayu += trxOmsetKayu;
-        globalOmsetBangunan += trxOmsetBangunan;
-      }
-    }
+    final metrics = computeMetricsForList(
+      transactions: results,
+      statusCondition: statusCondition,
+    );
 
     return {
       'history': results,
-      'omset_kayu': globalOmsetKayu.round(),
-      'omset_bangunan': globalOmsetBangunan.round(),
-      'total_bensin': globalBensin.round(),
+      'omset_kayu': metrics['omset_kayu'] ?? 0,
+      'omset_bangunan': metrics['omset_bangunan'] ?? 0,
+      'total_bensin': metrics['total_bensin'] ?? 0,
+      'kasir_titipan_count': metrics['kasir_titipan_count'] ?? 0,
+      'legacy_titipan_count': metrics['legacy_titipan_count'] ?? 0,
+      'legacy_titipan_value': metrics['legacy_titipan_value'] ?? 0,
     };
+  }
+
+  Map<String, dynamic> _processTransactionDocs({
+    required List<QueryDocumentSnapshot> docs,
+    required String statusCondition,
+    required String start,
+    required String end,
+    required bool isAllTime,
+  }) {
+    final List<Map<String, dynamic>> rawMaps = docs
+        .map((doc) => Map<String, dynamic>.from(doc.data() as Map))
+        .toList();
+    return computeHistorySummaryFromMaps(
+      rawDocs: rawMaps,
+      statusCondition: statusCondition,
+      start: start,
+      end: end,
+      isAllTime: isAllTime,
+    );
   }
 
   /// Stream REAL-TIME riwayat nota (untuk filter harian/mingguan/bulanan/custom/titipan).

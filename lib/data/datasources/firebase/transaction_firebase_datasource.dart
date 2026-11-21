@@ -253,10 +253,12 @@ class TransactionFirebaseDataSource {
     WriteBatch batch = _db.batch();
 
     bool wasLunas = false;
+    bool isLegacyTitipan = false;
     final tDocs = await _safeQuery(_col('transactions').where('id', isEqualTo: transId));
     if (tDocs.isNotEmpty) {
        var tData = tDocs.first.data() as Map<String, dynamic>;
        wasLunas = (tData['payment_status'] ?? '').toString().toLowerCase() == 'lunas';
+       isLegacyTitipan = tData['is_legacy_titipan'] == true;
     }
 
     bool isNowLunas = (updatedTransData['payment_status'] ?? '').toString().toLowerCase() == 'lunas';
@@ -275,7 +277,7 @@ class TransactionFirebaseDataSource {
         final double oldUndelivered = _getUndeliveredQty(item);
 
         stockDeltaByProduct[pid] = (stockDeltaByProduct[pid] ?? 0.0) + qtyToRestore;
-        if (wasLunas && capTotal > 0) {
+        if (!isLegacyTitipan && wasLunas && capTotal > 0) {
           modalDeltaByProduct[pid] = (modalDeltaByProduct[pid] ?? 0.0) - capTotal;
         }
         if (oldUndelivered > 0) {
@@ -294,7 +296,7 @@ class TransactionFirebaseDataSource {
         final double newUndelivered = _getUndeliveredQty(item);
 
         stockDeltaByProduct[pid] = (stockDeltaByProduct[pid] ?? 0.0) - qtyToDeduct;
-        if (isNowLunas && capTotal > 0) {
+        if (!isLegacyTitipan && isNowLunas && capTotal > 0) {
           modalDeltaByProduct[pid] = (modalDeltaByProduct[pid] ?? 0.0) + capTotal;
         }
         if (newUndelivered > 0) {
@@ -488,6 +490,7 @@ class TransactionFirebaseDataSource {
 
     Map<String, double> reserveByProduct = {};
     List<Map<String, dynamic>> embeddedItems = [];
+    int referenceTotalPrice = 0;
 
     for (var raw in items) {
       double baseQty = (raw['quantity'] as num?)?.toDouble() ?? 1.0;
@@ -496,6 +499,14 @@ class TransactionFirebaseDataSource {
         String pid = raw['product_id'].toString();
         reserveByProduct[pid] = (reserveByProduct[pid] ?? 0.0) + baseQty;
       }
+
+      int sellPrice = (raw['sell_price'] as num?)?.round() ?? 0;
+      if (sellPrice < 0) sellPrice = 0;
+      int agreedTotal = raw.containsKey('agreed_total') && raw['agreed_total'] != null
+          ? (raw['agreed_total'] as num).round()
+          : (sellPrice * reqQty).round();
+      if (agreedTotal < 0) agreedTotal = 0;
+      referenceTotalPrice += agreedTotal;
 
       embeddedItems.add({
         'product_id': raw['product_id'],
@@ -508,8 +519,8 @@ class TransactionFirebaseDataSource {
         'delivered_request_qty': 0.0,
         'unit_type': raw['unit_type'] ?? 'Pcs',
         'capital_price': 0,
-        'sell_price': 0,
-        'agreed_total': 0,
+        'sell_price': sellPrice,
+        'agreed_total': agreedTotal,
         'capital_total': 0,
       });
     }
@@ -533,7 +544,7 @@ class TransactionFirebaseDataSource {
 
     Map<String, dynamic> transactionData = {
       'id': transId,
-      'total_price': 0,
+      'total_price': referenceTotalPrice,
       'operational_cost': 0,
       'discount': 0,
       'cut_profit': 0,
@@ -563,6 +574,22 @@ class TransactionFirebaseDataSource {
     batch.set(_col('transactions').doc(transId.toString()), transactionData);
     await batch.commit();
     return transactionData;
+  }
+
+  /// Memperbarui harga catatan (referensi historis) pada nota Titipan Lama
+  /// TANPA mengubah stok gudang, reserved_stock, modal_cair, omset, atau profit.
+  Future<Map<String, dynamic>> updateLegacyTitipanPrices({
+    required int transId,
+    required List<Map<String, dynamic>> updatedItems,
+    required int totalPrice,
+  }) async {
+    final DocumentReference transRef = _col('transactions').doc(transId.toString());
+    final Map<String, dynamic> updatePayload = {
+      'items': updatedItems,
+      'total_price': totalPrice < 0 ? 0 : totalPrice,
+    };
+    await transRef.update(updatePayload);
+    return updatePayload;
   }
 
   /// UBAH NOTA TRANSAKSI LAMA YANG SUDAH SELESAI MENJADI BARANG TITIPAN

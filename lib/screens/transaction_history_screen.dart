@@ -5,6 +5,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../theme/app_colors.dart';
 import '../theme/glass_widgets.dart';
 import '../controllers/transaction_history_controller.dart';
+import '../data/datasources/firebase/transaction_history_firebase_datasource.dart';
 import '../helpers/employee_access_policy.dart';
 import '../helpers/search_helper.dart';
 import '../helpers/session_manager.dart';
@@ -44,7 +45,10 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> wit
 
   int _omsetKayu = 0;
   int _omsetBangunan = 0;
-  int _totalBensin = 0; 
+  int _totalBensin = 0;
+  int _kasirTitipanCount = 0;
+  int _legacyTitipanCount = 0;
+  int _legacyTitipanValue = 0;
 
   late String _selectedFilter;
   bool get _isOwner => SessionManager().isOwner;
@@ -125,6 +129,9 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> wit
             _omsetKayu = data['omset_kayu'] ?? 0;
             _omsetBangunan = data['omset_bangunan'] ?? 0;
             _totalBensin = data['total_bensin'] ?? 0;
+            _kasirTitipanCount = data['kasir_titipan_count'] ?? 0;
+            _legacyTitipanCount = data['legacy_titipan_count'] ?? 0;
+            _legacyTitipanValue = data['legacy_titipan_value'] ?? 0;
             _isLoading = false;
           });
         },
@@ -146,6 +153,9 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> wit
         _omsetKayu = data['omset_kayu'] ?? 0;
         _omsetBangunan = data['omset_bangunan'] ?? 0;
         _totalBensin = data['total_bensin'] ?? 0;
+        _kasirTitipanCount = data['kasir_titipan_count'] ?? 0;
+        _legacyTitipanCount = data['legacy_titipan_count'] ?? 0;
+        _legacyTitipanValue = data['legacy_titipan_value'] ?? 0;
       });
     } catch (e) {
       debugPrint('Gagal muat riwayat nota: $e');
@@ -247,40 +257,41 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> wit
     }
 
     // =========================================================================
-    // 🔥 HITUNG ULANG TOTALAN BERDASARKAN HASIL PENCARIAN 🔥
+    // 🔥 HITUNG ULANG TOTALAN BERDASARKAN HASIL PENCARIAN (RUMUS TUNGGAL) 🔥
     // =========================================================================
-    int calcKayu = 0;
-    int calcBgn = 0;
-    int calcBensin = 0;
+    final bool isTitipanTab = _tabController.index == 2;
+    final String activeTabStatus = _tabController.index == 0
+        ? 'LUNAS'
+        : (_tabController.index == 1 ? 'HUTANG' : 'TITIPAN');
+
+    int currentKayu = _omsetKayu;
+    int currentBgn = _omsetBangunan;
+    int currentBensin = _totalBensin;
+    int currentKasirTitipanCount = _kasirTitipanCount;
+    int currentLegacyTitipanCount = _legacyTitipanCount;
+    int currentLegacyTitipanValue = _legacyTitipanValue;
 
     if (_searchQuery.isNotEmpty) {
-      for (var t in displayedList) {
-        if (t['is_legacy_titipan'] == true) continue;
-        calcBensin += (t['operational_cost'] as num?)?.toInt() ?? 0;
-        if (t['items'] != null && t['items'] is List) {
-          for (var item in t['items']) {
-            String pType = item['product_type'] ?? '';
-            int itemTotal = (item['agreed_total'] as num?)?.toInt() ?? 0;
-            if (pType == 'KAYU' || pType == 'RENG' || pType == 'BULAT') {
-              calcKayu += itemTotal;
-            } else if (pType == 'BANGUNAN') {
-              calcBgn += itemTotal;
-            }
-          }
-        }
-      }
+      final filteredMetrics =
+          TransactionHistoryFirebaseDataSource.computeMetricsForList(
+            transactions: displayedList,
+            statusCondition: activeTabStatus,
+          );
+      currentKayu = filteredMetrics['omset_kayu'] ?? 0;
+      currentBgn = filteredMetrics['omset_bangunan'] ?? 0;
+      currentBensin = filteredMetrics['total_bensin'] ?? 0;
+      currentKasirTitipanCount = filteredMetrics['kasir_titipan_count'] ?? 0;
+      currentLegacyTitipanCount = filteredMetrics['legacy_titipan_count'] ?? 0;
+      currentLegacyTitipanValue = filteredMetrics['legacy_titipan_value'] ?? 0;
     }
 
-    int currentKayu = _searchQuery.isEmpty ? _omsetKayu : calcKayu;
-    int currentBgn = _searchQuery.isEmpty ? _omsetBangunan : calcBgn;
-    int currentBensin = _searchQuery.isEmpty ? _totalBensin : calcBensin;
     int totalNominal = currentKayu + currentBgn + currentBensin;
 
     String summaryTitle = _tabController.index == 0
         ? (_isOwner ? "Total Omset Masuk" : "Omset Hari Ini")
         : (_tabController.index == 1
             ? (_isOwner ? "Total Piutang Berjalan" : "Piutang Hari Ini")
-            : "Total Nilai Titipan");
+            : "Sisa Nilai Titipan (Kasir)");
     Color summaryColor = _tabController.index == 0
         ? AppColors.menuBlueIcon
         : (_tabController.index == 1 ? AppColors.statusRed : AppColors.menuAmberIcon);
@@ -487,68 +498,136 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> wit
                       borderRadius: 20,
                       padding: const EdgeInsets.all(20),
                       child: showMonetarySummary
-                          ? Row(
+                          ? Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(summaryTitle, style: const TextStyle(color: AppColors.textGrey, fontSize: 12, fontWeight: FontWeight.bold)),
-                                      const SizedBox(height: 5),
-                                      AnimatedMoneyText(
-                                        value: totalNominal,
-                                        style: TextStyle(color: summaryColor, fontSize: 22, fontWeight: FontWeight.w900),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Container(
-                                        padding: const EdgeInsets.all(8),
-                                        decoration: BoxDecoration(color: summaryColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Icon(LucideIcons.trees, size: 12, color: summaryColor),
-                                                const SizedBox(width: 5),
-                                                Text("Kayu: ${_formatRp(currentKayu)}", style: TextStyle(fontSize: 10, color: summaryColor, fontWeight: FontWeight.bold)),
-                                              ],
-                                            ),
-                                            const SizedBox(height: 3),
-                                            Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Icon(LucideIcons.brickWall, size: 12, color: summaryColor),
-                                                const SizedBox(width: 5),
-                                                Text("Bgn : ${_formatRp(currentBgn)}", style: TextStyle(fontSize: 10, color: summaryColor, fontWeight: FontWeight.bold)),
-                                              ],
-                                            ),
-                                            const SizedBox(height: 3),
-                                            Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Icon(LucideIcons.fuel, size: 12, color: summaryColor),
-                                                const SizedBox(width: 5),
-                                                Text("Bensin: ${_formatRp(currentBensin)}", style: TextStyle(fontSize: 10, color: summaryColor, fontWeight: FontWeight.bold)),
-                                              ],
-                                            ),
-                                          ],
-                                        ),
-                                      )
-                                    ],
-                                  ),
-                                ),
-                                Container(height: 80, width: 1, color: Colors.grey.shade300),
-                                const SizedBox(width: 15),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    const Text("Total Transaksi", style: TextStyle(color: AppColors.textGrey, fontSize: 12, fontWeight: FontWeight.bold)),
-                                    const SizedBox(height: 5),
-                                    Text("${displayedList.length} Nota", style: const TextStyle(color: AppColors.primaryNavy, fontSize: 18, fontWeight: FontWeight.w900)),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(summaryTitle, style: const TextStyle(color: AppColors.textGrey, fontSize: 12, fontWeight: FontWeight.bold)),
+                                          const SizedBox(height: 5),
+                                          AnimatedMoneyText(
+                                            value: totalNominal,
+                                            style: TextStyle(color: summaryColor, fontSize: 22, fontWeight: FontWeight.w900),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Container(
+                                            padding: const EdgeInsets.all(8),
+                                            decoration: BoxDecoration(color: summaryColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    Icon(LucideIcons.trees, size: 12, color: summaryColor),
+                                                    const SizedBox(width: 5),
+                                                    Text("Kayu: ${_formatRp(currentKayu)}", style: TextStyle(fontSize: 10, color: summaryColor, fontWeight: FontWeight.bold)),
+                                                  ],
+                                                ),
+                                                const SizedBox(height: 3),
+                                                Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    Icon(LucideIcons.brickWall, size: 12, color: summaryColor),
+                                                    const SizedBox(width: 5),
+                                                    Text("Bgn : ${_formatRp(currentBgn)}", style: TextStyle(fontSize: 10, color: summaryColor, fontWeight: FontWeight.bold)),
+                                                  ],
+                                                ),
+                                                if (!isTitipanTab) ...[
+                                                  const SizedBox(height: 3),
+                                                  Row(
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    children: [
+                                                      Icon(LucideIcons.fuel, size: 12, color: summaryColor),
+                                                      const SizedBox(width: 5),
+                                                      Text("Bensin: ${_formatRp(currentBensin)}", style: TextStyle(fontSize: 10, color: summaryColor, fontWeight: FontWeight.bold)),
+                                                    ],
+                                                  ),
+                                                ],
+                                                if (isTitipanTab && currentLegacyTitipanValue > 0) ...[
+                                                  const SizedBox(height: 4),
+                                                  Row(
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    children: [
+                                                      const Icon(LucideIcons.archive, size: 12, color: AppColors.menuTealIcon),
+                                                      const SizedBox(width: 5),
+                                                      Flexible(
+                                                        child: Text(
+                                                          "Titipan Lama: ${_formatRp(currentLegacyTitipanValue)} (Lunas dulu)",
+                                                          style: const TextStyle(fontSize: 10, color: AppColors.menuTealIcon, fontWeight: FontWeight.bold),
+                                                          overflow: TextOverflow.ellipsis,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ],
+                                              ],
+                                            ),
+                                          )
+                                        ],
+                                      ),
+                                    ),
+                                    Container(height: 80, width: 1, color: Colors.grey.shade300),
+                                    const SizedBox(width: 15),
+                                    Column(
+                                      crossAxisAlignment: CrossAxisAlignment.end,
+                                      children: [
+                                        Text(
+                                          isTitipanTab ? "Titipan Aktif" : "Total Transaksi",
+                                          style: const TextStyle(color: AppColors.textGrey, fontSize: 12, fontWeight: FontWeight.bold),
+                                        ),
+                                        const SizedBox(height: 5),
+                                        Text("${displayedList.length} Nota", style: const TextStyle(color: AppColors.primaryNavy, fontSize: 18, fontWeight: FontWeight.w900)),
+                                        if (isTitipanTab && displayedList.isNotEmpty) ...[
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            currentLegacyTitipanCount > 0
+                                                ? "$currentKasirTitipanCount Kasir • $currentLegacyTitipanCount Lama"
+                                                : "$currentKasirTitipanCount Nota Kasir",
+                                            style: const TextStyle(
+                                              color: AppColors.textGrey,
+                                              fontSize: 10.5,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
                                   ],
                                 ),
+                                if (isTitipanTab) ...[
+                                  const SizedBox(height: 10),
+                                  Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.menuTealBg.withValues(alpha: 0.55),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: const Row(
+                                      children: [
+                                        Icon(LucideIcons.circleCheck, size: 13, color: AppColors.menuTealIcon),
+                                        SizedBox(width: 6),
+                                        Expanded(
+                                          child: Text(
+                                            "Nota kasir Lunas sudah otomatis masuk Omset & Profit • Titipan Lama tidak dihitung ulang",
+                                            style: TextStyle(
+                                              fontSize: 10.5,
+                                              fontWeight: FontWeight.w700,
+                                              color: AppColors.primaryNavy,
+                                              height: 1.25,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
                               ],
                             )
                           : Row(
@@ -806,15 +885,33 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> wit
                                               crossAxisAlignment: CrossAxisAlignment.end,
                                               children: [
                                                 Text(
-                                                  isLegacyTitipan ? "Non-Omset" : _formatRp(total),
+                                                  isLegacyTitipan
+                                                      ? (total > 0 ? _formatRp(total) : "Catat Stok Saja")
+                                                      : _formatRp(total),
                                                   style: TextStyle(
                                                     fontWeight: FontWeight.w900,
                                                     color: isLegacyTitipan ? AppColors.menuTealIcon : AppColors.primaryNavy,
-                                                    fontSize: isLegacyTitipan ? 12 : 14,
+                                                    fontSize: isLegacyTitipan && total == 0 ? 11.5 : 14,
                                                   ),
                                                 ),
                                                 const SizedBox(height: 6),
-                                                if (!isLegacyTitipan)
+                                                if (isLegacyTitipan)
+                                                  Container(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                                    decoration: BoxDecoration(
+                                                      color: AppColors.menuTealBg,
+                                                      borderRadius: BorderRadius.circular(6),
+                                                    ),
+                                                    child: const Text(
+                                                      'LUNAS DULU',
+                                                      style: TextStyle(
+                                                        fontSize: 9.5,
+                                                        fontWeight: FontWeight.w900,
+                                                        color: AppColors.menuTealIcon,
+                                                      ),
+                                                    ),
+                                                  )
+                                                else
                                                   Container(
                                                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                                     decoration: BoxDecoration(

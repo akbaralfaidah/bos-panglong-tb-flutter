@@ -93,6 +93,19 @@ class TransactionDetailController {
     );
   }
 
+  // 🔥 UPDATE HARGA CATATAN (REFERENSI HISTORIS) PADA NOTA TITIPAN LAMA 🔥
+  Future<Map<String, dynamic>> updateLegacyTitipanPrices({
+    required int transId,
+    required List<Map<String, dynamic>> updatedItems,
+    required int totalPrice,
+  }) async {
+    return await _transDS.updateLegacyTitipanPrices(
+      transId: transId,
+      updatedItems: updatedItems,
+      totalPrice: totalPrice,
+    );
+  }
+
   // 🔥 JEMBATAN VOID TRANSAKSI 🔥
   Future<void> voidTransaction(
     int transId,
