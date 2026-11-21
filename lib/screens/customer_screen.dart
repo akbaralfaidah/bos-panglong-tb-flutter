@@ -205,13 +205,10 @@ class _CustomerScreenState extends State<CustomerScreen> {
         elevation: 0,
       ),
       body: LiquidAmbientBackground(
-        child: _isLoading 
-          ? const Center(
-              child: DepotLoadingIndicator(
-                message: "Memuat buku pelanggan...",
-              ),
-            )
-          : Column(
+        child: DepotLoadingGate(
+          isLoading: _isLoading,
+          message: "Memuat buku pelanggan...",
+          child: Column(
               children: [
                 Container(
                   decoration: AppColors.liquidNavyHeader(bottomRadius: 24),
@@ -316,6 +313,7 @@ class _CustomerScreenState extends State<CustomerScreen> {
               ),
             ],
           ),
+        ),
       ),
     );
   }

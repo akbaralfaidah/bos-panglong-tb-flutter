@@ -449,20 +449,30 @@ class _ReviewStockScreenState extends State<ReviewStockScreen> {
     setState(() => _isLoading = true);
 
     try {
-      await _bulkController.saveBulkStock(_items, _transactionDate.toIso8601String());
-      await Future.delayed(const Duration(milliseconds: 500)); 
+      await DepotLoadingIndicator.runWithDialog<void>(
+        context,
+        message: "Menyimpan stok masuk gudang...",
+        task: () async {
+          await _bulkController.saveBulkStock(
+            _items,
+            _transactionDate.toIso8601String(),
+          );
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.remove('warehouse_cart');
+        },
+      );
 
       if (mounted) {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.remove('warehouse_cart');
-
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => 
-          StockReceiptScreen(
-            items: _items,
-            totalExpense: _totalExpense,
-            transactionDate: _transactionDate.toIso8601String(), 
-          )
-        ));
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => StockReceiptScreen(
+              items: _items,
+              totalExpense: _totalExpense,
+              transactionDate: _transactionDate.toIso8601String(),
+            ),
+          ),
+        );
       }
     } catch (e) {
       if (mounted) AppNotification.show(context, message: "Gagal menyimpan stok: $e", type: AppNotificationType.error);

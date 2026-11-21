@@ -490,13 +490,10 @@ class _ProfitHistoryScreenState extends State<ProfitHistoryScreen> {
           ),
 
           Expanded(
-            child: _isLoading
-                ? const Center(
-                    child: DepotLoadingIndicator(
-                      message: "Menghitung riwayat profit...",
-                    ),
-                  )
-                : _historyData.isEmpty
+            child: DepotLoadingGate(
+              isLoading: _isLoading,
+              message: "Menghitung riwayat profit...",
+              child: _historyData.isEmpty
                 ? const Center(
                     child: Text(
                       "Tidak ada riwayat profit / pengeluaran.",
@@ -582,17 +579,14 @@ class _ProfitHistoryScreenState extends State<ProfitHistoryScreen> {
                           InkWell(
                             onTap: () async {
                               if (isLaba) {
-                                showDialog(
-                                  context: context,
-                                  barrierDismissible: false,
-                                  builder: (_) => DepotLoadingIndicator.dialog(
-                                    message: "Membuka nota transaksi...",
+                                final trx = await DepotLoadingIndicator
+                                    .runWithDialog<Map<String, dynamic>?>(
+                                  context,
+                                  message: "Membuka nota transaksi...",
+                                  task: () => _transDS.getTransactionById(
+                                    item['ref_id'] as int,
                                   ),
                                 );
-                                final trx = await _transDS.getTransactionById(
-                                  item['ref_id'] as int,
-                                );
-                                if (mounted) Navigator.pop(context);
                                 if (trx != null && mounted) {
                                   await Navigator.push(
                                     context,
@@ -720,6 +714,7 @@ class _ProfitHistoryScreenState extends State<ProfitHistoryScreen> {
                       return rowWidget;
                     },
                   ),
+            ),
           ),
         ],
       ),

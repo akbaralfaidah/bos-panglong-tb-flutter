@@ -81,13 +81,17 @@ void _processPayment() async {
       if (_customerPhoneController.text.isNotEmpty) finalCustomerInfo += " - ${_customerPhoneController.text}";
       if (_customerAddressController.text.isNotEmpty) finalCustomerInfo += "\n${_customerAddressController.text}";
 
-      int transId = await _controller.processTransaction(
-        cartItems: widget.cartItems,
-        totalPrice: _totalBayar,
-        operationalCost: _uangBensin,
-        customerName: finalCustomerInfo,
-        paymentMethod: _paymentMethod,
-        paymentStatus: _paymentStatus,
+      int transId = await DepotLoadingIndicator.runWithDialog<int>(
+        context,
+        message: "Menyimpan transaksi & menyiapkan nota...",
+        task: () => _controller.processTransaction(
+          cartItems: widget.cartItems,
+          totalPrice: _totalBayar,
+          operationalCost: _uangBensin,
+          customerName: finalCustomerInfo,
+          paymentMethod: _paymentMethod,
+          paymentStatus: _paymentStatus,
+        ),
       );
 
       if (transId != -1) {

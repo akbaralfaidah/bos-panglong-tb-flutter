@@ -993,13 +993,10 @@ class _ModalTransactionDetailScreenState extends State<ModalTransactionDetailScr
                 )
               : null,
         ),
-        body: _isLoading
-            ? const Center(
-                child: DepotLoadingIndicator(
-                  message: "Memuat nota modal...",
-                ),
-              )
-            : SingleChildScrollView(
+        body: DepotLoadingGate(
+          isLoading: _isLoading,
+          message: "Memuat nota modal...",
+          child: SingleChildScrollView(
                 padding: _isGeneratingReceipt
                     ? EdgeInsets.zero
                     : const EdgeInsets.all(16),
@@ -1987,6 +1984,7 @@ class _ModalTransactionDetailScreenState extends State<ModalTransactionDetailScr
                   ],
                 ),
               ),
+        ),
 
       ),
     );

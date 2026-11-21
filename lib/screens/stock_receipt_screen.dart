@@ -672,13 +672,10 @@ class _StockReceiptScreenState extends State<StockReceiptScreen>
             ),
           ],
         ),
-        body: _isLoading
-            ? const Center(
-                child: DepotLoadingIndicator(
-                  message: "Menyiapkan bukti stok masuk...",
-                ),
-              )
-            : SingleChildScrollView(
+        body: DepotLoadingGate(
+          isLoading: _isLoading,
+          message: "Menyiapkan bukti stok masuk...",
+          child: SingleChildScrollView(
                 child: Column(
                   children: [
                     const SizedBox(height: 20),
@@ -1312,6 +1309,7 @@ class _StockReceiptScreenState extends State<StockReceiptScreen>
                   ],
                 ),
               ),
+        ),
       ),
     );
   }

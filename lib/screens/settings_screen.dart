@@ -741,13 +741,10 @@ class _SettingsScreenState extends State<SettingsScreen>
         elevation: 0,
       ),
       body: LiquidAmbientBackground(
-        child: _isLoading
-            ? const Center(
-                child: DepotLoadingIndicator(
-                  message: "Memproses data pengaturan...",
-                ),
-              )
-            : SingleChildScrollView(
+        child: DepotLoadingGate(
+          isLoading: _isLoading,
+          message: "Memproses data pengaturan...",
+          child: SingleChildScrollView(
               padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1446,6 +1443,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                 ],
               ),
             ),
+        ),
       ),
     );
   }

@@ -837,21 +837,25 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
 
     setState(() => _isSaving = true);
     try {
-      await _controller.saveEditedTransaction(
-        transId: _transId,
-        oldItems: _originalItems,
-        cartItems: _cartItems,
-        customerName: _customerName,
-        customerPhone: _customerPhone,
-        customerAddress: _customerAddress,
-        totalPrice: _finalTotal,
-        operationalCost: _operationalCost,
-        discount: _discount,
-        paymentMethod: _paymentMethod,
-        paymentStatus: _paymentStatus, 
-        transactionDate: _transactionDate,
-        queueNumber: _queueNumber,
-        cutProfit: _cutProfit,
+      await DepotLoadingIndicator.runWithDialog<void>(
+        context,
+        message: "Menyimpan perubahan transaksi...",
+        task: () => _controller.saveEditedTransaction(
+          transId: _transId,
+          oldItems: _originalItems,
+          cartItems: _cartItems,
+          customerName: _customerName,
+          customerPhone: _customerPhone,
+          customerAddress: _customerAddress,
+          totalPrice: _finalTotal,
+          operationalCost: _operationalCost,
+          discount: _discount,
+          paymentMethod: _paymentMethod,
+          paymentStatus: _paymentStatus,
+          transactionDate: _transactionDate,
+          queueNumber: _queueNumber,
+          cutProfit: _cutProfit,
+        ),
       );
 
       if (mounted) {

@@ -721,25 +721,20 @@ class _ProductListScreenState extends State<ProductListScreen>
 
     if (confirm != true) return;
 
-    // Loading
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => DepotLoadingIndicator.dialog(
-        message: "Menghapus stok gudang...",
-      ),
-    );
-
     try {
       List<int> ids = targets.where((p) => p.id != null).map((p) => p.id!).toList();
-      await _controller.resetStockBatch(ids);
-      if (mounted) Navigator.pop(context); // tutup loading
-      await _loadProducts();
+      await DepotLoadingIndicator.runWithDialog<void>(
+        context,
+        message: "Menghapus stok gudang...",
+        task: () async {
+          await _controller.resetStockBatch(ids);
+          await _loadProducts();
+        },
+      );
       if (mounted) {
         AppNotification.show(context, message: "Stok berhasil dihapus untuk $label!", type: AppNotificationType.success);
       }
     } catch (e) {
-      if (mounted) Navigator.pop(context); // tutup loading
       if (mounted) {
         AppNotification.show(context, message: "Gagal menghapus stok: $e", type: AppNotificationType.error);
       }
@@ -747,76 +742,75 @@ class _ProductListScreenState extends State<ProductListScreen>
   }
 
   Future<void> _showProductTitipanDialog(Product p, String displayName, String unitShort) async {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => DepotLoadingIndicator.dialog(
-        message: "Memuat daftar titipan...",
-      ),
-    );
+    final List<Map<String, dynamic>> matchingOrders =
+        await DepotLoadingIndicator.runWithDialog<List<Map<String, dynamic>>>(
+      context,
+      message: "Memuat daftar titipan...",
+      task: () async {
+        List<Map<String, dynamic>> found = [];
+        try {
+          String storeId = SessionManager().uid ?? 'UNKNOWN_STORE';
+          final col = FirebaseFirestore.instance.collection('stores').doc(storeId).collection('transactions');
+          QuerySnapshot snap;
+          try {
+            snap = await col
+                .where('delivery_status', whereIn: ['Belum Diantar', 'Sebagian'])
+                .get(const GetOptions(source: Source.server))
+                .timeout(const Duration(seconds: 4));
+          } catch (_) {
+            snap = await col
+                .where('delivery_status', whereIn: ['Belum Diantar', 'Sebagian'])
+                .get(const GetOptions(source: Source.cache));
+          }
 
-    List<Map<String, dynamic>> matchingOrders = [];
-    try {
-      String storeId = SessionManager().uid ?? 'UNKNOWN_STORE';
-      final col = FirebaseFirestore.instance.collection('stores').doc(storeId).collection('transactions');
-      QuerySnapshot snap;
-      try {
-        snap = await col
-            .where('delivery_status', whereIn: ['Belum Diantar', 'Sebagian'])
-            .get(const GetOptions(source: Source.server))
-            .timeout(const Duration(seconds: 4));
-      } catch (_) {
-        snap = await col
-            .where('delivery_status', whereIn: ['Belum Diantar', 'Sebagian'])
-            .get(const GetOptions(source: Source.cache));
-      }
+          for (var doc in snap.docs) {
+            var trans = Map<String, dynamic>.from(doc.data() as Map);
+            List<dynamic> items = trans['items'] ?? [];
+            double remBaseQty = 0;
+            double remReqQty = 0;
+            String reqUnit = unitShort;
 
-      for (var doc in snap.docs) {
-        var trans = Map<String, dynamic>.from(doc.data() as Map);
-        List<dynamic> items = trans['items'] ?? [];
-        double remBaseQty = 0;
-        double remReqQty = 0;
-        String reqUnit = unitShort;
+            for (var rawIt in items) {
+              if (rawIt['product_id'] == p.id) {
+                double qty = (rawIt['quantity'] as num?)?.toDouble() ?? 0.0;
+                double delQty = rawIt.containsKey('delivered_qty') && rawIt['delivered_qty'] != null
+                    ? (rawIt['delivered_qty'] as num).toDouble()
+                    : qty;
+                double rem = (qty - delQty).clamp(0.0, qty);
+                if (rem > 0.001) {
+                  remBaseQty += rem;
+                  double rQty = (rawIt['request_qty'] as num?)?.toDouble() ?? qty;
+                  double delR = rawIt.containsKey('delivered_request_qty') && rawIt['delivered_request_qty'] != null
+                      ? (rawIt['delivered_request_qty'] as num).toDouble()
+                      : rQty;
+                  remReqQty += (rQty - delR).clamp(0.0, rQty);
+                  String u = (rawIt['unit_type'] ?? unitShort).toString();
+                  if (u.contains('[PAKET_')) u = u.substring(0, u.indexOf('[PAKET_')).trim();
+                  if (u.contains('(')) u = u.substring(0, u.indexOf('(')).trim();
+                  if (u.isNotEmpty) reqUnit = u;
+                }
+              }
+            }
 
-        for (var rawIt in items) {
-          if (rawIt['product_id'] == p.id) {
-            double qty = (rawIt['quantity'] as num?)?.toDouble() ?? 0.0;
-            double delQty = rawIt.containsKey('delivered_qty') && rawIt['delivered_qty'] != null
-                ? (rawIt['delivered_qty'] as num).toDouble()
-                : qty;
-            double rem = (qty - delQty).clamp(0.0, qty);
-            if (rem > 0.001) {
-              remBaseQty += rem;
-              double rQty = (rawIt['request_qty'] as num?)?.toDouble() ?? qty;
-              double delR = rawIt.containsKey('delivered_request_qty') && rawIt['delivered_request_qty'] != null
-                  ? (rawIt['delivered_request_qty'] as num).toDouble()
-                  : rQty;
-              remReqQty += (rQty - delR).clamp(0.0, rQty);
-              String u = (rawIt['unit_type'] ?? unitShort).toString();
-              if (u.contains('[PAKET_')) u = u.substring(0, u.indexOf('[PAKET_')).trim();
-              if (u.contains('(')) u = u.substring(0, u.indexOf('(')).trim();
-              if (u.isNotEmpty) reqUnit = u;
+            if (remBaseQty > 0.001) {
+              found.add({
+                'transaction': trans,
+                'rem_base': remBaseQty,
+                'rem_req': remReqQty,
+                'req_unit': reqUnit,
+              });
             }
           }
+          found.sort((a, b) =>
+              (b['transaction']['transaction_date'] ?? '').toString().compareTo((a['transaction']['transaction_date'] ?? '').toString()));
+        } catch (e) {
+          debugPrint("Gagal muat daftar pemesan titipan: $e");
         }
-
-        if (remBaseQty > 0.001) {
-          matchingOrders.add({
-            'transaction': trans,
-            'rem_base': remBaseQty,
-            'rem_req': remReqQty,
-            'req_unit': reqUnit,
-          });
-        }
-      }
-      matchingOrders.sort((a, b) =>
-          (b['transaction']['transaction_date'] ?? '').toString().compareTo((a['transaction']['transaction_date'] ?? '').toString()));
-    } catch (e) {
-      debugPrint("Gagal muat daftar pemesan titipan: $e");
-    }
+        return found;
+      },
+    );
 
     if (!mounted) return;
-    Navigator.pop(context); // tutup loading
 
     String fmtQty(double v) => (v - v.roundToDouble()).abs() < 0.001 ? v.round().toString() : v.toStringAsFixed(2);
 
@@ -2714,18 +2708,17 @@ class _ProductListScreenState extends State<ProductListScreen>
     
     bool useProfit = false;
     
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => DepotLoadingIndicator.dialog(
-        message: "Memuat dana modal...",
-      ),
+    final modalResults = await DepotLoadingIndicator.runWithDialog<List<double>>(
+      context,
+      message: "Memuat dana modal...",
+      task: () => Future.wait([
+        _fetchModalCair(p.id!),
+        _fetchCurrentProfitBersih(),
+      ]),
     );
-    
-    double currentModalCair = await _fetchModalCair(p.id!);
-    double currentProfitBersih = await _fetchCurrentProfitBersih(); 
-    
-    if (mounted) Navigator.pop(context); 
+    if (!mounted) return;
+    double currentModalCair = modalResults[0];
+    double currentProfitBersih = modalResults[1];
 
     int getBatangPerKubikReng(String dim) {
       if (dim == "2x3") return (10000 / 24).floor();

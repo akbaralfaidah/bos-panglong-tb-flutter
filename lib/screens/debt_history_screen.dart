@@ -752,13 +752,10 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen>
 
           // 2. DAFTAR GRUP + PELANGGAN YANG NGUTANG
           Expanded(
-            child: _isLoading
-                ? const Center(
-                    child: DepotLoadingIndicator(
-                      message: "Memuat buku piutang...",
-                    ),
-                  )
-                : (_groups.isEmpty && _groupSummaries.isEmpty)
+            child: DepotLoadingGate(
+              isLoading: _isLoading,
+              message: "Memuat buku piutang...",
+              child: (_groups.isEmpty && _groupSummaries.isEmpty)
                 ? const Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -1140,6 +1137,7 @@ class _DebtHistoryScreenState extends State<DebtHistoryScreen>
                       );
                     },
                   ),
+            ),
           ),
         ],
       ),

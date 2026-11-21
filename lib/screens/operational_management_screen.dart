@@ -298,16 +298,14 @@ class _OperationalManagementScreenState extends State<OperationalManagementScree
             ),
 
             Expanded(
-              child: _isLoading 
-                ? const Center(
-                    child: DepotLoadingIndicator(
-                      message: "Memuat data operasional...",
-                    ),
-                  )
-                : TabBarView(
-                    controller: _tabController,
-                    children: [ _buildList(_pemasukanList, true), _buildList(_pengeluaranList, false) ],
-                  ),
+              child: DepotLoadingGate(
+                isLoading: _isLoading,
+                message: "Memuat data operasional...",
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [ _buildList(_pemasukanList, true), _buildList(_pengeluaranList, false) ],
+                ),
+              ),
             ),
           ],
         ),

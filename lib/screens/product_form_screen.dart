@@ -776,52 +776,112 @@ class _ProductFormScreenState extends State<ProductFormScreen> with TickerProvid
       bool shouldReinvest = _useProfitForCapital && totalUangKeluar > 0;
 
       if (widget.product == null) {
-        int id = await _controller.createProduct(product);
-        if (addedQty > 0) {
-          await _controller.addStockLog(id, type, addedQty.toDouble(), modalLog, "Stok Awal", 
-              totalExpense: totalUangKeluar, inputQty: rawInputQty, inputUnit: rawUnitName);
-          
-          if (shouldReinvest) {
-             await _profitController.withdrawProfitForCapital(totalUangKeluar, "Reinvestasi Modal: Produk Baru ($finalName)");
-             await FirebaseFirestore.instance.collection('stores').doc(SessionManager().uid ?? 'UNKNOWN_STORE').collection('products').doc(id.toString()).set({
-               'modal_cair': totalUangKeluar.toDouble()
-             }, SetOptions(merge: true));
-          }
-
-          if (mounted) {
-            await Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => 
-              NewProductReceiptScreen(
-                productName: finalName,
-                addedQty: rawInputQty, 
-                unitName: rawUnitName, 
+        await DepotLoadingIndicator.runWithDialog<void>(
+          context,
+          message: "Menyimpan produk baru...",
+          task: () async {
+            int id = await _controller.createProduct(product);
+            if (addedQty > 0) {
+              await _controller.addStockLog(
+                id,
+                type,
+                addedQty.toDouble(),
+                modalLog,
+                "Stok Awal",
                 totalExpense: totalUangKeluar,
-                transactionDate: DateTime.now().toString(),
-                dimensions: dim, // 🔥 BAWA DIMENSI KE NOTA 🔥
-              )
-            ));
+                inputQty: rawInputQty,
+                inputUnit: rawUnitName,
+              );
+
+              if (shouldReinvest) {
+                await _profitController.withdrawProfitForCapital(
+                  totalUangKeluar,
+                  "Reinvestasi Modal: Produk Baru ($finalName)",
+                );
+                await FirebaseFirestore.instance
+                    .collection('stores')
+                    .doc(SessionManager().uid ?? 'UNKNOWN_STORE')
+                    .collection('products')
+                    .doc(id.toString())
+                    .set(
+                      {'modal_cair': totalUangKeluar.toDouble()},
+                      SetOptions(merge: true),
+                    );
+              }
+            }
+          },
+        );
+
+        if (addedQty > 0) {
+          if (mounted) {
+            await Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (_) => NewProductReceiptScreen(
+                  productName: finalName,
+                  addedQty: rawInputQty,
+                  unitName: rawUnitName,
+                  totalExpense: totalUangKeluar,
+                  transactionDate: DateTime.now().toString(),
+                  dimensions: dim, // 🔥 BAWA DIMENSI KE NOTA 🔥
+                ),
+              ),
+            );
             if (mounted) Navigator.pop(context, true);
           }
         } else {
           if (mounted) {
-            AppNotification.show(context, message: "Barang berhasil didaftarkan (Stok Kosong)", type: AppNotificationType.success);
+            AppNotification.show(
+              context,
+              message: "Barang berhasil didaftarkan (Stok Kosong)",
+              type: AppNotificationType.success,
+            );
             Navigator.pop(context, true);
           }
         }
       } else {
-        await _controller.updateProduct(product);
-        if (addedQty > 0) {
-           await _controller.addStockLog(widget.product!.id!, type, addedQty.toDouble(), modalLog, "Koreksi Stok (Edit)",
-              totalExpense: totalUangKeluar, inputQty: rawInputQty, inputUnit: rawUnitName);
+        await DepotLoadingIndicator.runWithDialog<void>(
+          context,
+          message: "Menyimpan perubahan produk...",
+          task: () async {
+            await _controller.updateProduct(product);
+            if (addedQty > 0) {
+              await _controller.addStockLog(
+                widget.product!.id!,
+                type,
+                addedQty.toDouble(),
+                modalLog,
+                "Koreksi Stok (Edit)",
+                totalExpense: totalUangKeluar,
+                inputQty: rawInputQty,
+                inputUnit: rawUnitName,
+              );
 
-           if (shouldReinvest) {
-              await _profitController.withdrawProfitForCapital(totalUangKeluar, "Reinvestasi Modal: Tambah Stok ($finalName)");
-              await FirebaseFirestore.instance.collection('stores').doc(SessionManager().uid ?? 'UNKNOWN_STORE').collection('products').doc(widget.product!.id!.toString()).set({
-                'modal_cair': FieldValue.increment(totalUangKeluar.toDouble())
-              }, SetOptions(merge: true));
-           }
-        }
+              if (shouldReinvest) {
+                await _profitController.withdrawProfitForCapital(
+                  totalUangKeluar,
+                  "Reinvestasi Modal: Tambah Stok ($finalName)",
+                );
+                await FirebaseFirestore.instance
+                    .collection('stores')
+                    .doc(SessionManager().uid ?? 'UNKNOWN_STORE')
+                    .collection('products')
+                    .doc(widget.product!.id!.toString())
+                    .set({
+                      'modal_cair': FieldValue.increment(
+                        totalUangKeluar.toDouble(),
+                      ),
+                    }, SetOptions(merge: true));
+              }
+            }
+          },
+        );
         if (mounted) {
-          AppNotification.show(context, message: "Berhasil diubah!", type: AppNotificationType.success);
+          AppNotification.show(
+            context,
+            message: "Berhasil diubah!",
+            type: AppNotificationType.success,
+          );
           Navigator.pop(context, true);
         }
       }

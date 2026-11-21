@@ -613,13 +613,10 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> wit
             child: ResponsiveLayout.constrained(
               context: context,
               maxWidth: 960,
-              child: _isLoading
-                ? const Center(
-                    child: DepotLoadingIndicator(
-                      message: "Memuat riwayat nota...",
-                    ),
-                  )
-                : displayedList.isEmpty
+              child: DepotLoadingGate(
+                isLoading: _isLoading,
+                message: "Memuat riwayat nota...",
+                child: displayedList.isEmpty
                     ? RefreshIndicator(
                         onRefresh: _fetchData,
                         color: AppColors.primaryNavy,
@@ -861,6 +858,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> wit
                           ),
                         ),
                       ),
+              ),
             ),
           ),
         ],

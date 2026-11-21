@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -12,7 +13,12 @@ import 'app_colors.dart';
 /// - Mode ringkas (`DepotLoadingIndicator.compact()`): untuk tombol aksi / tile sempit
 ///   (menampilkan ring arsitektur berputar + emblem balok kayu & atap mini yang tajam di 18–26px).
 /// - Mode dialog (`DepotLoadingIndicator.dialog()`): kartu frosted estetik untuk `showDialog`.
+/// - `runWithMinDuration` / `runWithDialog`: menjamin 1 siklus penuh animasi Lottie (1,5 detik)
+///   selesai tampil utuh sebelum lanjut agar tidak berkedip terlalu cepat.
 class DepotLoadingIndicator extends StatelessWidget {
+  /// Durasi tepat 1 siklus penuh `assets/animations/wood_store_loading.json` (90 frame @ 60fps).
+  static const Duration minAnimationDuration = Duration(milliseconds: 1500);
+
   final String? message;
   final double size;
   final bool showCard;
@@ -23,6 +29,61 @@ class DepotLoadingIndicator extends StatelessWidget {
     this.size = 112,
     this.showCard = true,
   });
+
+  /// Menjalankan [task] sambil memastikan durasi minimal [minDuration] (default 1 siklus
+  /// penuh animasi Lottie = 1,5 detik) terpenuhi sebelum lanjut.
+  /// Jika [task] lebih lambat dari [minDuration], tidak ada jeda tambahan sama sekali.
+  static Future<T> runWithMinDuration<T>(
+    Future<T> Function() task, {
+    Duration minDuration = minAnimationDuration,
+  }) async {
+    final Stopwatch sw = Stopwatch()..start();
+    final T result = await task();
+    final Duration remaining = minDuration - sw.elapsed;
+    if (remaining > Duration.zero) {
+      await Future<void>.delayed(remaining);
+    }
+    return result;
+  }
+
+  /// Menampilkan dialog loading animasi kayu & toko bangunan, menjalankan [task],
+  /// menunggu minimal 1 siklus animasi selesai penuh ([minDuration]), lalu menutup dialog
+  /// dengan aman sebelum mengembalikan hasil [task].
+  static Future<T> runWithDialog<T>(
+    BuildContext context, {
+    required String message,
+    required Future<T> Function() task,
+    Duration minDuration = minAnimationDuration,
+  }) async {
+    final NavigatorState rootNavigator = Navigator.of(context, rootNavigator: true);
+    bool dialogVisible = true;
+
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      useRootNavigator: true,
+      builder: (_) => PopScope(
+        canPop: false,
+        child: DepotLoadingIndicator.dialog(message: message),
+      ),
+    ).then((_) {
+      dialogVisible = false;
+    });
+
+    final Stopwatch sw = Stopwatch()..start();
+    try {
+      final T result = await task();
+      final Duration remaining = minDuration - sw.elapsed;
+      if (remaining > Duration.zero) {
+        await Future<void>.delayed(remaining);
+      }
+      return result;
+    } finally {
+      if (dialogVisible && rootNavigator.mounted && rootNavigator.canPop()) {
+        rootNavigator.pop();
+      }
+    }
+  }
 
   /// Varian ringkas untuk di dalam tombol (ElevatedButton / IconButton / chip kecil).
   static Widget compact({
@@ -318,4 +379,108 @@ class _DepotMiniBadgePainter extends CustomPainter {
       oldDelegate.progress != progress ||
       oldDelegate.primaryColor != primaryColor ||
       oldDelegate.accentColor != accentColor;
+}
+
+/// Pembungkus status loading halaman yang menjamin animasi Lottie kayu & toko bangunan
+/// menyelesaikan minimal 1 siklus penuh ([minDuration] = 1,5 detik) sebelum beralih mulus
+/// ke konten [child], sehingga animasi tidak pernah berkedip terlalu cepat.
+class DepotLoadingGate extends StatefulWidget {
+  final bool isLoading;
+  final String message;
+  final Widget child;
+  final Duration minDuration;
+  final double size;
+  final bool showCard;
+
+  const DepotLoadingGate({
+    super.key,
+    required this.isLoading,
+    required this.child,
+    this.message = 'Memuat data toko...',
+    this.minDuration = DepotLoadingIndicator.minAnimationDuration,
+    this.size = 112,
+    this.showCard = true,
+  });
+
+  @override
+  State<DepotLoadingGate> createState() => _DepotLoadingGateState();
+}
+
+class _DepotLoadingGateState extends State<DepotLoadingGate> {
+  late bool _showLoader;
+  DateTime? _startedAt;
+  Timer? _releaseTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _showLoader = widget.isLoading;
+    if (widget.isLoading) {
+      _startedAt = DateTime.now();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant DepotLoadingGate oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (widget.isLoading && !oldWidget.isLoading) {
+      _releaseTimer?.cancel();
+      _releaseTimer = null;
+      _startedAt = DateTime.now();
+      if (!_showLoader) {
+        setState(() => _showLoader = true);
+      }
+      return;
+    }
+
+    if (!widget.isLoading && _showLoader) {
+      final DateTime started = _startedAt ?? DateTime.now();
+      final Duration elapsed = DateTime.now().difference(started);
+      final Duration remaining = widget.minDuration - elapsed;
+
+      if (remaining <= Duration.zero) {
+        _releaseTimer?.cancel();
+        _releaseTimer = null;
+        setState(() => _showLoader = false);
+      } else {
+        _releaseTimer?.cancel();
+        _releaseTimer = Timer(remaining, () {
+          if (mounted && !widget.isLoading) {
+            setState(() => _showLoader = false);
+          }
+        });
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _releaseTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 220),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      child: _showLoader
+          ? KeyedSubtree(
+              key: const ValueKey<String>('depot_loading_gate_loader'),
+              child: Center(
+                child: DepotLoadingIndicator(
+                  message: widget.message,
+                  size: widget.size,
+                  showCard: widget.showCard,
+                ),
+              ),
+            )
+          : KeyedSubtree(
+              key: const ValueKey<String>('depot_loading_gate_content'),
+              child: widget.child,
+            ),
+    );
+  }
 }

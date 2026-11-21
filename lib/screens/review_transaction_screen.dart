@@ -774,74 +774,95 @@ class _ReviewTransactionScreenState extends State<ReviewTransactionScreen> {
     }
     
     setState(() => _isLoading = true);
-    
+
     try {
-      final savedTransaction = await _controller.saveTransaction(
-        cartItems: _editableCart,
-        customerName: _nameController.text.trim(),
-        customerPhone: _phoneController.text.trim(),
-        customerAddress: _addressController.text.trim(),
-        totalPrice: _grandTotal, 
-        operationalCost: _bensin,
-        discount: _diskon,
-        paymentMethod: _paymentMethod,
-        paymentStatus: _paymentStatus,
-        transactionDate: _transactionDate, 
-        cutProfit: _cutProfit,
-        deliveryStatus: _deliveryOption,
-      );
+      final Map<String, dynamic> transDataWithItems =
+          await DepotLoadingIndicator.runWithDialog<Map<String, dynamic>>(
+        context,
+        message: "Menyimpan transaksi & menyiapkan nota...",
+        task: () async {
+          final savedTransaction = await _controller.saveTransaction(
+            cartItems: _editableCart,
+            customerName: _nameController.text.trim(),
+            customerPhone: _phoneController.text.trim(),
+            customerAddress: _addressController.text.trim(),
+            totalPrice: _grandTotal,
+            operationalCost: _bensin,
+            discount: _diskon,
+            paymentMethod: _paymentMethod,
+            paymentStatus: _paymentStatus,
+            transactionDate: _transactionDate,
+            cutProfit: _cutProfit,
+            deliveryStatus: _deliveryOption,
+          );
 
+          if (_paymentStatus.toLowerCase() == 'lunas') {
+            try {
+              WriteBatch batch = FirebaseFirestore.instance.batch();
+              String storeId = SessionManager().uid ?? 'UNKNOWN_STORE';
 
-      if (_paymentStatus.toLowerCase() == 'lunas') {
-        try {
-          WriteBatch batch = FirebaseFirestore.instance.batch();
-          String storeId = SessionManager().uid ?? 'UNKNOWN_STORE';
+              for (var item in _editableCart) {
+                double modalToInject = 0.0;
+                if (item.containsKey('capital_total') &&
+                    item['capital_total'] != null) {
+                  modalToInject = (item['capital_total'] as num).toDouble();
+                } else {
+                  double reqQty =
+                      (item['request_qty'] as num?)?.toDouble() ?? 1.0;
+                  int capPrice = (item['capital_price'] as num?)?.toInt() ?? 0;
+                  modalToInject = (reqQty * capPrice).toDouble();
+                }
 
-          for (var item in _editableCart) {
-            double modalToInject = 0.0;
-            if (item.containsKey('capital_total') && item['capital_total'] != null) {
-              modalToInject = (item['capital_total'] as num).toDouble();
-            } else {
-              double reqQty = (item['request_qty'] as num?)?.toDouble() ?? 1.0;
-              int capPrice = (item['capital_price'] as num?)?.toInt() ?? 0;
-              modalToInject = (reqQty * capPrice).toDouble();
-            }
+                if (item['product_id'] != null && modalToInject > 0) {
+                  DocumentReference prodRef = FirebaseFirestore.instance
+                      .collection('stores')
+                      .doc(storeId)
+                      .collection('products')
+                      .doc(item['product_id'].toString());
 
-            if (item['product_id'] != null && modalToInject > 0) {
-              DocumentReference prodRef = FirebaseFirestore.instance
-                  .collection('stores')
-                  .doc(storeId)
-                  .collection('products')
-                  .doc(item['product_id'].toString());
-
-              batch.set(prodRef, {
-                'modal_cair': FieldValue.increment(modalToInject)
-              }, SetOptions(merge: true));
+                  batch.set(prodRef, {
+                    'modal_cair': FieldValue.increment(modalToInject)
+                  }, SetOptions(merge: true));
+                }
+              }
+              await batch.commit();
+            } catch (e) {
+              print("ERROR SINKRONISASI MODAL CAIR: $e");
             }
           }
-          await batch.commit();
-        } catch (e) {
-          print("ERROR SINKRONISASI MODAL CAIR: $e");
-        }
-      }
 
-      // 🔥 PERBAIKAN: Selipin nama pelanggan & status titipan biar Detail Transaksi akurat 🔥
-      Map<String, dynamic> transDataWithItems = Map.from(savedTransaction);
-      transDataWithItems['customer_name'] = _nameController.text.trim().isNotEmpty ? _nameController.text.trim() : 'Pelanggan Umum';
-      transDataWithItems['customer_phone'] = _phoneController.text.trim();
-      transDataWithItems['customer_address'] = _addressController.text.trim();
+          Map<String, dynamic> resultMap = Map.from(savedTransaction);
+          resultMap['customer_name'] = _nameController.text.trim().isNotEmpty
+              ? _nameController.text.trim()
+              : 'Pelanggan Umum';
+          resultMap['customer_phone'] = _phoneController.text.trim();
+          resultMap['customer_address'] = _addressController.text.trim();
+
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.remove('cashier_cart');
+          return resultMap;
+        },
+      );
 
       if (mounted) {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.remove('cashier_cart');
-
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => 
-          TransactionDetailScreen(transaction: transDataWithItems, isNewTransaction: true)
-        ));
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => TransactionDetailScreen(
+              transaction: transDataWithItems,
+              isNewTransaction: true,
+            ),
+          ),
+        );
       }
-
     } catch (e) {
-      AppNotification.show(context, message: "Gagal menyimpan: $e", type: AppNotificationType.error);
+      if (mounted) {
+        AppNotification.show(
+          context,
+          message: "Gagal menyimpan: $e",
+          type: AppNotificationType.error,
+        );
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

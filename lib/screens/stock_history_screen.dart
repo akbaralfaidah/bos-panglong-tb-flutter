@@ -579,13 +579,10 @@ class _StockHistoryScreenState extends State<StockHistoryScreen>
           ),
 
           Expanded(
-            child: _isLoading
-                ? const Center(
-                    child: DepotLoadingIndicator(
-                      message: "Memuat riwayat stok masuk...",
-                    ),
-                  )
-                : displayedList.isEmpty
+            child: DepotLoadingGate(
+              isLoading: _isLoading,
+              message: "Memuat riwayat stok masuk...",
+              child: displayedList.isEmpty
                 ? const Center(
                     child: Text(
                       "Tidak ada riwayat / tidak ditemukan.",
@@ -708,18 +705,16 @@ class _StockHistoryScreenState extends State<StockHistoryScreen>
                                 );
                                 if (mounted) _fetchData();
                               } else {
-                                showDialog(
-                                  context: context,
-                                  barrierDismissible: false,
-                                  builder: (_) => DepotLoadingIndicator.dialog(
-                                    message: "Memuat bukti stok masuk...",
-                                  ),
+                                final batchData = await DepotLoadingIndicator
+                                    .runWithDialog<List<Map<String, dynamic>>>(
+                                  context,
+                                  message: "Memuat bukti stok masuk...",
+                                  task: () => _controller
+                                      .getStockLogsByExactDate(
+                                        item['date'].toString(),
+                                      ),
                                 );
-                                final batchData = await _controller
-                                    .getStockLogsByExactDate(
-                                      item['date'].toString(),
-                                    );
-                                if (mounted) Navigator.pop(context);
+                                if (!mounted) return;
 
                                 List<StockCartItem> batchItems = [];
                                 int grandTotalExpense = 0;
@@ -1131,6 +1126,7 @@ class _StockHistoryScreenState extends State<StockHistoryScreen>
                       );
                     },
                   ),
+            ),
           ),
         ],
       ),

@@ -520,13 +520,10 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
             ),
 
           Expanded(
-            child: _isLoading
-                ? const Center(
-                    child: DepotLoadingIndicator(
-                      message: "Memuat riwayat transaksi...",
-                    ),
-                  )
-                : _filteredItems.isEmpty
+            child: DepotLoadingGate(
+              isLoading: _isLoading,
+              message: "Memuat riwayat transaksi...",
+              child: _filteredItems.isEmpty
                 ? RefreshIndicator(
                     onRefresh: _loadData,
                     color: AppColors.primaryNavy,
@@ -732,6 +729,7 @@ class _CashFlowScreenState extends State<CashFlowScreen> {
                       ),
                     ),
                   ),
+            ),
           ),
         ],
       ),

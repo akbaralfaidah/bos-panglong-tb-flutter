@@ -263,13 +263,10 @@ class _CapitalManagementScreenState extends State<CapitalManagementScreen> {
           ),
 
           Expanded(
-            child: _isLoading
-                ? const Center(
-                    child: DepotLoadingIndicator(
-                      message: "Menghitung perputaran modal...",
-                    ),
-                  )
-                : _displayedData.isEmpty
+            child: DepotLoadingGate(
+              isLoading: _isLoading,
+              message: "Menghitung perputaran modal...",
+              child: _displayedData.isEmpty
                     ? const Center(child: Text("Produk tidak ditemukan.", style: TextStyle(color: AppColors.textGrey)))
                     : Scrollbar(
                         controller: _scrollController,
@@ -382,7 +379,8 @@ class _CapitalManagementScreenState extends State<CapitalManagementScreen> {
                               );
                             },
                           ),
-                      )
+                      ),
+            ),
           )
         ],
       ),

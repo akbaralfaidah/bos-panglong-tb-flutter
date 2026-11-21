@@ -794,7 +794,11 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
   Future<void> _executeVoidTransaction() async {
     setState(() => _isVoiding = true);
     try {
-      await _controller.voidTransaction(_transId, _items);
+      await DepotLoadingIndicator.runWithDialog<void>(
+        context,
+        message: "Membatalkan transaksi & mengembalikan stok...",
+        task: () => _controller.voidTransaction(_transId, _items),
+      );
       if (mounted) {
         AppNotification.show(context, message: "Transaksi berhasil di-hapus/batalkan! Stok telah dikembalikan.", type: AppNotificationType.success);
         Navigator.pop(context, true);
@@ -1867,13 +1871,13 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
               : null,
         ),
         body: LiquidAmbientBackground(
-          child: _isLoading
-              ? const Center(
-                  child: DepotLoadingIndicator(
-                    message: "Memuat detail nota...",
-                  ),
-                )
-              : SingleChildScrollView(
+          child: DepotLoadingGate(
+            isLoading: _isLoading,
+            message: "Memuat detail nota...",
+            minDuration: widget.isNewTransaction
+                ? Duration.zero
+                : DepotLoadingIndicator.minAnimationDuration,
+            child: SingleChildScrollView(
                   padding: _isGeneratingReceipt
                       ? EdgeInsets.zero
                       : const EdgeInsets.all(16),
@@ -3177,6 +3181,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
                 ),
               ),
             ),
+          ),
         ),
       ),
     );
